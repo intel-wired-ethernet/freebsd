@@ -218,6 +218,8 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, tx_itr, CTLFLAG_RDTUN,
 #ifdef IXL_IW
 int ixl_enable_iwarp = 0;
 TUNABLE_INT("hw.ixl.enable_iwarp", &ixl_enable_iwarp);
+SYSCTL_INT(_hw_ixl, OID_AUTO, enable_iwarp, CTLFLAG_RDTUN,
+    &ixl_enable_iwarp, 0, "iWARP enabled");
 #endif
 
 #ifdef DEV_NETMAP
