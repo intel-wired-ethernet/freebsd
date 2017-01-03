@@ -1490,7 +1490,12 @@ ixl_init_msix(struct ixl_pf *pf)
 		pf->msix = vectors;
 #ifdef IXL_IW
 		if (ixl_enable_iwarp)
+		{
 			pf->iw_msix = iw_vectors;
+			device_printf(pf->dev,
+					"Reserving %d MSIX interrupts for iWARP CEQ and AEQ\n",
+					iw_vectors);
+		}
 #endif
 
 		pf->vsi.num_queues = queues;
