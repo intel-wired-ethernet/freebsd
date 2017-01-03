@@ -652,7 +652,8 @@ ixl_attach(device_t dev)
 				    "interfacing to iwarp driver failed: %d\n",
 				    error);
 				goto err_late;
-			}
+			} else
+				device_printf(dev, "iWARP ready\n");
 		} else
 			device_printf(dev,
 			    "iwarp disabled on this device (no msix vectors)\n");
