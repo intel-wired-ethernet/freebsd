@@ -80,6 +80,7 @@ static int	ixl_sysctl_fec_rs_ability(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_fec_fc_request(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_fec_rs_request(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_fec_auto_enable(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_dump_debug_data(SYSCTL_HANDLER_ARGS);
 #ifdef IXL_DEBUG
 static int	ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
@@ -4393,6 +4394,10 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    OID_AUTO, "disable_fw_link_management", CTLTYPE_INT | CTLFLAG_WR,
 	    pf, 0, ixl_sysctl_fw_link_management, "I", "Disable FW Link Management");
 
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "dump_debug_data", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_dump_debug_data, "A", "Dump Debug Data from FW");
+
 	if (pf->has_i2c) {
 		SYSCTL_ADD_PROC(ctx, debug_list,
 		    OID_AUTO, "read_i2c_byte", CTLTYPE_INT | CTLFLAG_RW,
@@ -6093,3 +6098,93 @@ ixl_sysctl_fec_auto_enable(SYSCTL_HANDLER_ARGS)
 	return ixl_set_fec_config(pf, &abilities, I40E_AQ_SET_FEC_AUTO, !!(mode));
 }
 
+static int
+ixl_sysctl_dump_debug_data(SYSCTL_HANDLER_ARGS)
+{
+	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	struct sbuf *buf;
+	int error = 0;
+	enum i40e_status_code status;
+
+	buf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+	if (!buf) {
+		device_printf(dev, "Could not allocate sbuf for output.\n");
+		return (ENOMEM);
+	}
+
+	u8 *final_buff;
+	/* This amount is only necessary if reading the entire cluster into memory */
+#define IXL_FINAL_BUFF_SIZE	(1280 * 1024)
+	final_buff = malloc(IXL_FINAL_BUFF_SIZE, M_DEVBUF, M_WAITOK);
+	if (final_buff == NULL) {
+		device_printf(dev, "Could not allocate memory for output.\n");
+		goto out;
+	}
+	int final_buff_len = 0;
+
+	u8 cluster_id = 1;
+	bool more = true;
+
+	u8 dump_buf[4096];
+	u16 curr_buff_size = 4096;
+	u8 curr_next_table = 0;
+	u32 curr_next_index = 0;
+
+	u16 ret_buff_size;
+	u8 ret_next_table;
+	u32 ret_next_index;
+
+	sbuf_cat(buf, "\n");
+
+	while (more) {
+		status = i40e_aq_debug_dump(hw, cluster_id, curr_next_table, curr_next_index, curr_buff_size,
+		    dump_buf, &ret_buff_size, &ret_next_table, &ret_next_index, NULL);
+		if (status) {
+			device_printf(dev, "i40e_aq_debug_dump status %s, error %s\n",
+			    i40e_stat_str(hw, status), i40e_aq_str(hw, hw->aq.asq_last_status));
+			goto free_out;
+		}
+
+		/* copy info out of temp buffer */
+		bcopy(dump_buf, (caddr_t)final_buff + final_buff_len, ret_buff_size);
+		final_buff_len += ret_buff_size;
+
+		if (ret_next_table != curr_next_table) {
+			/* We're done with the current table; we can dump out read data. */
+			sbuf_printf(buf, "%d:", curr_next_table);
+			int bytes_printed = 0;
+			while (bytes_printed <= final_buff_len) {
+				sbuf_printf(buf, "%16D", ((caddr_t)final_buff + bytes_printed), "");
+				bytes_printed += 16;
+			}
+				sbuf_cat(buf, "\n");
+
+			/* The entire cluster has been read; we're finished */
+			if (ret_next_table == 0xFF)
+				break;
+
+			/* Otherwise clear the output buffer and continue reading */
+			bzero(final_buff, IXL_FINAL_BUFF_SIZE);
+			final_buff_len = 0;
+		}
+
+		if (ret_next_index == 0xFFFFFFFF)
+			ret_next_index = 0;
+
+		bzero(dump_buf, sizeof(dump_buf));
+		curr_next_table = ret_next_table;
+		curr_next_index = ret_next_index;
+	}
+
+free_out:
+	free(final_buff, M_DEVBUF);
+out:
+	error = sbuf_finish(buf);
+	if (error)
+		device_printf(dev, "Error finishing sbuf: %d\n", error);
+	sbuf_delete(buf);
+
+	return (error);
+}
