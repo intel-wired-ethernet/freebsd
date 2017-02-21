@@ -64,7 +64,7 @@ static ixl_vendor_info_t ixlv_vendor_info_array[] =
  *********************************************************************/
 
 static char    *ixlv_strings[] = {
-	"Intel(R) Ethernet Connection XL710/X722 VF Driver"
+	"Intel(R) Ethernet Connection 700 Series VF Driver"
 };
 
 

@@ -86,7 +86,7 @@ static ixl_vendor_info_t ixl_vendor_info_array[] =
  *********************************************************************/
 
 static char    *ixl_strings[] = {
-	"Intel(R) Ethernet Connection XL710/X722 Driver"
+	"Intel(R) Ethernet Connection 700 Series PF Driver"
 };
 
 
