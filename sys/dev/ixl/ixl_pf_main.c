@@ -1116,8 +1116,6 @@ ixl_update_link_status(struct ixl_pf *pf)
 			vsi->link_active = FALSE;
 		}
 	}
-
-	return;
 }
 
 /*********************************************************************
@@ -4900,6 +4898,9 @@ ixl_handle_nvmupd_cmd(struct ixl_pf *pf, struct ifdrv *ifd)
  *
  *  This routine is called whenever the user queries the status of
  *  the interface using ifconfig.
+ *
+ *  When adding new media types here, make sure to add them to
+ *  ixl_add_ifmedia(), too.
  *
  **********************************************************************/
 void

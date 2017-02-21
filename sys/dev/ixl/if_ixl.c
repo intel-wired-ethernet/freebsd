@@ -169,6 +169,10 @@ TUNABLE_INT("hw.ixl.max_queues", &ixl_max_queues);
 SYSCTL_INT(_hw_ixl, OID_AUTO, max_queues, CTLFLAG_RDTUN,
     &ixl_max_queues, 0, "Number of Queues");
 
+/*
+ * Leave this on unless you need to send flow control
+ * frames (or other control frames) from software
+ */
 static int ixl_enable_tx_fc_filter = 1;
 TUNABLE_INT("hw.ixl.enable_tx_fc_filter",
     &ixl_enable_tx_fc_filter);
