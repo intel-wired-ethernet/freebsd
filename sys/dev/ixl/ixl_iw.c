@@ -374,9 +374,16 @@ ixl_iw_register(struct ixl_iw_ops *ops)
 {
 	struct ixl_iw_pf_entry *pf_entry;
 	int err = 0;
+	int iwarp_cap_on_pfs = 0;
 
 	INIT_DEBUGOUT("begin");
-
+	LIST_FOREACH(pf_entry, &ixl_iw.pfs, node)
+		iwarp_cap_on_pfs += pf_entry->pf->hw.func_caps.iwarp;
+	if (!iwarp_cap_on_pfs && ixl_enable_iwarp) {
+		printf("%s: the device is not iwarp-capable, registering dropped\n",
+		    __func__);
+		return (ENODEV);
+	}
 	if (ixl_enable_iwarp == 0) {
 		printf("%s: enable_iwarp is off, registering dropped\n",
 		    __func__);
@@ -434,9 +441,23 @@ int
 ixl_iw_unregister(void)
 {
 	struct ixl_iw_pf_entry *pf_entry;
+	int iwarp_cap_on_pfs = 0;
 
 	INIT_DEBUGOUT("begin");
 
+	LIST_FOREACH(pf_entry, &ixl_iw.pfs, node)
+		iwarp_cap_on_pfs += pf_entry->pf->hw.func_caps.iwarp;
+	if (!iwarp_cap_on_pfs && ixl_enable_iwarp) {
+		printf("%s: attempt to unregister driver when no iwarp-capable device present\n",
+		    __func__);
+		return (ENODEV);
+	}
+
+	if (ixl_enable_iwarp == 0) {
+		printf("%s: attempt to unregister driver when enable_iwarp is off\n",
+		    __func__);
+		return (ENODEV);
+	}
 	mtx_lock(&ixl_iw.mtx);
 
 	if (!ixl_iw.registered) {
