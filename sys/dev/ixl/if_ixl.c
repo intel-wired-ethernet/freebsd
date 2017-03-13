@@ -429,12 +429,6 @@ ixl_attach(device_t dev)
 		goto err_out;
 	}
 
-	/*
-	 * Allocate interrupts and figure out number of queues to use
-	 * for PF interface
-	 */
-	pf->msix = ixl_init_msix(pf);
-
 	/* Set up the admin queue */
 	hw->aq.num_arq_entries = IXL_AQ_LEN;
 	hw->aq.num_asq_entries = IXL_AQ_LEN;
@@ -479,6 +473,12 @@ ixl_attach(device_t dev)
 		device_printf(dev, "HW capabilities failure!\n");
 		goto err_get_cap;
 	}
+
+	/*
+	 * Allocate interrupts and figure out number of queues to use
+	 * for PF interface
+	 */
+	pf->msix = ixl_init_msix(pf);
 
 	/* Set up host memory cache */
 	status = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,

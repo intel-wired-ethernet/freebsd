@@ -1471,7 +1471,7 @@ ixl_init_msix(struct ixl_pf *pf)
 	}
 
 #ifdef IXL_IW
-	if (ixl_enable_iwarp) {
+	if (ixl_enable_iwarp && hw->func_caps.iwarp) {
 		/* iWARP wants additional vector for CQP */
 		iw_want = mp_ncpus + 1;
 		available -= vectors;
@@ -1490,7 +1490,7 @@ ixl_init_msix(struct ixl_pf *pf)
 		    "Using MSIX interrupts with %d vectors\n", vectors);
 		pf->msix = vectors;
 #ifdef IXL_IW
-		if (ixl_enable_iwarp)
+		if (ixl_enable_iwarp && hw->func_caps.iwarp)
 		{
 			pf->iw_msix = iw_vectors;
 			device_printf(pf->dev,
