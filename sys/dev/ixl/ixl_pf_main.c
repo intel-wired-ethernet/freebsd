@@ -1388,10 +1388,15 @@ ixl_init_msix(struct ixl_pf *pf)
 {
 	device_t dev = pf->dev;
 	struct i40e_hw *hw = &pf->hw;
+#ifdef IXL_IW
+#if __FreeBSD_version >= 1100000
+        cpuset_t cpu_set;
+#endif
+#endif
 	int auto_max_queues;
 	int rid, want, vectors, queues, available;
 #ifdef IXL_IW
-	int iw_want, iw_vectors;
+	int iw_want=0, iw_vectors;
 
 	pf->iw_msix = 0;
 #endif
@@ -1472,8 +1477,15 @@ ixl_init_msix(struct ixl_pf *pf)
 
 #ifdef IXL_IW
 	if (ixl_enable_iwarp && hw->func_caps.iwarp) {
-		/* iWARP wants additional vector for CQP */
-		iw_want = mp_ncpus + 1;
+#if __FreeBSD_version >= 1100000
+		if(bus_get_cpus(dev, INTR_CPUS, sizeof(cpu_set), &cpu_set) == 0)
+		{
+			iw_want = min(CPU_COUNT(&cpu_set), IXL_IW_MAX_MSIX);
+		}
+#endif
+		if(!iw_want)
+			iw_want = min(mp_ncpus, IXL_IW_MAX_MSIX);
+
 		available -= vectors;
 		if (available > 0) {
 			iw_vectors = (available >= iw_want) ?
