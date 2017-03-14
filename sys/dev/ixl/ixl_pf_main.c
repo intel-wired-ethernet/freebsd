@@ -3409,8 +3409,13 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 		if (f->flags & IXL_FILTER_DEL) {
 			e = &d[j]; // a pox on fvl long names :)
 			bcopy(f->macaddr, e->mac_addr, ETHER_ADDR_LEN);
-			e->vlan_tag = (f->vlan == IXL_VLAN_ANY ? 0 : f->vlan);
 			e->flags = I40E_AQC_MACVLAN_DEL_PERFECT_MATCH;
+			if (f->vlan == IXL_VLAN_ANY) {
+				e->vlan_tag = 0;
+				e->flags |= I40E_AQC_MACVLAN_DEL_IGNORE_VLAN;
+			} else {
+				e->vlan_tag = f->vlan;
+			}
 			/* delete entry from vsi list */
 			SLIST_REMOVE(&vsi->ftl, f, ixl_mac_filter, next);
 			free(f, M_DEVBUF);
