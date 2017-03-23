@@ -5434,7 +5434,7 @@ enum i40e_status_code i40e_aq_add_rem_control_packet_filter(struct i40e_hw *hw,
 	}
 
 	if (mac_addr)
-		i40e_memcpy(cmd->mac, mac_addr, I40E_ETH_LENGTH_OF_ADDRESS,
+		i40e_memcpy(cmd->mac, mac_addr, ETH_ALEN,
 			    I40E_NONDMA_TO_NONDMA);
 
 	cmd->etype = CPU_TO_LE16(ethtype);
@@ -6698,10 +6698,10 @@ void i40e_vf_parse_hw_config(struct i40e_hw *hw,
 		if (vsi_res->vsi_type == I40E_VSI_SRIOV) {
 			i40e_memcpy(hw->mac.perm_addr,
 				    vsi_res->default_mac_addr,
-				    I40E_ETH_LENGTH_OF_ADDRESS,
+				    ETH_ALEN,
 				    I40E_NONDMA_TO_NONDMA);
 			i40e_memcpy(hw->mac.addr, vsi_res->default_mac_addr,
-				    I40E_ETH_LENGTH_OF_ADDRESS,
+				    ETH_ALEN,
 				    I40E_NONDMA_TO_NONDMA);
 		}
 		vsi_res++;
