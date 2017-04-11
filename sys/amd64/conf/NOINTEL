@@ -1,0 +1,8 @@
+
+include GENERIC
+
+nodevice ixl
+nodevice ixlv
+nodevice ix
+nodevice ixv
+
