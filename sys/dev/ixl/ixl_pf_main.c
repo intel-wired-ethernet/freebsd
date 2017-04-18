@@ -6063,7 +6063,7 @@ ixl_sysctl_fec_fc_ability(SYSCTL_HANDLER_ARGS)
 	int mode, error = 0;
 
 	struct i40e_aq_get_phy_abilities_resp abilities;
-	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_SET_FEC_ABILITY_KR, &mode);
+	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_ENABLE_FEC_KR, &mode);
 	if (error)
 		return (error);
 	/* Read in new mode */
@@ -6081,7 +6081,7 @@ ixl_sysctl_fec_rs_ability(SYSCTL_HANDLER_ARGS)
 	int mode, error = 0;
 
 	struct i40e_aq_get_phy_abilities_resp abilities;
-	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_SET_FEC_ABILITY_RS, &mode);
+	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_ENABLE_FEC_RS, &mode);
 	if (error)
 		return (error);
 	/* Read in new mode */
@@ -6099,7 +6099,7 @@ ixl_sysctl_fec_fc_request(SYSCTL_HANDLER_ARGS)
 	int mode, error = 0;
 
 	struct i40e_aq_get_phy_abilities_resp abilities;
-	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_SET_FEC_REQUEST_KR, &mode);
+	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_REQUEST_FEC_KR, &mode);
 	if (error)
 		return (error);
 	/* Read in new mode */
@@ -6117,7 +6117,7 @@ ixl_sysctl_fec_rs_request(SYSCTL_HANDLER_ARGS)
 	int mode, error = 0;
 
 	struct i40e_aq_get_phy_abilities_resp abilities;
-	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_SET_FEC_REQUEST_RS, &mode);
+	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_REQUEST_FEC_RS, &mode);
 	if (error)
 		return (error);
 	/* Read in new mode */
@@ -6135,7 +6135,7 @@ ixl_sysctl_fec_auto_enable(SYSCTL_HANDLER_ARGS)
 	int mode, error = 0;
 
 	struct i40e_aq_get_phy_abilities_resp abilities;
-	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_SET_FEC_AUTO, &mode);
+	error = ixl_get_fec_config(pf, &abilities, I40E_AQ_ENABLE_FEC_AUTO, &mode);
 	if (error)
 		return (error);
 	/* Read in new mode */
