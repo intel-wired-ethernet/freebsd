@@ -102,6 +102,12 @@ const char * const ixl_fc_string[6] = {
 	"Default"
 };
 
+static char *ixl_fec_string[3] = {
+       "CL108 RS-FEC",
+       "CL74 FC-FEC/BASE-R",
+       "None"
+};
+
 MALLOC_DEFINE(M_IXL, "ixl", "ixl driver allocations");
 
 void
@@ -1043,13 +1049,38 @@ ixl_link_up_msg(struct ixl_pf *pf)
 {
 	struct i40e_hw *hw = &pf->hw;
 	struct ifnet *ifp = pf->vsi.ifp;
+	struct i40e_aq_get_phy_abilities_resp abilities;
+	char *req_fec_string, *neg_fec_string;
+	enum i40e_status_code status;
+	u8 fec_abilities;
 
-	log(LOG_NOTICE, "%s: Link is up, %s Full Duplex, FEC: %s, Autoneg: %s, Flow Control: %s\n",
+	status = i40e_aq_get_phy_capabilities(hw,
+	   FALSE, FALSE, &abilities, NULL);
+	if (status)
+		req_fec_string = "Error";
+	else {
+		fec_abilities = abilities.fec_cfg_curr_mod_ext_info;
+
+		/* If both RS and KR are requested, only show RS */
+		if (fec_abilities & I40E_AQ_REQUEST_FEC_RS)
+			req_fec_string = ixl_fec_string[0];
+		else if (fec_abilities & I40E_AQ_REQUEST_FEC_KR)
+			req_fec_string = ixl_fec_string[1];
+		else
+			req_fec_string = ixl_fec_string[2];
+	}
+
+	if (hw->phy.link_info.fec_info & I40E_AQ_CONFIG_FEC_RS_ENA)
+		neg_fec_string = ixl_fec_string[0];
+	else if (hw->phy.link_info.fec_info & I40E_AQ_CONFIG_FEC_KR_ENA)
+		neg_fec_string = ixl_fec_string[1];
+	else
+		neg_fec_string = ixl_fec_string[2];
+
+	log(LOG_NOTICE, "%s: Link is up, %s Full Duplex, Requested FEC: %s, Negotiated FEC: %s, Autoneg: %s, Flow Control: %s\n",
 	    ifp->if_xname,
 	    ixl_aq_speed_to_str(hw->phy.link_info.link_speed),
-	    (hw->phy.link_info.fec_info & I40E_AQ_CONFIG_FEC_KR_ENA) ?
-		"Clause 74 BASE-R FEC" : (hw->phy.link_info.fec_info & I40E_AQ_CONFIG_FEC_RS_ENA) ?
-		"Clause 108 RS-FEC" : "None",
+	    req_fec_string, neg_fec_string,
 	    (hw->phy.link_info.an_info & I40E_AQ_AN_COMPLETED) ? "True" : "False",
 	    (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_TX &&
 	        hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_RX) ?
