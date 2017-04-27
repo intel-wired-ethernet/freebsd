@@ -145,6 +145,7 @@ enum virtchnl_ops {
 	VIRTCHNL_OP_SET_RSS_HENA = 26,
 	VIRTCHNL_OP_ENABLE_VLAN_STRIPPING = 27,
 	VIRTCHNL_OP_DISABLE_VLAN_STRIPPING = 28,
+	VIRTCHNL_OP_REQUEST_QUEUES = 29,
 
 };
 
@@ -309,6 +310,21 @@ struct virtchnl_vsi_queue_config_info {
 	u16 vsi_id;
 	u16 num_queue_pairs;
 	struct virtchnl_queue_pair_info qpair[1];
+};
+
+/* VIRTCHNL_OP_REQUEST_QUEUES
+ * VF sends this message to request the PF to allocate additional queues to
+ * this VF.  Each VF gets a guaranteed number of queues on init but asking for
+ * additional queues must be negotiated.  This is a best effort request as it
+ * is possible the PF does not have enough queues left to support the request.
+ * If the PF cannot support the number requested it will respond with the
+ * maximum number it is able to support; otherwise it will respond with the
+ * number requested.
+ */
+
+/* VF resource request */
+struct virtchnl_vf_res_request {
+	u16 num_queue_pairs;
 };
 
 /* VIRTCHNL_OP_CONFIG_IRQ_MAP
@@ -657,6 +673,9 @@ virtchnl_vc_validate_vf_msg(struct virtchnl_version_info *ver, u32 v_opcode,
 		break;
 	case VIRTCHNL_OP_ENABLE_VLAN_STRIPPING:
 	case VIRTCHNL_OP_DISABLE_VLAN_STRIPPING:
+		break;
+	case VIRTCHNL_OP_REQUEST_QUEUES:
+		valid_len = sizeof(struct virtchnl_vf_res_request);
 		break;
 	/* These are always errors coming from the VF. */
 	case VIRTCHNL_OP_EVENT:
