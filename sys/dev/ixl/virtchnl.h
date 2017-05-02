@@ -46,7 +46,7 @@
  * PF and VF, but uses all other fields internally. Due to this limitation,
  * we must send all messages as "indirect", i.e. using an external buffer.
  *
- * All the vsi indexes are relative to the VF. Each VF can have maximum of
+ * All the VSI indexes are relative to the VF. Each VF can have maximum of
  * three VSIs. All the queue indexes are relative to the VSI.  Each VF can
  * have a maximum of sixteen queues for all of its VSIs.
  *
@@ -70,28 +70,28 @@
 /* Error Codes */
 enum virtchnl_status_code {
 	VIRTCHNL_STATUS_SUCCESS				= 0,
-	VIRTCHNL_ERR_PARAM					= -5,
+	VIRTCHNL_ERR_PARAM				= -5,
 	VIRTCHNL_STATUS_ERR_OPCODE_MISMATCH		= -38,
 	VIRTCHNL_STATUS_ERR_CQP_COMPL_ERROR		= -39,
-	VIRTCHNL_STATUS_ERR_INVALID_VF_ID			= -40,
+	VIRTCHNL_STATUS_ERR_INVALID_VF_ID		= -40,
 	VIRTCHNL_STATUS_NOT_SUPPORTED			= -64,
 };
 
-#define VIRTCHNL_LINK_SPEED_100MB_SHIFT	0x1
+#define VIRTCHNL_LINK_SPEED_100MB_SHIFT		0x1
 #define VIRTCHNL_LINK_SPEED_1000MB_SHIFT	0x2
-#define VIRTCHNL_LINK_SPEED_10GB_SHIFT	0x3
-#define VIRTCHNL_LINK_SPEED_40GB_SHIFT	0x4
-#define VIRTCHNL_LINK_SPEED_20GB_SHIFT	0x5
-#define VIRTCHNL_LINK_SPEED_25GB_SHIFT	0x6
+#define VIRTCHNL_LINK_SPEED_10GB_SHIFT		0x3
+#define VIRTCHNL_LINK_SPEED_40GB_SHIFT		0x4
+#define VIRTCHNL_LINK_SPEED_20GB_SHIFT		0x5
+#define VIRTCHNL_LINK_SPEED_25GB_SHIFT		0x6
 
 enum virtchnl_link_speed {
 	VIRTCHNL_LINK_SPEED_UNKNOWN	= 0,
-	VIRTCHNL_LINK_SPEED_100MB = (1 << VIRTCHNL_LINK_SPEED_100MB_SHIFT),
-	VIRTCHNL_LINK_SPEED_1GB	= (1 << VIRTCHNL_LINK_SPEED_1000MB_SHIFT),
-	VIRTCHNL_LINK_SPEED_10GB	= (1 << VIRTCHNL_LINK_SPEED_10GB_SHIFT),
-	VIRTCHNL_LINK_SPEED_40GB	= (1 << VIRTCHNL_LINK_SPEED_40GB_SHIFT),
-	VIRTCHNL_LINK_SPEED_20GB	= (1 << VIRTCHNL_LINK_SPEED_20GB_SHIFT),
-	VIRTCHNL_LINK_SPEED_25GB	= (1 << VIRTCHNL_LINK_SPEED_25GB_SHIFT),
+	VIRTCHNL_LINK_SPEED_100MB	= BIT(VIRTCHNL_LINK_SPEED_100MB_SHIFT),
+	VIRTCHNL_LINK_SPEED_1GB		= BIT(VIRTCHNL_LINK_SPEED_1000MB_SHIFT),
+	VIRTCHNL_LINK_SPEED_10GB	= BIT(VIRTCHNL_LINK_SPEED_10GB_SHIFT),
+	VIRTCHNL_LINK_SPEED_40GB	= BIT(VIRTCHNL_LINK_SPEED_40GB_SHIFT),
+	VIRTCHNL_LINK_SPEED_20GB	= BIT(VIRTCHNL_LINK_SPEED_20GB_SHIFT),
+	VIRTCHNL_LINK_SPEED_25GB	= BIT(VIRTCHNL_LINK_SPEED_25GB_SHIFT),
 };
 
 /* for hsplit_0 field of Rx HMC context */
@@ -105,7 +105,6 @@ enum virtchnl_rx_hsplit {
 };
 
 #define VIRTCHNL_ETH_LENGTH_OF_ADDRESS	6
-
 /* END GENERIC DEFINES */
 
 /* Opcodes for VF-PF communication. These are placed in the v_opcode field
@@ -132,7 +131,7 @@ enum virtchnl_ops {
 	VIRTCHNL_OP_DEL_ETH_ADDR = 11,
 	VIRTCHNL_OP_ADD_VLAN = 12,
 	VIRTCHNL_OP_DEL_VLAN = 13,
-	VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE = 14, /* advanced opcode */
+	VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE = 14,
 	VIRTCHNL_OP_GET_STATS = 15,
 	VIRTCHNL_OP_RSVD = 16,
 	VIRTCHNL_OP_EVENT = 17, /* must ALWAYS be 17 */
@@ -432,8 +431,8 @@ struct virtchnl_promisc_info {
  * VIRTCHNL_OP_CONFIG_RSS_LUT
  * VF sends these messages to configure RSS. Only supported if both PF
  * and VF drivers set the VIRTCHNL_VF_OFFLOAD_RSS_PF bit during
- * configuration negotiation. If this is the case, then the rss fields in
- * the vf resource struct are valid.
+ * configuration negotiation. If this is the case, then the RSS fields in
+ * the VF resource struct are valid.
  * Both the key and LUT are initialized to 0 by the PF, meaning that
  * RSS is effectively disabled until set up by the VF.
  */
@@ -504,7 +503,7 @@ struct virtchnl_pf_event {
 /* HW does not define a type value for AEQ; only for RX/TX and CEQ.
  * In order for us to keep the interface simple, SW will define a
  * unique type value for AEQ.
-*/
+ */
 #define QUEUE_TYPE_PE_AEQ  0x80
 #define QUEUE_INVALID_IDX  0xFFFF
 
@@ -684,11 +683,10 @@ virtchnl_vc_validate_vf_msg(struct virtchnl_version_info *ver, u32 v_opcode,
 	default:
 		return VIRTCHNL_ERR_PARAM;
 	}
-
+	/* few more checks */
 	if ((valid_len != msglen) || (err_msg_format))
 		return VIRTCHNL_STATUS_ERR_OPCODE_MISMATCH;
-	else
-		return 0;
-}
 
+	return 0;
+}
 #endif /* _VIRTCHNL_H_ */
