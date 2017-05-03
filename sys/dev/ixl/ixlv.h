@@ -176,8 +176,8 @@ struct ixlv_sc {
 	struct ixl_vc_cmd	config_rss_lut_cmd;
 
 	/* Virtual comm channel */
-	struct i40e_virtchnl_vf_resource *vf_res;
-	struct i40e_virtchnl_vsi_resource *vsi_res;
+	struct virtchnl_vf_resource *vf_res;
+	struct virtchnl_vsi_resource *vsi_res;
 
 	/* Misc stats maintained by the driver */
 	u64			watchdog_events;
@@ -222,7 +222,8 @@ void	ixlv_del_ether_filters(struct ixlv_sc *);
 void	ixlv_request_stats(struct ixlv_sc *);
 void	ixlv_request_reset(struct ixlv_sc *);
 void	ixlv_vc_completion(struct ixlv_sc *,
-	enum i40e_virtchnl_ops, i40e_status, u8 *, u16);
+	enum virtchnl_ops, enum virtchnl_status_code,
+	u8 *, u16);
 void	ixlv_add_ether_filter(struct ixlv_sc *);
 void	ixlv_add_vlans(struct ixlv_sc *);
 void	ixlv_del_vlans(struct ixlv_sc *);

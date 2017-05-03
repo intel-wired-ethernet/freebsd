@@ -249,12 +249,12 @@ ixl_init_locked(struct ixl_pf *pf)
 
 	/* Get the latest mac address... User might use a LAA */
 	bcopy(IF_LLADDR(vsi->ifp), tmpaddr,
-	      I40E_ETH_LENGTH_OF_ADDRESS);
+	      ETH_ALEN);
 	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&
 	    (i40e_validate_mac_addr(tmpaddr) == I40E_SUCCESS)) {
 		ixl_del_filter(vsi, hw->mac.addr, IXL_VLAN_ANY);
 		bcopy(tmpaddr, hw->mac.addr,
-		    I40E_ETH_LENGTH_OF_ADDRESS);
+		    ETH_ALEN);
 		ret = i40e_aq_mac_address_write(hw,
 		    I40E_AQC_WRITE_TYPE_LAA_ONLY,
 		    hw->mac.addr, NULL);
