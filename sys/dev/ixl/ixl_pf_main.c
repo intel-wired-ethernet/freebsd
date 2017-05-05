@@ -4359,10 +4359,6 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    &pf->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
 
 	/* Add FEC sysctls for 25G adapters */
-	/*
-	 * XXX: These settings can be changed, but that isn't supported,
-	 * so these are read-only for now.
-	 */
 	if (hw->device_id == I40E_DEV_ID_25G_B
 	    || hw->device_id == I40E_DEV_ID_25G_SFP28) {
 		fec_node = SYSCTL_ADD_NODE(ctx, ctx_list,
@@ -4370,23 +4366,23 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 		fec_list = SYSCTL_CHILDREN(fec_node);
 
 		SYSCTL_ADD_PROC(ctx, fec_list,
-		    OID_AUTO, "fc_ability", CTLTYPE_INT | CTLFLAG_RD,
+		    OID_AUTO, "fc_ability", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_fec_fc_ability, "I", "FC FEC ability enabled");
 
 		SYSCTL_ADD_PROC(ctx, fec_list,
-		    OID_AUTO, "rs_ability", CTLTYPE_INT | CTLFLAG_RD,
+		    OID_AUTO, "rs_ability", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_fec_rs_ability, "I", "RS FEC ability enabled");
 
 		SYSCTL_ADD_PROC(ctx, fec_list,
-		    OID_AUTO, "fc_requested", CTLTYPE_INT | CTLFLAG_RD,
+		    OID_AUTO, "fc_requested", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_fec_fc_request, "I", "FC FEC mode requested on link");
 
 		SYSCTL_ADD_PROC(ctx, fec_list,
-		    OID_AUTO, "rs_requested", CTLTYPE_INT | CTLFLAG_RD,
+		    OID_AUTO, "rs_requested", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_fec_rs_request, "I", "RS FEC mode requested on link");
 
 		SYSCTL_ADD_PROC(ctx, fec_list,
-		    OID_AUTO, "auto_fec_enabled", CTLTYPE_INT | CTLFLAG_RD,
+		    OID_AUTO, "auto_fec_enabled", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_fec_auto_enable, "I", "Let FW decide FEC ability/request modes");
 	}
 
