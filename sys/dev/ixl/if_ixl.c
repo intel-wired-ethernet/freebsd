@@ -456,23 +456,24 @@ ixl_attach(device_t dev)
 
 	if (status == I40E_ERR_FIRMWARE_API_VERSION) {
 		device_printf(dev, "The driver for the device stopped "
-		    "because the NVM image is newer than expected.\n"
-		    "You must install the most recent version of "
+		    "because the NVM image is newer than expected.\n");
+		device_printf(dev, "You must install the most recent version of "
 		    "the network driver.\n");
 		error = EIO;
 		goto err_out;
 	}
 
         if (hw->aq.api_maj_ver == I40E_FW_API_VERSION_MAJOR &&
-	    hw->aq.api_min_ver > I40E_FW_API_VERSION_MINOR)
+	    hw->aq.api_min_ver > I40E_FW_API_VERSION_MINOR) {
 		device_printf(dev, "The driver for the device detected "
-		    "a newer version of the NVM image than expected.\n"
-		    "Please install the most recent version of the network driver.\n");
-	else if (hw->aq.api_maj_ver < I40E_FW_API_VERSION_MAJOR ||
-	    hw->aq.api_min_ver < (I40E_FW_API_VERSION_MINOR - 1))
+		    "a newer version of the NVM image than expected.\n");
+		device_printf(dev, "Please install the most recent version "
+		    "of the network driver.\n");
+	} else if (hw->aq.api_maj_ver == 1 && hw->aq.api_min_ver < 4) {
 		device_printf(dev, "The driver for the device detected "
-		    "an older version of the NVM image than expected.\n"
-		    "Please update the NVM image.\n");
+		    "an older version of the NVM image than expected.\n");
+		device_printf(dev, "Please update the NVM image.\n");
+	}
 
 	/* Clear PXE mode */
 	i40e_clear_pxe_mode(hw);
