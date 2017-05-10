@@ -1914,7 +1914,11 @@ ixl_add_ifmedia(struct ixl_vsi *vsi, u64 phy_types)
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_SR))
 		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_LR))
-		ifmedia_add(&vsi->media, IFM_ETHER | IFM_UNKNOWN, 0, NULL);
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
+	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_AOC))
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_CR, 0, NULL);
+	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_ACC))
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_CR, 0, NULL);
 }
 
 /*********************************************************************
@@ -4942,7 +4946,7 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			ifmr->ifm_active |= IFM_1000_LX;
 			break;
 		case I40E_PHY_TYPE_1000BASE_T_OPTICAL:
-			ifmr->ifm_active |= IFM_OTHER;
+			ifmr->ifm_active |= IFM_1000_T;
 			break;
 		/* 10 G */
 		case I40E_PHY_TYPE_10GBASE_SFPP_CU:
@@ -4959,8 +4963,10 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			break;
 		case I40E_PHY_TYPE_XAUI:
 		case I40E_PHY_TYPE_XFI:
+			ifmr->ifm_active |= IFM_10G_TWINAX;
+			break;
 		case I40E_PHY_TYPE_10GBASE_AOC:
-			ifmr->ifm_active |= IFM_OTHER;
+			ifmr->ifm_active |= IFM_10G_TWINAX;
 			break;
 		/* 25 G */
 		case I40E_PHY_TYPE_25GBASE_KR:
@@ -4973,8 +4979,12 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			ifmr->ifm_active |= IFM_25G_SR;
 			break;
 		case I40E_PHY_TYPE_25GBASE_LR:
-			ifmr->ifm_active |= IFM_UNKNOWN;
+			ifmr->ifm_active |= IFM_25G_SR;
 			break;
+		case I40E_PHY_TYPE_25GBASE_AOC:
+			ifmr->ifm_active |= IFM_25G_SR;
+		case I40E_PHY_TYPE_25GBASE_ACC:
+			ifmr->ifm_active |= IFM_25G_CR;
 		/* 40 G */
 		case I40E_PHY_TYPE_40GBASE_CR4:
 		case I40E_PHY_TYPE_40GBASE_CR4_CU:
@@ -5295,8 +5305,8 @@ ixl_phy_type_string(u32 bit_pos, bool ext)
 		"XLPPI",
 		"40GBASE-CR4",
 		"10GBASE-CR1",
-		"Reserved (12)",
-		"Reserved (13)",
+		"SFP+ Active DA",
+		"QSFP+ Active DA",
 		"Reserved (14)",
 		"Reserved (15)",
 		"Reserved (16)",
@@ -5316,14 +5326,18 @@ ixl_phy_type_string(u32 bit_pos, bool ext)
 		"20GBASE-KR2",
 		"Reserved (31)"
 	};
-	static char * ext_phy_types_str[4] = {
+	static char * ext_phy_types_str[8] = {
 		"25GBASE-KR",
 		"25GBASE-CR",
 		"25GBASE-SR",
-		"25GBASE-LR"
+		"25GBASE-LR",
+		"25GBASE-AOC",
+		"25GBASE-ACC",
+		"Reserved (6)",
+		"Reserved (7)"
 	};
 
-	if (ext && bit_pos > 3) return "Invalid_Ext";
+	if (ext && bit_pos > 7) return "Invalid_Ext";
 	if (bit_pos > 31) return "Invalid";
 
 	return (ext) ? ext_phy_types_str[bit_pos] : phy_types_str[bit_pos];

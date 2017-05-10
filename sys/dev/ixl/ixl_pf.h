@@ -47,6 +47,11 @@
 
 #define IXL_PF_STATE_EMPR_RESETTING	(1 << 0)
 
+#define I40E_CAP_PHY_TYPE_25GBASE_AOC BIT_ULL(I40E_PHY_TYPE_25GBASE_AOC + \
+					     I40E_PHY_TYPE_OFFSET)
+#define I40E_CAP_PHY_TYPE_25GBASE_ACC BIT_ULL(I40E_PHY_TYPE_25GBASE_ACC + \
+					     I40E_PHY_TYPE_OFFSET)
+
 struct ixl_vf {
 	struct ixl_vsi		vsi;
 	uint32_t		vf_flags;
