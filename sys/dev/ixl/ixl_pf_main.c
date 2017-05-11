@@ -3717,14 +3717,14 @@ ixl_handle_mdd_event(struct ixl_pf *pf)
 		if (reg & I40E_PF_MDET_TX_VALID_MASK) {
 			wr32(hw, I40E_PF_MDET_TX, 0xFFFF);
 			device_printf(dev,
-			    "MDD TX event is for this function!");
+			    "MDD TX event is for this function!\n");
 			pf_mdd_detected = true;
 		}
 		reg = rd32(hw, I40E_PF_MDET_RX);
 		if (reg & I40E_PF_MDET_RX_VALID_MASK) {
 			wr32(hw, I40E_PF_MDET_RX, 0xFFFF);
 			device_printf(dev,
-			    "MDD RX event is for this function!");
+			    "MDD RX event is for this function!\n");
 			pf_mdd_detected = true;
 		}
 	}
@@ -4981,8 +4981,10 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			break;
 		case I40E_PHY_TYPE_25GBASE_AOC:
 			ifmr->ifm_active |= IFM_25G_SR;
+			break;
 		case I40E_PHY_TYPE_25GBASE_ACC:
 			ifmr->ifm_active |= IFM_25G_CR;
+			break;
 		/* 40 G */
 		case I40E_PHY_TYPE_40GBASE_CR4:
 		case I40E_PHY_TYPE_40GBASE_CR4_CU:
