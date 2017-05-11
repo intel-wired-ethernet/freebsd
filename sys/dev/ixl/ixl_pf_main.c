@@ -4680,7 +4680,6 @@ ixl_set_advertise(SYSCTL_HANDLER_ARGS)
 	/* Check if changing speeds is supported */
 	switch (hw->device_id) {
 	case I40E_DEV_ID_25G_B:
-	case I40E_DEV_ID_25G_SFP28:
 		device_printf(dev, "Changing advertised speeds not supported"
 		" on this device.\n");
 		return (EINVAL);
