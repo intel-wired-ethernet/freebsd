@@ -4912,7 +4912,6 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 	INIT_DEBUGOUT("ixl_media_status: begin");
 	IXL_PF_LOCK(pf);
 
-	hw->phy.get_link_info = TRUE;
 	i40e_get_link_status(hw, &pf->link_up);
 	ixl_update_link_status(pf);
 
