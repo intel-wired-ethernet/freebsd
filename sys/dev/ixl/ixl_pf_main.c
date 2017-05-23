@@ -637,6 +637,7 @@ ixl_handle_que(void *context, int pending)
 {
 	struct ixl_queue *que = context;
 	struct ixl_vsi *vsi = que->vsi;
+	struct ixl_pf *pf = (struct ixl_pf *)vsi->back;
 	struct i40e_hw  *hw = vsi->hw;
 	struct tx_ring  *txr = &que->txr;
 	struct ifnet    *ifp = vsi->ifp;
@@ -655,9 +656,11 @@ ixl_handle_que(void *context, int pending)
 		}
 	}
 
-	/* Reenable this interrupt - hmmm */
-	ixl_enable_queue(hw, que->me);
-	return;
+	/* Reenable queue interrupt */
+	if (pf->msix > 1)
+		ixl_enable_queue(hw, que->me);
+	else
+		ixl_enable_intr0(hw);
 }
 
 
@@ -680,10 +683,6 @@ ixl_intr(void *arg)
 
 	pf->admin_irq++;
 
-	/* Protect against spurious interrupts */
-	if ((ifp->if_drv_flags & IFF_DRV_RUNNING) == 0)
-		return;
-
 	icr0 = rd32(hw, I40E_PFINT_ICR0);
 
 
@@ -696,7 +695,8 @@ ixl_intr(void *arg)
 		taskqueue_enqueue(pf->tq, &pf->adminq);
 	}
 
-	if (icr0 & I40E_PFINT_ICR0_QUEUE_0_MASK) {
+	if ((icr0 & I40E_PFINT_ICR0_QUEUE_0_MASK) &&
+	    (ifp->if_drv_flags & IFF_DRV_RUNNING)) {
 		++que->irqs;
 
 		more_rx = ixl_rxeof(que, IXL_RX_LIMIT);
@@ -706,6 +706,11 @@ ixl_intr(void *arg)
 		if (!drbr_empty(vsi->ifp, txr->br))
 			more_tx = 1;
 		IXL_TX_UNLOCK(txr);
+
+		if (more_tx || more_rx) {
+			// device_printf(pf->dev, "more tx: %d, rx: %d\n", more_tx, more_rx);
+			taskqueue_enqueue(que->tq, &que->task);
+		}
 	}
 
 	ixl_enable_intr0(hw);
@@ -720,7 +725,7 @@ ixl_intr(void *arg)
 void
 ixl_msix_que(void *arg)
 {
-	struct ixl_queue	*que = arg;
+	struct ixl_queue *que = arg;
 	struct ixl_vsi	*vsi = que->vsi;
 	struct i40e_hw	*hw = vsi->hw;
 	struct tx_ring	*txr = &que->txr;
