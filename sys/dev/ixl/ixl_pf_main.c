@@ -679,9 +679,15 @@ ixl_intr(void *arg)
 	struct ifnet		*ifp = vsi->ifp;
 	struct tx_ring		*txr = &que->txr;
         u32			icr0;
-	bool			more_tx, more_rx;
+	bool			more;
 
 	pf->admin_irq++;
+
+	/* Clear PBA at start of ISR if using legacy interrupts */
+	if (pf->msix == 0)
+		wr32(hw, I40E_PFINT_DYN_CTL0,
+		    I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
+		    (IXL_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT));
 
 	icr0 = rd32(hw, I40E_PFINT_ICR0);
 
@@ -691,26 +697,22 @@ ixl_intr(void *arg)
 		taskqueue_enqueue(pf->tq, &pf->vflr_task);
 #endif
 
-	if (icr0 & I40E_PFINT_ICR0_ADMINQ_MASK) {
+	if (icr0 & I40E_PFINT_ICR0_ADMINQ_MASK)
 		taskqueue_enqueue(pf->tq, &pf->adminq);
-	}
 
-	if ((icr0 & I40E_PFINT_ICR0_QUEUE_0_MASK) &&
-	    (ifp->if_drv_flags & IFF_DRV_RUNNING)) {
+	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
 		++que->irqs;
 
-		more_rx = ixl_rxeof(que, IXL_RX_LIMIT);
+		more = ixl_rxeof(que, IXL_RX_LIMIT);
 
 		IXL_TX_LOCK(txr);
-		more_tx = ixl_txeof(que);
+		ixl_txeof(que);
 		if (!drbr_empty(vsi->ifp, txr->br))
-			more_tx = 1;
+			ixl_mq_start_locked(ifp, txr);
 		IXL_TX_UNLOCK(txr);
 
-		if (more_tx || more_rx) {
-			// device_printf(pf->dev, "more tx: %d, rx: %d\n", more_tx, more_rx);
+		if (more)
 			taskqueue_enqueue(que->tq, &que->task);
-		}
 	}
 
 	ixl_enable_intr0(hw);
@@ -977,43 +979,32 @@ ixl_del_multi(struct ixl_vsi *vsi)
 		ixl_del_hw_filters(vsi, mcnt);
 }
 
-
-/*********************************************************************
- *  Timer routine
- *
- *  This routine checks for link status,updates statistics,
- *  and runs the watchdog check.
- *
- *  Only runs when the driver is configured UP and RUNNING.
- *
- **********************************************************************/
-
-void
-ixl_local_timer(void *arg)
+static void
+ixl_queue_sw_irq(struct ixl_pf *pf, int qidx)
 {
-	struct ixl_pf		*pf = arg;
-	struct i40e_hw		*hw = &pf->hw;
-	struct ixl_vsi		*vsi = &pf->vsi;
-	struct ixl_queue	*que = vsi->queues;
-	device_t		dev = pf->dev;
-	struct tx_ring		*txr;
-	int			hung = 0;
-	u32			mask;
-	s32			timer, new_timer;
+	struct i40e_hw *hw = &pf->hw;
+	u32 mask;
 
-	IXL_PF_LOCK_ASSERT(pf);
-
-	/* Fire off the adminq task */
-	taskqueue_enqueue(pf->tq, &pf->adminq);
-
-	/* Update stats */
-	ixl_update_stats_counters(pf);
-
-	/* Check status of the queues */
 	mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
 		I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK |
 		I40E_PFINT_DYN_CTLN_ITR_INDX_MASK);
- 
+
+	if (pf->msix > 1)
+		wr32(hw, I40E_PFINT_DYN_CTLN(qidx), mask);
+	else
+		wr32(hw, I40E_PFINT_DYN_CTL0, mask);
+}
+
+static int
+ixl_queue_hang_check(struct ixl_pf *pf)
+{
+	struct ixl_vsi *vsi = &pf->vsi;
+	struct ixl_queue *que = vsi->queues;
+	device_t dev = pf->dev;
+	struct tx_ring *txr;
+	s32 timer, new_timer;
+	int hung = 0;
+
 	for (int i = 0; i < vsi->num_queues; i++, que++) {
 		txr = &que->txr;
 		timer = atomic_load_acq_32(&txr->watchdog_timer);
@@ -1032,19 +1023,47 @@ ixl_local_timer(void *arg)
 				 */
 				atomic_cmpset_rel_32(&txr->watchdog_timer, timer, new_timer);
 				/* Any queues with outstanding work get a sw irq */
-				wr32(hw, I40E_PFINT_DYN_CTLN(que->me), mask);
+				ixl_queue_sw_irq(pf, i);
 			}
 		}
 	}
+
+	return (hung);
+}
+
+/*********************************************************************
+ *  Timer routine
+ *
+ *  This routine checks for link status, updates statistics,
+ *  and runs the watchdog check.
+ *
+ *  Only runs when the driver is configured UP and RUNNING.
+ *
+ **********************************************************************/
+
+void
+ixl_local_timer(void *arg)
+{
+	struct ixl_pf		*pf = arg;
+	device_t		dev = pf->dev;
+
+	IXL_PF_LOCK_ASSERT(pf);
+
+	/* Fire off the adminq task */
+	taskqueue_enqueue(pf->tq, &pf->adminq);
+
+	/* Update stats */
+	ixl_update_stats_counters(pf);
+
 	/* Reset when a queue shows hung */
-	if (hung)
+	if (ixl_queue_hang_check(pf))
 		goto hung;
 
 	callout_reset(&pf->timer, hz, ixl_local_timer, pf);
 	return;
 
 hung:
-	device_printf(dev, "WARNING: Resetting!\n");
+	device_printf(dev, "WARNING: Re-initializing interface!\n");
 	pf->watchdog_events++;
 	ixl_init_locked(pf);
 }
