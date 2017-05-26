@@ -2046,12 +2046,12 @@ ixl_setup_interface(device_t dev, struct ixl_vsi *vsi)
 			device_printf(dev,
 			    "Error getting supported media types, err %d,"
 			    " AQ error %d\n", aq_error, hw->aq.asq_last_status);
-		return (0);
-	}
-	pf->supported_speeds = abilities.link_speed;
-	ifp->if_baudrate = ixl_max_aq_speed_to_value(pf->supported_speeds);
+	} else {
+		pf->supported_speeds = abilities.link_speed;
+		ifp->if_baudrate = ixl_max_aq_speed_to_value(pf->supported_speeds);
 
-	ixl_add_ifmedia(vsi, hw->phy.phy_types);
+		ixl_add_ifmedia(vsi, hw->phy.phy_types);
+	}
 
 	/* Use autoselect media by default */
 	ifmedia_add(&vsi->media, IFM_ETHER | IFM_AUTO, 0, NULL);
