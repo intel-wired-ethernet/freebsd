@@ -4689,7 +4689,6 @@ int
 ixl_set_advertise(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
-	struct i40e_hw *hw = &pf->hw;
 	device_t dev = pf->dev;
 	u8 converted_speeds;
 	int requested_ls = 0;
@@ -4700,15 +4699,6 @@ ixl_set_advertise(SYSCTL_HANDLER_ARGS)
 	error = sysctl_handle_int(oidp, &requested_ls, 0, req);
 	if ((error) || (req->newptr == NULL))
 		return (error);
-	/* Check if changing speeds is supported */
-	switch (hw->device_id) {
-	case I40E_DEV_ID_25G_B:
-		device_printf(dev, "Changing advertised speeds not supported"
-		" on this device.\n");
-		return (EINVAL);
-	}
-	if (requested_ls < 0 || requested_ls > 0xff) {
-	}
 
 	/* Check for valid value */
 	converted_speeds = ixl_convert_sysctl_aq_link_speed((u8)requested_ls, true);
