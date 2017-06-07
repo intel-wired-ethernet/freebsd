@@ -1914,7 +1914,7 @@ ixl_add_ifmedia(struct ixl_vsi *vsi, u64 phy_types)
 	    || phy_types & (I40E_CAP_PHY_TYPE_10GBASE_CR1))
 		ifmedia_add(&vsi->media, IFM_ETHER | IFM_10G_CR1, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_10GBASE_AOC))
-		ifmedia_add(&vsi->media, IFM_ETHER | IFM_10G_TWINAX_LONG, 0, NULL);
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_10G_AOC, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_SFI))
 		ifmedia_add(&vsi->media, IFM_ETHER | IFM_10G_SFI, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_10GBASE_KX4))
@@ -1937,11 +1937,11 @@ ixl_add_ifmedia(struct ixl_vsi *vsi, u64 phy_types)
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_SR))
 		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_LR))
-		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_LR, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_AOC))
-		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_CR, 0, NULL);
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_AOC, 0, NULL);
 	if (phy_types & (I40E_CAP_PHY_TYPE_25GBASE_ACC))
-		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_CR, 0, NULL);
+		ifmedia_add(&vsi->media, IFM_ETHER | IFM_25G_ACC, 0, NULL);
 }
 
 /*********************************************************************
@@ -4977,7 +4977,7 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			ifmr->ifm_active |= IFM_10G_TWINAX;
 			break;
 		case I40E_PHY_TYPE_10GBASE_AOC:
-			ifmr->ifm_active |= IFM_10G_TWINAX;
+			ifmr->ifm_active |= IFM_10G_AOC;
 			break;
 		/* 25 G */
 		case I40E_PHY_TYPE_25GBASE_KR:
@@ -4990,13 +4990,13 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 			ifmr->ifm_active |= IFM_25G_SR;
 			break;
 		case I40E_PHY_TYPE_25GBASE_LR:
-			ifmr->ifm_active |= IFM_25G_SR;
+			ifmr->ifm_active |= IFM_25G_LR;
 			break;
 		case I40E_PHY_TYPE_25GBASE_AOC:
-			ifmr->ifm_active |= IFM_25G_SR;
+			ifmr->ifm_active |= IFM_25G_AOC;
 			break;
 		case I40E_PHY_TYPE_25GBASE_ACC:
-			ifmr->ifm_active |= IFM_25G_CR;
+			ifmr->ifm_active |= IFM_25G_ACC;
 			break;
 		/* 40 G */
 		case I40E_PHY_TYPE_40GBASE_CR4:
