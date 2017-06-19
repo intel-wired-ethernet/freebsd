@@ -3598,6 +3598,9 @@ ixl_enable_rings(struct ixl_vsi *vsi)
 	return (error);
 }
 
+/*
+ * Returns error on first ring that is detected hung.
+ */
 int
 ixl_disable_tx_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 {
@@ -3630,6 +3633,9 @@ ixl_disable_tx_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 	return (error);
 }
 
+/*
+ * Returns error on first ring that is detected hung.
+ */
 int
 ixl_disable_rx_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 {
