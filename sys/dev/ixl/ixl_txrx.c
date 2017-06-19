@@ -1524,7 +1524,6 @@ ixl_rxeof(struct ixl_queue *que, int count)
 	union i40e_rx_desc	*cur;
 	struct ixl_rx_buf	*rbuf, *nbuf;
 
-
 	IXL_RX_LOCK(rxr);
 
 #ifdef DEV_NETMAP
@@ -1601,6 +1600,8 @@ ixl_rxeof(struct ixl_queue *que, int count)
 			ixl_rx_discard(rxr, i);
 			goto next_desc;
 		}
+
+		bus_dmamap_sync(rxr->dma.tag, rxr->dma.map, BUS_DMASYNC_POSTREAD);
 
 		/* Prefetch the next buffer */
 		if (!eop) {
@@ -1739,7 +1740,7 @@ next_desc:
 			i = rxr->next_check;
 		}
 
-               /* Every 8 descriptors we go to refresh mbufs */
+		/* Every 8 descriptors we go to refresh mbufs */
 		if (processed == 8) {
 			ixl_refresh_mbufs(que, i);
 			processed = 0;
