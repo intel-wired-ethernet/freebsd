@@ -1579,6 +1579,10 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	    ifp->if_mtu + ETHER_HDR_LEN + ETHER_CRC_LEN
 	    + ETHER_VLAN_ENCAP_LEN;
 
+	ifp->if_hw_tsomax = IP_MAXPACKET - (ETHER_HDR_LEN + ETHER_CRC_LEN);
+	ifp->if_hw_tsomaxsegcount = IXL_MAX_TSO_SEGS;
+	ifp->if_hw_tsomaxsegsize = IXL_MAX_DMA_SEG_SIZE;
+
 	/*
 	 * Tell the upper layer(s) we support long frames.
 	 */
@@ -1612,8 +1616,6 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	 */
 	ifmedia_init(&sc->media, IFM_IMASK, ixlv_media_change,
 		     ixlv_media_status);
-
-	// JFV Add media types later?
 
 	ifmedia_add(&sc->media, IFM_ETHER | IFM_AUTO, 0, NULL);
 	ifmedia_set(&sc->media, IFM_ETHER | IFM_AUTO);

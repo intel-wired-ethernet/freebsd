@@ -235,6 +235,7 @@ enum ixl_dbg_mask {
 #define IXL_SPARSE_CHAIN	6
 #define IXL_QUEUE_HUNG		0x80000000
 #define IXL_MIN_TSO_MSS		64
+#define IXL_MAX_DMA_SEG_SIZE	((16 * 1024) - 1)
 
 #define IXL_RSS_KEY_SIZE_REG		13
 #define IXL_RSS_KEY_SIZE		(IXL_RSS_KEY_SIZE_REG * 4)

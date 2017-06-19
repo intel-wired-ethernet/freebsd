@@ -1990,7 +1990,7 @@ ixl_setup_interface(device_t dev, struct ixl_vsi *vsi)
 	/* Set TSO limits */
 	ifp->if_hw_tsomax = IP_MAXPACKET - (ETHER_HDR_LEN + ETHER_CRC_LEN);
 	ifp->if_hw_tsomaxsegcount = IXL_MAX_TSO_SEGS;
-	ifp->if_hw_tsomaxsegsize = PAGE_SIZE;
+	ifp->if_hw_tsomaxsegsize = IXL_MAX_DMA_SEG_SIZE;
 
 	/*
 	 * Tell the upper layer(s) we support long frames.

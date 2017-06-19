@@ -465,7 +465,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 			       NULL, NULL,		/* filter, filterarg */
 			       IXL_TSO_SIZE,		/* maxsize */
 			       IXL_MAX_TX_SEGS,		/* nsegments */
-			       PAGE_SIZE,		/* maxsegsize */
+			       IXL_MAX_DMA_SEG_SIZE,	/* maxsegsize */
 			       0,			/* flags */
 			       NULL,			/* lockfunc */
 			       NULL,			/* lockfuncarg */
@@ -482,7 +482,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 			       NULL, NULL,		/* filter, filterarg */
 			       IXL_TSO_SIZE,		/* maxsize */
 			       IXL_MAX_TSO_SEGS,	/* nsegments */
-			       PAGE_SIZE,		/* maxsegsize */
+			       IXL_MAX_DMA_SEG_SIZE,	/* maxsegsize */
 			       0,			/* flags */
 			       NULL,			/* lockfunc */
 			       NULL,			/* lockfuncarg */
