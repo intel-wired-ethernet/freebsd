@@ -1425,8 +1425,8 @@ ixl_rx_discard(struct rx_ring *rxr, int i)
 {
 	struct ixl_rx_buf	*rbuf;
 
-	KASSERT(rxr != NULL);
-	KASSERT(i < que->num_desc);
+	KASSERT(rxr != NULL, ("Receive ring pointer cannot be null"));
+	KASSERT(i < rxr->que->num_rx_desc, ("Descriptor index must be less than que->num_desc"));
 
 	rbuf = &rxr->buffers[i];
 
