@@ -1440,32 +1440,35 @@ ixl_rx_discard(struct rx_ring *rxr, int i)
 {
 	struct ixl_rx_buf	*rbuf;
 
+	KASSERT(rxr != NULL);
+	KASSERT(i < que->num_desc);
+
 	rbuf = &rxr->buffers[i];
 
-        if (rbuf->fmp != NULL) {/* Partial chain ? */
-		rbuf->fmp->m_flags |= M_PKTHDR;
+	/* Free the mbufs in the current chain for the packet */
+        if (rbuf->fmp != NULL) {
+		bus_dmamap_sync(rxr->ptag, rbuf->pmap, BUS_DMASYNC_POSTREAD);
                 m_freem(rbuf->fmp);
                 rbuf->fmp = NULL;
 	}
 
 	/*
-	** With advanced descriptors the writeback
-	** clobbers the buffer addrs, so its easier
-	** to just free the existing mbufs and take
-	** the normal refresh path to get new buffers
-	** and mapping.
-	*/
+	 * Free the mbufs for the current descriptor; and let ixl_refresh_mbufs()
+	 * assign new mbufs to these.
+	 */
 	if (rbuf->m_head) {
+		bus_dmamap_sync(rxr->htag, rbuf->hmap, BUS_DMASYNC_POSTREAD);
+		bus_dmamap_unload(rxr->htag, rbuf->hmap);
 		m_free(rbuf->m_head);
 		rbuf->m_head = NULL;
 	}
  
 	if (rbuf->m_pack) {
+		bus_dmamap_sync(rxr->ptag, rbuf->pmap, BUS_DMASYNC_POSTREAD);
+		bus_dmamap_unload(rxr->ptag, rbuf->pmap);
 		m_free(rbuf->m_pack);
 		rbuf->m_pack = NULL;
 	}
-
-	return;
 }
 
 #ifdef RSS
