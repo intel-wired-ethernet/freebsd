@@ -1039,6 +1039,7 @@ ixl_refresh_mbufs(struct ixl_queue *que, int limit)
 		mh->m_len = MHLEN;
 		mh->m_flags |= M_PKTHDR;
 		/* Get the memory mapping */
+		bus_dmamap_unload(rxr->htag, buf->hmap);
 		error = bus_dmamap_load_mbuf_sg(rxr->htag,
 		    buf->hmap, mh, hseg, &nsegs, BUS_DMA_NOWAIT);
 		if (error != 0) {
@@ -1065,6 +1066,7 @@ no_split:
 
 		mp->m_pkthdr.len = mp->m_len = rxr->mbuf_sz;
 		/* Get the memory mapping */
+		bus_dmamap_unload(rxr->ptag, buf->pmap);
 		error = bus_dmamap_load_mbuf_sg(rxr->ptag,
 		    buf->pmap, mp, pseg, &nsegs, BUS_DMA_NOWAIT);
 		if (error != 0) {
