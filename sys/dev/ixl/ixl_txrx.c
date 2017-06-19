@@ -1356,8 +1356,6 @@ ixl_free_que_rx(struct ixl_queue *que)
 	struct rx_ring		*rxr = &que->rxr;
 	struct ixl_rx_buf	*buf;
 
-	INIT_DBG_IF(que->vsi->ifp, "queue %d: begin", que->me);
-
 	/* Cleanup any existing buffers */
 	if (rxr->buffers != NULL) {
 		for (int i = 0; i < que->num_desc; i++) {
@@ -1387,8 +1385,6 @@ ixl_free_que_rx(struct ixl_queue *que)
 		bus_dma_tag_destroy(rxr->ptag);
 		rxr->ptag = NULL;
 	}
-
-	INIT_DBG_IF(que->vsi->ifp, "queue %d: end", que->me);
 }
 
 static inline void
