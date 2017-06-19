@@ -3524,7 +3524,7 @@ ixl_enable_tx_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 		reg = rd32(hw, I40E_QTX_ENA(pf_qidx));
 		if (reg & I40E_QTX_ENA_QENA_STAT_MASK)
 			break;
-		i40e_msec_delay(10);
+		i40e_usec_delay(10);
 	}
 	if ((reg & I40E_QTX_ENA_QENA_STAT_MASK) == 0) {
 		device_printf(pf->dev, "TX queue %d still disabled!\n",
@@ -3558,7 +3558,7 @@ ixl_enable_rx_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 		reg = rd32(hw, I40E_QRX_ENA(pf_qidx));
 		if (reg & I40E_QRX_ENA_QENA_STAT_MASK)
 			break;
-		i40e_msec_delay(10);
+		i40e_usec_delay(10);
 	}
 	if ((reg & I40E_QRX_ENA_QENA_STAT_MASK) == 0) {
 		device_printf(pf->dev, "RX queue %d still disabled!\n",
