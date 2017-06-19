@@ -1362,22 +1362,10 @@ ixl_free_que_rx(struct ixl_queue *que)
 	if (rxr->buffers != NULL) {
 		for (int i = 0; i < que->num_desc; i++) {
 			buf = &rxr->buffers[i];
-			if (buf->m_head != NULL) {
-				bus_dmamap_sync(rxr->htag, buf->hmap,
-				    BUS_DMASYNC_POSTREAD);
-				bus_dmamap_unload(rxr->htag, buf->hmap);
-				buf->m_head->m_flags |= M_PKTHDR;
-				m_freem(buf->m_head);
-			}
-			if (buf->m_pack != NULL) {
-				bus_dmamap_sync(rxr->ptag, buf->pmap,
-				    BUS_DMASYNC_POSTREAD);
-				bus_dmamap_unload(rxr->ptag, buf->pmap);
-				buf->m_pack->m_flags |= M_PKTHDR;
-				m_freem(buf->m_pack);
-			}
-			buf->m_head = NULL;
-			buf->m_pack = NULL;
+
+			/* Free buffers and unload dma maps */
+			ixl_rx_discard(rxr, i);
+
 			if (buf->hmap != NULL) {
 				bus_dmamap_destroy(rxr->htag, buf->hmap);
 				buf->hmap = NULL;
@@ -1387,10 +1375,8 @@ ixl_free_que_rx(struct ixl_queue *que)
 				buf->pmap = NULL;
 			}
 		}
-		if (rxr->buffers != NULL) {
-			free(rxr->buffers, M_DEVBUF);
-			rxr->buffers = NULL;
-		}
+		free(rxr->buffers, M_DEVBUF);
+		rxr->buffers = NULL;
 	}
 
 	if (rxr->htag != NULL) {
@@ -1403,7 +1389,6 @@ ixl_free_que_rx(struct ixl_queue *que)
 	}
 
 	INIT_DBG_IF(que->vsi->ifp, "queue %d: end", que->me);
-	return;
 }
 
 static inline void
