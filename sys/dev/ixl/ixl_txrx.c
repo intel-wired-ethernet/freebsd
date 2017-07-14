@@ -552,11 +552,6 @@ ixl_init_tx_ring(struct ixl_queue *que)
 	/* Reset watchdog status */
 	txr->watchdog_timer = 0;
 
-#ifdef IXL_FDIR
-	/* Initialize flow director */
-	txr->atr_rate = ixl_atr_rate;
-	txr->atr_count = 0;
-#endif
 	/* Free any existing tx mbufs. */
         buf = txr->buffers;
 	for (int i = 0; i < que->num_desc; i++, buf++) {
@@ -731,9 +726,6 @@ ixl_tx_setup_offload(struct ixl_queue *que,
 				*off |= (tcp_hlen >> 2) <<
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 			}
-#ifdef IXL_FDIR
-			ixl_atr(que, th, etype);
-#endif
 			break;
 		case IPPROTO_UDP:
 			if (mp->m_pkthdr.csum_flags & (CSUM_UDP|CSUM_UDP_IPV6)) {
@@ -1039,7 +1031,6 @@ ixl_refresh_mbufs(struct ixl_queue *que, int limit)
 		mh->m_len = MHLEN;
 		mh->m_flags |= M_PKTHDR;
 		/* Get the memory mapping */
-		bus_dmamap_unload(rxr->htag, buf->hmap);
 		error = bus_dmamap_load_mbuf_sg(rxr->htag,
 		    buf->hmap, mh, hseg, &nsegs, BUS_DMA_NOWAIT);
 		if (error != 0) {
@@ -1066,7 +1057,6 @@ no_split:
 
 		mp->m_pkthdr.len = mp->m_len = rxr->mbuf_sz;
 		/* Get the memory mapping */
-		bus_dmamap_unload(rxr->ptag, buf->pmap);
 		error = bus_dmamap_load_mbuf_sg(rxr->ptag,
 		    buf->pmap, mp, pseg, &nsegs, BUS_DMA_NOWAIT);
 		if (error != 0) {
@@ -1596,8 +1586,6 @@ ixl_rxeof(struct ixl_queue *que, int count)
 			ixl_rx_discard(rxr, i);
 			goto next_desc;
 		}
-
-		bus_dmamap_sync(rxr->dma.tag, rxr->dma.map, BUS_DMASYNC_POSTREAD);
 
 		/* Prefetch the next buffer */
 		if (!eop) {
