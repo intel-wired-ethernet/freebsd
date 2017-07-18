@@ -914,6 +914,10 @@ ixl_txeof(struct ixl_queue *que)
 		return FALSE;
 	eop_desc = (struct i40e_tx_desc *)&txr->base[last];
 
+	/* Sync DMA before reading head index from ring */
+        bus_dmamap_sync(txr->dma.tag, txr->dma.map,
+            BUS_DMASYNC_POSTREAD);
+
 	/* Get the Head WB value */
 	head = ixl_get_tx_head(que);
 
@@ -926,8 +930,6 @@ ixl_txeof(struct ixl_queue *que)
 	if (++last == que->num_desc) last = 0;
 	done = last;
 
-        bus_dmamap_sync(txr->dma.tag, txr->dma.map,
-            BUS_DMASYNC_POSTREAD);
 	/*
 	** The HEAD index of the ring is written in a 
 	** defined location, this rather than a done bit
