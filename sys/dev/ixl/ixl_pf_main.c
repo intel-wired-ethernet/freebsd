@@ -4706,7 +4706,15 @@ ixl_set_advertise(SYSCTL_HANDLER_ARGS)
 	if ((error) || (req->newptr == NULL))
 		return (error);
 
-	/* Check for valid value */
+	/* Error out if bits outside of possible flag range are set */
+	if ((requested_ls & ~((u8)0x3F)) != 0) {
+		device_printf(dev, "Input advertised speed out of range; "
+		    "valid flags are: 0x%02x\n",
+		    ixl_convert_sysctl_aq_link_speed(pf->supported_speeds, false));
+		return (EINVAL);
+	}
+
+	/* Check if adapter supports input value */
 	converted_speeds = ixl_convert_sysctl_aq_link_speed((u8)requested_ls, true);
 	if ((converted_speeds | pf->supported_speeds) != pf->supported_speeds) {
 		device_printf(dev, "Invalid advertised speed; "
