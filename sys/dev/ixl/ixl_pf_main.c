@@ -4829,7 +4829,7 @@ ixl_sysctl_show_fw(SYSCTL_HANDLER_ARGS)
 	sbuf_finish(sbuf);
 	sbuf_delete(sbuf);
 
-	return 0;
+	return (0);
 }
 
 void

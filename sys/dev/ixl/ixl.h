@@ -207,6 +207,9 @@ enum ixl_dbg_mask {
  * This is the max watchdog interval, ie. the time that can
  * pass between any two TX clean operations, such only happening
  * when the TX hardware is functioning.
+ *
+ * XXX: Watchdog currently counts down in units of (hz)
+ * Set this to just (hz) if you want queues to hang under a little bit of stress
  */
 #define IXL_WATCHDOG		(10 * hz)
 
