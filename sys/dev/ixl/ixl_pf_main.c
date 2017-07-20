@@ -1171,6 +1171,9 @@ ixl_stop_locked(struct ixl_pf *pf)
 	ixl_disable_rings_intr(vsi);
 	ixl_disable_rings(vsi);
 
+	/* Empty driver TX packet queue */
+	ixl_qflush(ifp);
+
 	/* Tell the stack that the interface is no longer active */
 	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING);
 }
@@ -2883,6 +2886,9 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				CTLFLAG_RD, &(txr->itr), 0,
 				"Queue Tx ITR Interval");
 #ifdef IXL_DEBUG
+		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "txr_watchdog",
+				CTLFLAG_RD, &(txr->watchdog_timer), 0,
+				"Ticks before watchdog timer causes interface reinit");
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_not_done",
 				CTLFLAG_RD, &(rxr->not_done),
 				"Queue Rx Descriptors not Done");

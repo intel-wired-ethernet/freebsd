@@ -964,6 +964,8 @@ ixl_txeof(struct ixl_queue *que)
 			tx_desc = &txr->base[first];
 		}
 		++txr->packets;
+		/* If a packet was successfully cleaned, reset the watchdog timer */
+		atomic_store_rel_32(&txr->watchdog_timer, IXL_WATCHDOG);
 		/* See if there is more work now */
 		last = buf->eop_index;
 		if (last != -1) {
@@ -978,7 +980,6 @@ ixl_txeof(struct ixl_queue *que)
 	    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
 
 	txr->next_to_clean = first;
-
 
 	/*
 	 * If there are no pending descriptors, clear the timeout.
