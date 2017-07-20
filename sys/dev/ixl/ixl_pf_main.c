@@ -2886,7 +2886,7 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				CTLFLAG_RD, &(txr->itr), 0,
 				"Queue Tx ITR Interval");
 #ifdef IXL_DEBUG
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "txr_watchdog",
+		SYSCTL_ADD_INT(ctx, queue_list, OID_AUTO, "txr_watchdog",
 				CTLFLAG_RD, &(txr->watchdog_timer), 0,
 				"Ticks before watchdog timer causes interface reinit");
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_not_done",
