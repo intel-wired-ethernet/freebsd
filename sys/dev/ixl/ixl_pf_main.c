@@ -1171,9 +1171,6 @@ ixl_stop_locked(struct ixl_pf *pf)
 	ixl_disable_rings_intr(vsi);
 	ixl_disable_rings(vsi);
 
-	/* Empty driver TX packet queue */
-	ixl_qflush(ifp);
-
 	/* Tell the stack that the interface is no longer active */
 	ifp->if_drv_flags &= ~(IFF_DRV_RUNNING);
 }
