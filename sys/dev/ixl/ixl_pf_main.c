@@ -522,10 +522,8 @@ ixl_teardown_hw_structs(struct ixl_pf *pf)
 		}
 	}
 
-	// XXX: This gets called when we know the adminq is inactive;
-	// so we already know it's setup when we get here.
-
 	/* Shutdown admin queue */
+	ixl_disable_intr0(hw);
 	status = i40e_shutdown_adminq(hw);
 	if (status)
 		device_printf(dev,
@@ -624,6 +622,12 @@ ixl_reset(struct ixl_pf *pf)
 		}
 	}
 
+
+	/* Re-enable admin queue interrupt */
+	if (pf->msix > 1) {
+		ixl_configure_intr0_msix(pf);
+		ixl_enable_intr0(hw);
+	}
 
 err_out:
 	return (error);
