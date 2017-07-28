@@ -398,7 +398,7 @@ ixl_xmit(struct ixl_queue *que, struct mbuf **m_headp)
 
 		last = i; /* descriptor that will get completion IRQ */
 
-		if (++i == que->num_desc)
+		if (++i == que->num_tx_desc)
 			i = 0;
 
 		buf->m_head = NULL;
@@ -493,7 +493,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 
 	if (!(txr->buffers =
 	    (struct ixl_tx_buf *) malloc(sizeof(struct ixl_tx_buf) *
-	    que->num_desc, M_DEVBUF, M_NOWAIT | M_ZERO))) {
+	    que->num_tx_desc, M_DEVBUF, M_NOWAIT | M_ZERO))) {
 		device_printf(dev, "Unable to allocate tx_buffer memory\n");
 		error = ENOMEM;
 		goto fail;
@@ -501,7 +501,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 
         /* Create the descriptor buffer default dma maps */
 	buf = txr->buffers;
-	for (int i = 0; i < que->num_desc; i++, buf++) {
+	for (int i = 0; i < que->num_tx_desc; i++, buf++) {
 		buf->tag = txr->tx_tag;
 		error = bus_dmamap_create(buf->tag, 0, &buf->map);
 		if (error != 0) {
@@ -543,7 +543,7 @@ ixl_init_tx_ring(struct ixl_queue *que)
 #endif /* DEV_NETMAP */
 
 	bzero((void *)txr->base,
-	      (sizeof(struct i40e_tx_desc)) * que->num_desc);
+	      (sizeof(struct i40e_tx_desc)) * que->num_tx_desc);
 
 	/* Reset indices */
 	txr->next_avail = 0;
@@ -554,7 +554,7 @@ ixl_init_tx_ring(struct ixl_queue *que)
 
 	/* Free any existing tx mbufs. */
         buf = txr->buffers;
-	for (int i = 0; i < que->num_desc; i++, buf++) {
+	for (int i = 0; i < que->num_tx_desc; i++, buf++) {
 		if (buf->m_head != NULL) {
 			bus_dmamap_sync(buf->tag, buf->map,
 			    BUS_DMASYNC_POSTWRITE);
@@ -580,7 +580,7 @@ ixl_init_tx_ring(struct ixl_queue *que)
         }
 
 	/* Set number of descriptors available */
-	txr->avail = que->num_desc;
+	txr->avail = que->num_tx_desc;
 
 	bus_dmamap_sync(txr->dma.tag, txr->dma.map,
 	    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
@@ -601,7 +601,7 @@ ixl_free_que_tx(struct ixl_queue *que)
 
 	INIT_DBG_IF(que->vsi->ifp, "queue %d: begin", que->me);
 
-	for (int i = 0; i < que->num_desc; i++) {
+	for (int i = 0; i < que->num_tx_desc; i++) {
 		buf = &txr->buffers[i];
 		if (buf->m_head != NULL) {
 			bus_dmamap_sync(buf->tag, buf->map,
@@ -854,7 +854,7 @@ ixl_tso_setup(struct ixl_queue *que, struct mbuf *mp)
 	buf->m_head = NULL;
 	buf->eop_index = -1;
 
-	if (++idx == que->num_desc)
+	if (++idx == que->num_tx_desc)
 		idx = 0;
 
 	txr->avail--;
@@ -871,7 +871,7 @@ static inline u32
 ixl_get_tx_head(struct ixl_queue *que)
 {
 	struct tx_ring  *txr = &que->txr;
-	void *head = &txr->base[que->num_desc];
+	void *head = &txr->base[que->num_tx_desc];
 	return LE32_TO_CPU(*(volatile __le32 *)head);
 }
 
@@ -899,7 +899,7 @@ ixl_txeof(struct ixl_queue *que)
 #endif /* DEF_NETMAP */
 
 	/* These are not the descriptors you seek, move along :) */
-	if (txr->avail == que->num_desc) {
+	if (txr->avail == que->num_tx_desc) {
 		atomic_store_rel_32(&txr->watchdog_timer, 0);
 		return FALSE;
 	}
@@ -926,7 +926,7 @@ ixl_txeof(struct ixl_queue *que)
 	** I do this so the comparison in the
 	** inner while loop below can be simple
 	*/
-	if (++last == que->num_desc) last = 0;
+	if (++last == que->num_tx_desc) last = 0;
 	done = last;
 
 	/*
@@ -956,7 +956,7 @@ ixl_txeof(struct ixl_queue *que)
 			}
 			buf->eop_index = -1;
 
-			if (++first == que->num_desc)
+			if (++first == que->num_tx_desc)
 				first = 0;
 
 			buf = &txr->buffers[first];
@@ -970,7 +970,7 @@ ixl_txeof(struct ixl_queue *que)
 		if (last != -1) {
 			eop_desc = &txr->base[last];
 			/* Get next done point */
-			if (++last == que->num_desc) last = 0;
+			if (++last == que->num_tx_desc) last = 0;
 			done = last;
 		} else
 			break;
@@ -983,7 +983,7 @@ ixl_txeof(struct ixl_queue *que)
 	/*
 	 * If there are no pending descriptors, clear the timeout.
 	 */
-	if (txr->avail == que->num_desc) {
+	if (txr->avail == que->num_tx_desc) {
 		atomic_store_rel_32(&txr->watchdog_timer, 0);
 		return FALSE;
 	}
@@ -1014,7 +1014,7 @@ ixl_refresh_mbufs(struct ixl_queue *que, int limit)
 
 	i = j = rxr->next_refresh;
 	/* Control the loop with one beyond */
-	if (++j == que->num_desc)
+	if (++j == que->num_rx_desc)
 		j = 0;
 
 	while (j != limit) {
@@ -1080,7 +1080,7 @@ no_split:
 		/* Next is precalculated */
 		i = j;
 		rxr->next_refresh = i;
-		if (++j == que->num_desc)
+		if (++j == que->num_rx_desc)
 			j = 0;
 	}
 update:
@@ -1107,7 +1107,7 @@ ixl_allocate_rx_data(struct ixl_queue *que)
 	struct ixl_rx_buf 	*buf;
 	int             	i, bsize, error;
 
-	bsize = sizeof(struct ixl_rx_buf) * que->num_desc;
+	bsize = sizeof(struct ixl_rx_buf) * que->num_rx_desc;
 	if (!(rxr->buffers =
 	    (struct ixl_rx_buf *) malloc(bsize,
 	    M_DEVBUF, M_NOWAIT | M_ZERO))) {
@@ -1148,7 +1148,7 @@ ixl_allocate_rx_data(struct ixl_queue *que)
 		return (error);
 	}
 
-	for (i = 0; i < que->num_desc; i++) {
+	for (i = 0; i < que->num_rx_desc; i++) {
 		buf = &rxr->buffers[i];
 		error = bus_dmamap_create(rxr->htag,
 		    BUS_DMA_NOWAIT, &buf->hmap);
@@ -1196,11 +1196,11 @@ ixl_init_rx_ring(struct ixl_queue *que)
 	slot = netmap_reset(na, NR_RX, que->me, 0);
 #endif /* DEV_NETMAP */
 	/* Clear the ring contents */
-	rsize = roundup2(que->num_desc *
+	rsize = roundup2(que->num_rx_desc *
 	    sizeof(union i40e_rx_desc), DBA_ALIGN);
 	bzero((void *)rxr->base, rsize);
 	/* Cleanup any existing buffers */
-	for (int i = 0; i < que->num_desc; i++) {
+	for (int i = 0; i < que->num_rx_desc; i++) {
 		buf = &rxr->buffers[i];
 		if (buf->m_head != NULL) {
 			bus_dmamap_sync(rxr->htag, buf->hmap,
@@ -1224,7 +1224,7 @@ ixl_init_rx_ring(struct ixl_queue *que)
 	rxr->hdr_split = FALSE;
 
 	/* Now replenish the mbufs */
-	for (int j = 0; j != que->num_desc; ++j) {
+	for (int j = 0; j != que->num_rx_desc; ++j) {
 		struct mbuf	*mh, *mp;
 
 		buf = &rxr->buffers[j];
@@ -1309,7 +1309,7 @@ skip_head:
 	rxr->bytes = 0;
 	rxr->discard = FALSE;
 
-	wr32(vsi->hw, rxr->tail, que->num_desc - 1);
+	wr32(vsi->hw, rxr->tail, que->num_rx_desc - 1);
 	ixl_flush(vsi->hw);
 
 #if defined(INET6) || defined(INET)
@@ -1350,7 +1350,7 @@ ixl_free_que_rx(struct ixl_queue *que)
 
 	/* Cleanup any existing buffers */
 	if (rxr->buffers != NULL) {
-		for (int i = 0; i < que->num_desc; i++) {
+		for (int i = 0; i < que->num_rx_desc; i++) {
 			buf = &rxr->buffers[i];
 
 			/* Free buffers and unload dma maps */
@@ -1592,7 +1592,7 @@ ixl_rxeof(struct ixl_queue *que, int count)
 		/* Prefetch the next buffer */
 		if (!eop) {
 			nextp = i + 1;
-			if (nextp == que->num_desc)
+			if (nextp == que->num_rx_desc)
 				nextp = 0;
 			nbuf = &rxr->buffers[nextp];
 			prefetch(nbuf);
@@ -1714,7 +1714,7 @@ next_desc:
 		    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
 
 		/* Advance our pointers to the next descriptor. */
-		if (++i == que->num_desc)
+		if (++i == que->num_rx_desc)
 			i = 0;
 
 		/* Now send to the stack or do LRO */
@@ -1843,3 +1843,43 @@ ixl_get_counter(if_t ifp, ift_counter cnt)
 }
 #endif
 
+/*
+ * Set TX and RX ring size adjusting value to supported range
+ */
+void
+ixl_vsi_setup_rings_size(struct ixl_vsi * vsi, int tx_ring_size, int rx_ring_size)
+{
+	struct device * dev = vsi->dev;
+
+	if (tx_ring_size < IXL_MIN_RING
+	     || tx_ring_size > IXL_MAX_RING
+	     || tx_ring_size % IXL_RING_INCREMENT != 0) {
+		device_printf(dev, "Invalid tx_ring_size value of %d set!\n",
+		    tx_ring_size);
+		device_printf(dev, "tx_ring_size must be between %d and %d, "
+		    "inclusive, and must be a multiple of %d\n",
+		    IXL_MIN_RING, IXL_MAX_RING, IXL_RING_INCREMENT);
+		device_printf(dev, "Using default value of %d instead\n",
+		    IXL_DEFAULT_RING);
+		vsi->num_tx_desc = IXL_DEFAULT_RING;
+	} else
+		vsi->num_tx_desc = tx_ring_size;
+
+	if (rx_ring_size < IXL_MIN_RING
+	     || rx_ring_size > IXL_MAX_RING
+	     || rx_ring_size % IXL_RING_INCREMENT != 0) {
+		device_printf(dev, "Invalid rx_ring_size value of %d set!\n",
+		    rx_ring_size);
+		device_printf(dev, "rx_ring_size must be between %d and %d, "
+		    "inclusive, and must be a multiple of %d\n",
+		    IXL_MIN_RING, IXL_MAX_RING, IXL_RING_INCREMENT);
+		device_printf(dev, "Using default value of %d instead\n",
+		    IXL_DEFAULT_RING);
+		vsi->num_rx_desc = IXL_DEFAULT_RING;
+	} else
+		vsi->num_rx_desc = rx_ring_size;
+
+	device_printf(dev, "using %d tx descriptors and %d rx descriptors\n",
+		vsi->num_tx_desc, vsi->num_rx_desc);
+
+}

@@ -1985,7 +1985,7 @@ ixl_setup_interface(device_t dev, struct ixl_vsi *vsi)
 
 	ifp->if_qflush = ixl_qflush;
 
-	ifp->if_snd.ifq_maxlen = que->num_desc - 2;
+	ifp->if_snd.ifq_maxlen = que->num_tx_desc - 2;
 
 	vsi->max_frame_size =
 	    ifp->if_mtu + ETHER_HDR_LEN + ETHER_CRC_LEN
@@ -2235,17 +2235,17 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		u16			size;
 
 		/* Setup the HMC TX Context  */
-		size = que->num_desc * sizeof(struct i40e_tx_desc);
+		size = que->num_tx_desc * sizeof(struct i40e_tx_desc);
 		memset(&tctx, 0, sizeof(struct i40e_hmc_obj_txq));
 		tctx.new_context = 1;
 		tctx.base = (txr->dma.pa/IXL_TX_CTX_BASE_UNITS);
-		tctx.qlen = que->num_desc;
+		tctx.qlen = que->num_tx_desc;
 		tctx.fc_ena = 0;
 		tctx.rdylist = vsi->info.qs_handle[0]; /* index is TC */
 		/* Enable HEAD writeback */
 		tctx.head_wb_ena = 1;
 		tctx.head_wb_addr = txr->dma.pa +
-		    (que->num_desc * sizeof(struct i40e_tx_desc));
+		    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
 		tctx.rdylist_act = 0;
 		err = i40e_clear_lan_tx_queue_context(hw, i);
 		if (err) {
@@ -2286,7 +2286,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		rctx.dsize = 1;	/* do 32byte descriptors */
 		rctx.hsplit_0 = 0;  /* no HDR split initially */
 		rctx.base = (rxr->dma.pa/IXL_RX_CTX_BASE_UNITS);
-		rctx.qlen = que->num_desc;
+		rctx.qlen = que->num_rx_desc;
 		rctx.tphrdesc_ena = 1;
 		rctx.tphwdesc_ena = 1;
 		rctx.tphdata_ena = 0;
@@ -2323,7 +2323,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 			wr32(vsi->hw, I40E_QRX_TAIL(que->me), t);
 		} else
 #endif /* DEV_NETMAP */
-		wr32(vsi->hw, I40E_QRX_TAIL(que->me), que->num_desc - 1);
+		wr32(vsi->hw, I40E_QRX_TAIL(que->me), que->num_rx_desc - 1);
 	}
 	return (err);
 }
@@ -2399,7 +2399,8 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 	int error = 0;
 	int rsize, tsize;
 
-	que->num_desc = pf->ringsz;
+	que->num_tx_desc = vsi->num_tx_desc;
+	que->num_rx_desc = vsi->num_rx_desc;
 	que->me = index;
 	que->vsi = vsi;
 
@@ -2411,7 +2412,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 	    device_get_nameunit(dev), que->me);
 	mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
 	/* Create the TX descriptor ring */
-	tsize = roundup2((que->num_desc *
+	tsize = roundup2((que->num_tx_desc *
 	    sizeof(struct i40e_tx_desc)) +
 	    sizeof(u32), DBA_ALIGN);
 	if (i40e_allocate_dma_mem(hw,
@@ -2440,7 +2441,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		goto fail;
 	}
 
-	rsize = roundup2(que->num_desc *
+	rsize = roundup2(que->num_rx_desc *
 	    sizeof(union i40e_rx_desc), DBA_ALIGN);
 	rxr->que = que;
 	rxr->tail = I40E_QRX_TAIL(que->me);
@@ -4398,6 +4399,13 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
 	    &pf->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
 
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "tx_ring_size", CTLFLAG_RD,
+	    &pf->vsi.num_tx_desc, 0, "TX ring size");
+
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "rx_ring_size", CTLFLAG_RD,
+	    &pf->vsi.num_rx_desc, 0, "RX ring size");
 	/* Add FEC sysctls for 25G adapters */
 	if (hw->device_id == I40E_DEV_ID_25G_B
 	    || hw->device_id == I40E_DEV_ID_25G_SFP28) {

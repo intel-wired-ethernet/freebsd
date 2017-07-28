@@ -188,7 +188,7 @@ enum ixl_dbg_mask {
  * The driver currently always uses 32 byte Rx descriptors.
  */
 #define IXL_DEFAULT_RING	1024
-#define IXL_MAX_RING		8160
+#define IXL_MAX_RING		4096
 #define IXL_MIN_RING		32
 #define IXL_RING_INCREMENT	32
 
@@ -217,8 +217,8 @@ enum ixl_dbg_mask {
  * This parameters control when the driver calls the routine to reclaim
  * transmit descriptors.
  */
-#define IXL_TX_CLEANUP_THRESHOLD	(que->num_desc / 8)
-#define IXL_TX_OP_THRESHOLD		(que->num_desc / 32)
+#define IXL_TX_CLEANUP_THRESHOLD	(que->num_tx_desc / 8)
+#define IXL_TX_OP_THRESHOLD		(que->num_tx_desc / 32)
 
 #define MAX_MULTICAST_ADDR	128
 
@@ -509,7 +509,8 @@ struct ixl_queue {
 	u32			eims;           /* This queue's EIMS bit */
 	struct resource		*res;
 	void			*tag;
-	int			num_desc;	/* both tx and rx */
+	int			num_tx_desc;	/* both tx and rx */
+	int			num_rx_desc;	/* both tx and rx */
 	struct tx_ring		txr;
 	struct rx_ring		rxr;
 	struct task		task;
@@ -540,6 +541,8 @@ struct ixl_vsi {
 	enum i40e_vsi_type	type;
 	int			id;
 	u16			num_queues;
+	int			num_tx_desc;
+	int			num_rx_desc;
 	u32			rx_itr_setting;
 	u32			tx_itr_setting;
 	u16			max_frame_size;
@@ -600,7 +603,7 @@ ixl_rx_unrefreshed(struct ixl_queue *que)
 	if (rxr->next_check > rxr->next_refresh)
 		return (rxr->next_check - rxr->next_refresh - 1);
 	else
-		return ((que->num_desc + rxr->next_check) -
+		return ((que->num_rx_desc + rxr->next_check) -
 		    rxr->next_refresh - 1);
 }
 
@@ -685,6 +688,8 @@ void	ixl_free_que_rx(struct ixl_queue *);
 int	ixl_mq_start(struct ifnet *, struct mbuf *);
 int	ixl_mq_start_locked(struct ifnet *, struct tx_ring *);
 void	ixl_deferred_mq_start(void *, int);
+
+void	ixl_vsi_setup_rings_size(struct ixl_vsi *, int, int);
 void	ixl_free_vsi(struct ixl_vsi *);
 void	ixl_qflush(struct ifnet *);
 

@@ -49,7 +49,7 @@
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
 #define IXL_DRIVER_VERSION_MINOR	7
-#define IXL_DRIVER_VERSION_BUILD	30
+#define IXL_DRIVER_VERSION_BUILD	32
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
@@ -157,13 +157,18 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, enable_msix, CTLFLAG_RDTUN, &ixl_enable_msix, 0,
     "Enable MSI-X interrupts");
 
 /*
-** Number of descriptors per ring:
-**   - TX and RX are the same size
+** Number of descriptors per ring
+** - TX and RX sizes are independently configurable
 */
-static int ixl_ring_size = IXL_DEFAULT_RING;
-TUNABLE_INT("hw.ixl.ring_size", &ixl_ring_size);
-SYSCTL_INT(_hw_ixl, OID_AUTO, ring_size, CTLFLAG_RDTUN,
-    &ixl_ring_size, 0, "Descriptor Ring Size");
+static int ixl_tx_ring_size = IXL_DEFAULT_RING;
+TUNABLE_INT("hw.ixl.tx_ring_size", &ixl_tx_ring_size);
+SYSCTL_INT(_hw_ixl, OID_AUTO, tx_ring_size, CTLFLAG_RDTUN,
+    &ixl_tx_ring_size, 0, "TX Descriptor Ring Size");
+
+static int ixl_rx_ring_size = IXL_DEFAULT_RING;
+TUNABLE_INT("hw.ixl.rx_ring_size", &ixl_rx_ring_size);
+SYSCTL_INT(_hw_ixl, OID_AUTO, rx_ring_size, CTLFLAG_RDTUN,
+    &ixl_rx_ring_size, 0, "RX Descriptor Ring Size");
 
 /* 
 ** This can be set manually, if left as 0 the
@@ -328,19 +333,7 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
 
-	if (ixl_ring_size < IXL_MIN_RING
-	     || ixl_ring_size > IXL_MAX_RING
-	     || ixl_ring_size % IXL_RING_INCREMENT != 0) {
-		device_printf(dev, "Invalid ring_size value of %d set!\n",
-		    ixl_ring_size);
-		device_printf(dev, "ring_size must be between %d and %d, "
-		    "inclusive, and must be a multiple of %d\n",
-		    IXL_MIN_RING, IXL_MAX_RING, IXL_RING_INCREMENT);
-		device_printf(dev, "Using default value of %d instead\n",
-		    IXL_DEFAULT_RING);
-		pf->ringsz = IXL_DEFAULT_RING;
-	} else
-		pf->ringsz = ixl_ring_size;
+	ixl_vsi_setup_rings_size(&pf->vsi, ixl_tx_ring_size, ixl_rx_ring_size);
 
 	if (ixl_tx_itr < 0 || ixl_tx_itr > IXL_MAX_ITR) {
 		device_printf(dev, "Invalid tx_itr value of %d set!\n",

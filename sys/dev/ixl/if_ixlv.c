@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	4
-#define IXLV_DRIVER_VERSION_BUILD	15
+#define IXLV_DRIVER_VERSION_BUILD	16
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -173,12 +173,17 @@ static SYSCTL_NODE(_hw, OID_AUTO, ixlv, CTLFLAG_RD, 0,
 
 /*
 ** Number of descriptors per ring:
-**   - TX and RX are the same size
+** - TX and RX sizes are independently configurable
 */
-static int ixlv_ringsz = IXL_DEFAULT_RING;
-TUNABLE_INT("hw.ixlv.ringsz", &ixlv_ringsz);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, ring_size, CTLFLAG_RDTUN,
-    &ixlv_ringsz, 0, "Descriptor Ring Size");
+static int ixlv_tx_ring_size = IXL_DEFAULT_RING;
+TUNABLE_INT("hw.ixlv.tx_ring_size", &ixlv_tx_ring_size);
+SYSCTL_INT(_hw_ixlv, OID_AUTO, tx_ring_size, CTLFLAG_RDTUN,
+    &ixlv_tx_ring_size, 0, "TX Descriptor Ring Size");
+
+static int ixlv_rx_ring_size = IXL_DEFAULT_RING;
+TUNABLE_INT("hw.ixlv.rx_ring_size", &ixlv_rx_ring_size);
+SYSCTL_INT(_hw_ixlv, OID_AUTO, rx_ring_size, CTLFLAG_RDTUN,
+    &ixlv_rx_ring_size, 0, "TX Descriptor Ring Size");
 
 /* Set to zero to auto calculate  */
 int ixlv_max_queues = 0;
@@ -409,6 +414,8 @@ ixlv_attach(device_t dev)
 	vsi->id = sc->vsi_res->vsi_id;
 	vsi->back = (void *)sc;
 	sc->link_up = TRUE;
+
+	ixl_vsi_setup_rings_size(vsi, ixlv_tx_ring_size, ixlv_rx_ring_size);
 
 	/* This allocates the memory and early settings */
 	if (ixlv_setup_queues(sc) != 0) {
@@ -1571,7 +1578,7 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	ifp->if_transmit = ixl_mq_start;
 
 	ifp->if_qflush = ixl_qflush;
-	ifp->if_snd.ifq_maxlen = que->num_desc - 2;
+	ifp->if_snd.ifq_maxlen = que->num_tx_desc - 2;
 
 	ether_ifattach(ifp, sc->hw.mac.addr);
 
@@ -1654,7 +1661,8 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 
 	for (int i = 0; i < vsi->num_queues; i++) {
 		que = &vsi->queues[i];
-		que->num_desc = ixlv_ringsz;
+		que->num_tx_desc = vsi->num_tx_desc;
+		que->num_rx_desc = vsi->num_rx_desc;
 		que->me = i;
 		que->vsi = vsi;
 
@@ -1669,7 +1677,7 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 		** Create the TX descriptor ring, the extra int is
 		** added as the location for HEAD WB.
 		*/
-		tsize = roundup2((que->num_desc *
+		tsize = roundup2((que->num_tx_desc *
 		    sizeof(struct i40e_tx_desc)) +
 		    sizeof(u32), DBA_ALIGN);
 		if (i40e_allocate_dma_mem(&sc->hw,
@@ -1701,7 +1709,7 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 		/*
 		 * Next the RX queues...
 		 */ 
-		rsize = roundup2(que->num_desc *
+		rsize = roundup2(que->num_rx_desc *
 		    sizeof(union i40e_rx_desc), DBA_ALIGN);
 		rxr = &que->rxr;
 		rxr->que = que;
@@ -2931,6 +2939,13 @@ ixlv_add_sysctls(struct ixlv_sc *sc)
 	SYSCTL_ADD_ULONG(ctx, child, OID_AUTO, "admin_irq",
 			CTLFLAG_RD, &sc->admin_irq,
 			"Admin Queue IRQ Handled");
+
+	SYSCTL_ADD_INT(ctx, child, OID_AUTO, "tx_ring_size",
+			CTLFLAG_RD, &vsi->num_tx_desc, 0,
+			"TX ring size");
+	SYSCTL_ADD_INT(ctx, child, OID_AUTO, "rx_ring_size",
+			CTLFLAG_RD, &vsi->num_rx_desc, 0,
+			"RX ring size");
 
 	/* VSI statistics sysctls */
 	vsi_node = SYSCTL_ADD_NODE(ctx, child, OID_AUTO, "vsi",

@@ -94,7 +94,6 @@ struct ixl_pf {
 	/* Tunable values */
 	bool			enable_msix;
 	int			max_queues;
-	int			ringsz;
 	bool			enable_tx_fc_filter;
 	int			dynamic_rx_itr;
 	int			dynamic_tx_itr;
