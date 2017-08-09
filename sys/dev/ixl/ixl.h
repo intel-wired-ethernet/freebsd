@@ -189,7 +189,7 @@ enum ixl_dbg_mask {
  */
 #define IXL_DEFAULT_RING	1024
 #define IXL_MAX_RING		4096
-#define IXL_MIN_RING		32
+#define IXL_MIN_RING		64
 #define IXL_RING_INCREMENT	32
 
 #define IXL_AQ_LEN		256
