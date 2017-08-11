@@ -394,18 +394,19 @@ retry:
 	    hw->func_caps.num_rx_qp,
 	    hw->func_caps.base_queue);
 #endif
+	struct i40e_osdep *osdep = (struct i40e_osdep *)hw->back;
+	osdep->i2c_intfc_num = ixl_find_i2c_interface(pf);
+	if (osdep->i2c_intfc_num != -1)
+		pf->has_i2c = true;
+
 	/* Print a subset of the capability information. */
 	device_printf(dev, "PF-ID[%d]: VFs %d, MSIX %d, VF MSIX %d, QPs %d, %s\n",
 	    hw->pf_id, hw->func_caps.num_vfs, hw->func_caps.num_msix_vectors,
 	    hw->func_caps.num_msix_vectors_vf, hw->func_caps.num_tx_qp,
 	    (hw->func_caps.mdio_port_mode == 2) ? "I2C" :
+	    (hw->func_caps.mdio_port_mode == 1 && pf->has_i2c) ? "MDIO & I2C" :
 	    (hw->func_caps.mdio_port_mode == 1) ? "MDIO dedicated" :
 	    "MDIO shared");
-
-	struct i40e_osdep *osdep = (struct i40e_osdep *)hw->back;
-	osdep->i2c_intfc_num = ixl_find_i2c_interface(pf);
-	if (osdep->i2c_intfc_num != -1)
-		pf->has_i2c = true;
 
 	return (error);
 }
@@ -2284,7 +2285,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		    vsi->max_frame_size : max_rxmax;
 		rctx.dtype = 0;
 		rctx.dsize = 1;	/* do 32byte descriptors */
-		rctx.hsplit_0 = 0;  /* no HDR split initially */
+		rctx.hsplit_0 = 0;  /* no header split */
 		rctx.base = (rxr->dma.pa/IXL_RX_CTX_BASE_UNITS);
 		rctx.qlen = que->num_rx_desc;
 		rctx.tphrdesc_ena = 1;
