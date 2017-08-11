@@ -2892,6 +2892,12 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 		SYSCTL_ADD_INT(ctx, queue_list, OID_AUTO, "txr_watchdog",
 				CTLFLAG_RD, &(txr->watchdog_timer), 0,
 				"Ticks before watchdog timer causes interface reinit");
+		SYSCTL_ADD_U16(ctx, queue_list, OID_AUTO, "tx_next_avail",
+				CTLFLAG_RD, &(txr->next_avail), 0,
+				"Next TX descriptor to be used");
+		SYSCTL_ADD_U16(ctx, queue_list, OID_AUTO, "tx_next_to_clean",
+				CTLFLAG_RD, &(txr->next_to_clean), 0,
+				"Next TX descriptor to be cleaned");
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_not_done",
 				CTLFLAG_RD, &(rxr->not_done),
 				"Queue Rx Descriptors not Done");
@@ -2901,6 +2907,11 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "rx_next_check",
 				CTLFLAG_RD, &(rxr->next_check), 0,
 				"Queue Rx Descriptors not Done");
+		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qrx_tail",
+				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
+				sizeof(struct ixl_queue),
+				ixl_sysctl_qrx_tail_handler, "IU",
+				"Queue Receive Descriptor Tail");
 		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qtx_tail", 
 				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
 				sizeof(struct ixl_queue),
