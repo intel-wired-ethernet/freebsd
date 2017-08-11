@@ -3071,11 +3071,13 @@ ixlv_free_filters(struct ixlv_sc *sc)
 		SLIST_REMOVE_HEAD(sc->mac_filters, next);
 		free(f, M_DEVBUF);
 	}
+	free(sc->mac_filters, M_DEVBUF);
 	while (!SLIST_EMPTY(sc->vlan_filters)) {
 		v = SLIST_FIRST(sc->vlan_filters);
 		SLIST_REMOVE_HEAD(sc->vlan_filters, next);
 		free(v, M_DEVBUF);
 	}
+	free(sc->vlan_filters, M_DEVBUF);
 	return;
 }
 
