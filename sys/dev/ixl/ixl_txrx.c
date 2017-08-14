@@ -1723,6 +1723,10 @@ next_desc:
 		if (sendmp != NULL) {
 			rxr->next_check = i;
 			ixl_rx_input(rxr, ifp, sendmp, ptype);
+			/*
+			 * Update index used in loop in case another
+			 * ixl_rxeof() call executes when lock is released
+			 */
 			i = rxr->next_check;
 		}
 
