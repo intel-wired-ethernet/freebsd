@@ -1060,7 +1060,7 @@ ixl_local_timer(void *arg)
 	/* Update stats */
 	ixl_update_stats_counters(pf);
 
-	/* Reset when a queue shows hung */
+	/* Increment stat when a queue shows hung */
 	if (ixl_queue_hang_check(pf))
 		goto hung;
 
@@ -1068,9 +1068,7 @@ ixl_local_timer(void *arg)
 	return;
 
 hung:
-	device_printf(dev, "WARNING: Re-initializing interface!\n");
 	pf->watchdog_events++;
-	ixl_init_locked(pf);
 }
 
 void
