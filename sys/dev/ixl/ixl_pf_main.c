@@ -335,7 +335,6 @@ ixl_init_locked(struct ixl_pf *pf)
 			    "initialize iwarp failed, code %d\n", ret);
 	}
 #endif
-
 }
 
 
@@ -546,7 +545,7 @@ ixl_reset(struct ixl_pf *pf)
 	i40e_clear_hw(hw);
 	error = i40e_pf_reset(hw);
 	if (error) {
-		device_printf(dev, "init: PF reset failure");
+		device_printf(dev, "init: PF reset failure\n");
 		error = EIO;
 		goto err_out;
 	}
@@ -554,7 +553,7 @@ ixl_reset(struct ixl_pf *pf)
 	error = i40e_init_adminq(hw);
 	if (error) {
 		device_printf(dev, "init: Admin queue init failure;"
-		    " status code %d", error);
+		    " status code %d\n", error);
 		error = EIO;
 		goto err_out;
 	}
