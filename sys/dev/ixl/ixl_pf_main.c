@@ -1049,7 +1049,6 @@ void
 ixl_local_timer(void *arg)
 {
 	struct ixl_pf		*pf = arg;
-	device_t		dev = pf->dev;
 
 	IXL_PF_LOCK_ASSERT(pf);
 
