@@ -456,7 +456,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 	struct ixl_vsi		*vsi = que->vsi;
 	device_t		dev = vsi->dev;
 	struct ixl_tx_buf	*buf;
-	int			error = 0;
+	int			i, error = 0;
 
 	/*
 	 * Setup DMA descriptor areas.
@@ -474,7 +474,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 			       NULL,			/* lockfuncarg */
 			       &txr->tx_tag))) {
 		device_printf(dev,"Unable to allocate TX DMA tag\n");
-		goto fail;
+		return (error);
 	}
 
 	/* Make a special tag for TSO */
@@ -491,7 +491,7 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 			       NULL,			/* lockfuncarg */
 			       &txr->tso_tag))) {
 		device_printf(dev,"Unable to allocate TX TSO DMA tag\n");
-		goto fail;
+		goto free_tx_dma;
 	}
 
 	if (!(txr->buffers =
@@ -499,20 +499,37 @@ ixl_allocate_tx_data(struct ixl_queue *que)
 	    que->num_tx_desc, M_DEVBUF, M_NOWAIT | M_ZERO))) {
 		device_printf(dev, "Unable to allocate tx_buffer memory\n");
 		error = ENOMEM;
-		goto fail;
+		goto free_tx_tso_dma;
 	}
 
         /* Create the descriptor buffer default dma maps */
 	buf = txr->buffers;
-	for (int i = 0; i < que->num_tx_desc; i++, buf++) {
+	for (i = 0; i < que->num_tx_desc; i++, buf++) {
 		buf->tag = txr->tx_tag;
 		error = bus_dmamap_create(buf->tag, 0, &buf->map);
 		if (error != 0) {
 			device_printf(dev, "Unable to create TX DMA map\n");
-			goto fail;
+			goto free_buffers;
 		}
 	}
-fail:
+
+	return 0;
+
+free_buffers:
+	while (i--) {
+		buf--;
+		bus_dmamap_destroy(buf->tag, buf->map);
+	}
+
+	free(txr->buffers, M_DEVBUF);
+	txr->buffers = NULL;
+free_tx_tso_dma:
+	bus_dma_tag_destroy(txr->tso_tag);
+	txr->tso_tag = NULL;
+free_tx_dma:
+	bus_dma_tag_destroy(txr->tx_tag);
+	txr->tx_tag = NULL;
+
 	return (error);
 }
 
@@ -1230,15 +1247,6 @@ ixl_allocate_rx_data(struct ixl_queue *que)
 	struct ixl_rx_buf 	*buf;
 	int             	i, bsize, error;
 
-	bsize = sizeof(struct ixl_rx_buf) * que->num_rx_desc;
-	if (!(rxr->buffers =
-	    (struct ixl_rx_buf *) malloc(bsize,
-	    M_DEVBUF, M_NOWAIT | M_ZERO))) {
-		device_printf(dev, "Unable to allocate rx_buffer memory\n");
-		error = ENOMEM;
-		return (error);
-	}
-
 	if ((error = bus_dma_tag_create(bus_get_dma_tag(dev),	/* parent */
 				   1, 0,	/* alignment, bounds */
 				   BUS_SPACE_MAXADDR,	/* lowaddr */
@@ -1268,7 +1276,16 @@ ixl_allocate_rx_data(struct ixl_queue *que)
 				   NULL,		/* lockfuncarg */
 				   &rxr->ptag))) {
 		device_printf(dev, "Unable to create RX DMA ptag\n");
-		return (error);
+		goto free_rx_htag;
+	}
+
+	bsize = sizeof(struct ixl_rx_buf) * que->num_rx_desc;
+	if (!(rxr->buffers =
+	    (struct ixl_rx_buf *) malloc(bsize,
+	    M_DEVBUF, M_NOWAIT | M_ZERO))) {
+		device_printf(dev, "Unable to allocate rx_buffer memory\n");
+		error = ENOMEM;
+		goto free_rx_ptag;
 	}
 
 	for (i = 0; i < que->num_rx_desc; i++) {
@@ -1277,16 +1294,32 @@ ixl_allocate_rx_data(struct ixl_queue *que)
 		    BUS_DMA_NOWAIT, &buf->hmap);
 		if (error) {
 			device_printf(dev, "Unable to create RX head map\n");
-			break;
+			goto free_buffers;
 		}
 		error = bus_dmamap_create(rxr->ptag,
 		    BUS_DMA_NOWAIT, &buf->pmap);
 		if (error) {
+			bus_dmamap_destroy(rxr->htag, buf->hmap);
 			device_printf(dev, "Unable to create RX pkt map\n");
-			break;
+			goto free_buffers;
 		}
 	}
 
+	return 0;
+free_buffers:
+	while (i--) {
+		buf = &rxr->buffers[i];
+		bus_dmamap_destroy(rxr->ptag, buf->pmap);
+		bus_dmamap_destroy(rxr->htag, buf->hmap);
+	}
+	free(rxr->buffers, M_DEVBUF);
+	rxr->buffers = NULL;
+free_rx_ptag:
+	bus_dma_tag_destroy(rxr->ptag);
+	rxr->ptag = NULL;
+free_rx_htag:
+	bus_dma_tag_destroy(rxr->htag);
+	rxr->htag = NULL;
 	return (error);
 }
 
