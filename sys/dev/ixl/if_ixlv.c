@@ -1385,8 +1385,11 @@ ixlv_free_pci_resources(struct ixlv_sc *sc)
 			bus_release_resource(dev, SYS_RES_IRQ, rid, que->res);
 			que->res = NULL;
 		}
+		if (que->tq != NULL) {
+			taskqueue_free(que->tq);
+			que->tq = NULL;
+		}
 	}
-        
 early:
 	pci_release_msi(dev);
 
