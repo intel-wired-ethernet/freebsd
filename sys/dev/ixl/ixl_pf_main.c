@@ -2348,6 +2348,8 @@ ixl_free_vsi(struct ixl_vsi *vsi)
 		if (!mtx_initialized(&txr->mtx)) /* uninitialized */
 			continue;
 		IXL_TX_LOCK(txr);
+		if (txr->br)
+			buf_ring_free(txr->br, M_DEVBUF);
 		ixl_free_que_tx(que);
 		if (txr->base)
 			i40e_free_dma_mem(&pf->hw, &txr->dma);

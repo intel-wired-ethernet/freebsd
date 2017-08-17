@@ -623,8 +623,6 @@ ixl_free_que_tx(struct ixl_queue *que)
 			buf->map = NULL;
 		}
 	}
-	if (txr->br != NULL)
-		buf_ring_free(txr->br, M_DEVBUF);
 	if (txr->buffers != NULL) {
 		free(txr->buffers, M_DEVBUF);
 		txr->buffers = NULL;
