@@ -49,7 +49,7 @@
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
 #define IXL_DRIVER_VERSION_MINOR	7
-#define IXL_DRIVER_VERSION_BUILD	36
+#define IXL_DRIVER_VERSION_BUILD	37
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
@@ -724,6 +724,9 @@ ixl_detach(device_t dev)
 		return (error);
 	}
 #endif
+
+	/* Remove all previously allocated media types */
+	ifmedia_removeall(&vsi->media);
 
 	ether_ifdetach(vsi->ifp);
 	if (vsi->ifp->if_drv_flags & IFF_DRV_RUNNING)

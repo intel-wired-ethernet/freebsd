@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	4
-#define IXLV_DRIVER_VERSION_BUILD	19
+#define IXLV_DRIVER_VERSION_BUILD	20
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -507,6 +507,9 @@ ixlv_detach(device_t dev)
 		if_printf(vsi->ifp, "Vlan in use, detach first\n");
 		return (EBUSY);
 	}
+
+	/* Remove all the media and link information */
+	ifmedia_removeall(&sc->media);
 
 	/* Stop driver */
 	ether_ifdetach(vsi->ifp);
