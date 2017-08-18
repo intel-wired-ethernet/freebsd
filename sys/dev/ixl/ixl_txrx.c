@@ -606,22 +606,11 @@ ixl_free_que_tx(struct ixl_queue *que)
 		if (buf->m_head != NULL) {
 			bus_dmamap_sync(buf->tag, buf->map,
 			    BUS_DMASYNC_POSTWRITE);
-			bus_dmamap_unload(buf->tag,
-			    buf->map);
 			m_freem(buf->m_head);
 			buf->m_head = NULL;
-			if (buf->map != NULL) {
-				bus_dmamap_destroy(buf->tag,
-				    buf->map);
-				buf->map = NULL;
 			}
-		} else if (buf->map != NULL) {
-			bus_dmamap_unload(buf->tag,
-			    buf->map);
-			bus_dmamap_destroy(buf->tag,
-			    buf->map);
-			buf->map = NULL;
-		}
+		bus_dmamap_unload(buf->tag, buf->map);
+		bus_dmamap_destroy(buf->tag, buf->map);
 	}
 	if (txr->buffers != NULL) {
 		free(txr->buffers, M_DEVBUF);
@@ -1354,14 +1343,8 @@ ixl_free_que_rx(struct ixl_queue *que)
 			/* Free buffers and unload dma maps */
 			ixl_rx_discard(rxr, i);
 
-			if (buf->hmap != NULL) {
-				bus_dmamap_destroy(rxr->htag, buf->hmap);
-				buf->hmap = NULL;
-			}
-			if (buf->pmap != NULL) {
-				bus_dmamap_destroy(rxr->ptag, buf->pmap);
-				buf->pmap = NULL;
-			}
+			bus_dmamap_destroy(rxr->htag, buf->hmap);
+			bus_dmamap_destroy(rxr->ptag, buf->pmap);
 		}
 		free(rxr->buffers, M_DEVBUF);
 		rxr->buffers = NULL;
