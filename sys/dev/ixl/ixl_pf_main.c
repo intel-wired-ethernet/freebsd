@@ -4417,8 +4417,7 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    OID_AUTO, "rx_ring_size", CTLFLAG_RD,
 	    &pf->vsi.num_rx_desc, 0, "RX ring size");
 	/* Add FEC sysctls for 25G adapters */
-	if (hw->device_id == I40E_DEV_ID_25G_B
-	    || hw->device_id == I40E_DEV_ID_25G_SFP28) {
+	if (i40e_is_25G_device(hw->device_id)) {
 		fec_node = SYSCTL_ADD_NODE(ctx, ctx_list,
 		    OID_AUTO, "fec", CTLFLAG_RD, NULL, "FEC Sysctls");
 		fec_list = SYSCTL_CHILDREN(fec_node);
@@ -5451,7 +5450,6 @@ ixl_sysctl_link_status(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
-	/* TODO: Add 25G types */
 	sbuf_printf(buf, "\n"
 	    "PHY Type : 0x%02x<%s>\n"
 	    "Speed    : 0x%02x\n"
