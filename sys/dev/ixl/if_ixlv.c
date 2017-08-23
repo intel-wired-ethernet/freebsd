@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	4
-#define IXLV_DRIVER_VERSION_BUILD	20
+#define IXLV_DRIVER_VERSION_BUILD	21
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -2517,7 +2517,7 @@ ixlv_local_timer(void *arg)
 			}
 		}
 	}
-	/* Reset when a queue shows hung */
+	/* Increment stat when a queue shows hung */
 	if (hung)
 		goto hung;
 
@@ -2525,11 +2525,7 @@ ixlv_local_timer(void *arg)
 	return;
 
 hung:
-	device_printf(dev, "WARNING: Resetting!\n");
-	sc->init_state = IXLV_RESET_REQUIRED;
 	sc->watchdog_events++;
-	ixlv_stop(sc);
-	ixlv_init_locked(sc);
 }
 
 /*
