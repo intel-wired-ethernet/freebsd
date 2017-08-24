@@ -337,98 +337,6 @@ static void ixgbe_setup_mux_ctl(struct ixgbe_hw *hw)
 }
 
 /**
- * ixgbe_read_phy_reg_mdi_22 - Read from a clause 22 PHY register without lock
- * @hw: pointer to hardware structure
- * @reg_addr: 32 bit address of PHY register to read
- * @dev_type: always unused
- * @phy_data: Pointer to read data from PHY register
- */
-static s32 ixgbe_read_phy_reg_mdi_22(struct ixgbe_hw *hw, u32 reg_addr,
-				     u32 dev_type, u16 *phy_data)
-{
-	u32 i, data, command;
-	UNREFERENCED_1PARAMETER(dev_type);
-
-	/* Setup and write the read command */
-	command = (reg_addr << IXGBE_MSCA_DEV_TYPE_SHIFT) |
-		  (hw->phy.addr << IXGBE_MSCA_PHY_ADDR_SHIFT) |
-		  IXGBE_MSCA_OLD_PROTOCOL | IXGBE_MSCA_READ_AUTOINC |
-		  IXGBE_MSCA_MDI_COMMAND;
-
-	IXGBE_WRITE_REG(hw, IXGBE_MSCA, command);
-
-	/* Check every 10 usec to see if the access completed.
-	 * The MDI Command bit will clear when the operation is
-	 * complete
-	 */
-	for (i = 0; i < IXGBE_MDIO_COMMAND_TIMEOUT; i++) {
-		usec_delay(10);
-
-		command = IXGBE_READ_REG(hw, IXGBE_MSCA);
-		if (!(command & IXGBE_MSCA_MDI_COMMAND))
-			break;
-	}
-
-	if (command & IXGBE_MSCA_MDI_COMMAND) {
-		ERROR_REPORT1(IXGBE_ERROR_POLLING,
-			      "PHY read command did not complete.\n");
-		return IXGBE_ERR_PHY;
-	}
-
-	/* Read operation is complete.  Get the data from MSRWD */
-	data = IXGBE_READ_REG(hw, IXGBE_MSRWD);
-	data >>= IXGBE_MSRWD_READ_DATA_SHIFT;
-	*phy_data = (u16)data;
-
-	return IXGBE_SUCCESS;
-}
-
-/**
- * ixgbe_write_phy_reg_mdi_22 - Write to a clause 22 PHY register without lock
- * @hw: pointer to hardware structure
- * @reg_addr: 32 bit PHY register to write
- * @dev_type: always unused
- * @phy_data: Data to write to the PHY register
- */
-static s32 ixgbe_write_phy_reg_mdi_22(struct ixgbe_hw *hw, u32 reg_addr,
-				      u32 dev_type, u16 phy_data)
-{
-	u32 i, command;
-	UNREFERENCED_1PARAMETER(dev_type);
-
-	/* Put the data in the MDI single read and write data register*/
-	IXGBE_WRITE_REG(hw, IXGBE_MSRWD, (u32)phy_data);
-
-	/* Setup and write the write command */
-	command = (reg_addr << IXGBE_MSCA_DEV_TYPE_SHIFT) |
-		  (hw->phy.addr << IXGBE_MSCA_PHY_ADDR_SHIFT) |
-		  IXGBE_MSCA_OLD_PROTOCOL | IXGBE_MSCA_WRITE |
-		  IXGBE_MSCA_MDI_COMMAND;
-
-	IXGBE_WRITE_REG(hw, IXGBE_MSCA, command);
-
-	/* Check every 10 usec to see if the access completed.
-	 * The MDI Command bit will clear when the operation is
-	 * complete
-	 */
-	for (i = 0; i < IXGBE_MDIO_COMMAND_TIMEOUT; i++) {
-		usec_delay(10);
-
-		command = IXGBE_READ_REG(hw, IXGBE_MSCA);
-		if (!(command & IXGBE_MSCA_MDI_COMMAND))
-			break;
-	}
-
-	if (command & IXGBE_MSCA_MDI_COMMAND) {
-		ERROR_REPORT1(IXGBE_ERROR_POLLING,
-			      "PHY write cmd didn't complete\n");
-		return IXGBE_ERR_PHY;
-	}
-
-	return IXGBE_SUCCESS;
-}
-
-/**
  * ixgbe_identify_phy_x550em - Get PHY type based on device id
  * @hw: pointer to hardware structure
  *
@@ -468,14 +376,10 @@ static s32 ixgbe_identify_phy_x550em(struct ixgbe_hw *hw)
 		return ixgbe_identify_phy_generic(hw);
 	case IXGBE_DEV_ID_X550EM_X_1G_T:
 		hw->phy.type = ixgbe_phy_ext_1g_t;
-		hw->phy.ops.read_reg = NULL;
-		hw->phy.ops.write_reg = NULL;
 		break;
 	case IXGBE_DEV_ID_X550EM_A_1G_T:
 	case IXGBE_DEV_ID_X550EM_A_1G_T_L:
 		hw->phy.type = ixgbe_phy_fw;
-		hw->phy.ops.read_reg = NULL;
-		hw->phy.ops.write_reg = NULL;
 		if (hw->bus.lan_id)
 			hw->phy.phy_semaphore_mask |= IXGBE_GSSR_PHY1_SM;
 		else
@@ -2379,10 +2283,10 @@ s32 ixgbe_init_phy_ops_X550em(struct ixgbe_hw *hw)
 	switch (hw->device_id) {
 	case IXGBE_DEV_ID_X550EM_A_1G_T:
 	case IXGBE_DEV_ID_X550EM_A_1G_T_L:
-		phy->ops.read_reg_mdi = ixgbe_read_phy_reg_mdi_22;
-		phy->ops.write_reg_mdi = ixgbe_write_phy_reg_mdi_22;
-		hw->phy.ops.read_reg = ixgbe_read_phy_reg_x550a;
-		hw->phy.ops.write_reg = ixgbe_write_phy_reg_x550a;
+		phy->ops.read_reg_mdi = NULL;
+		phy->ops.write_reg_mdi = NULL;
+		hw->phy.ops.read_reg = NULL;
+		hw->phy.ops.write_reg = NULL;
 		phy->ops.check_overtemp = ixgbe_check_overtemp_fw;
 		if (hw->bus.lan_id)
 			hw->phy.phy_semaphore_mask |= IXGBE_GSSR_PHY1_SM;
@@ -2403,6 +2307,9 @@ s32 ixgbe_init_phy_ops_X550em(struct ixgbe_hw *hw)
 		/* set up for CS4227 usage */
 		hw->phy.phy_semaphore_mask = IXGBE_GSSR_SHARED_I2C_SM;
 		break;
+	case IXGBE_DEV_ID_X550EM_X_1G_T:
+		phy->ops.read_reg_mdi = NULL;
+		phy->ops.write_reg_mdi = NULL;
 	default:
 		break;
 	}
