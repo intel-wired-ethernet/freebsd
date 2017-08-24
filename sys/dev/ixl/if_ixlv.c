@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	4
-#define IXLV_DRIVER_VERSION_BUILD	21
+#define IXLV_DRIVER_VERSION_BUILD	22
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -413,7 +413,6 @@ ixlv_attach(device_t dev)
 
 	vsi->id = sc->vsi_res->vsi_id;
 	vsi->back = (void *)sc;
-	sc->link_up = TRUE;
 
 	ixl_vsi_setup_rings_size(vsi, ixlv_tx_ring_size, ixlv_rx_ring_size);
 
@@ -445,6 +444,9 @@ ixlv_attach(device_t dev)
 
 	/* Start AdminQ taskqueue */
 	ixlv_init_taskqueue(sc);
+
+	/* We expect a link state message, so schedule the AdminQ task now */
+	taskqueue_enqueue(sc->tq, &sc->aq_irq);
 
 	/* Initialize stats */
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
