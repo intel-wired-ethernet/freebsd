@@ -1562,6 +1562,10 @@ ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 		break;
 	case VIRTCHNL_OP_GET_VF_RESOURCES:
 		ixl_vf_get_resources_msg(pf, vf, msg, msg_size);
+		/* Notify VF of link state after it obtains queues, as this is
+		 * the last thing it will do as part of initialization
+		 */
+		ixl_notify_vf_link_state(pf, vf);
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
 		ixl_vf_config_vsi_msg(pf, vf, msg, msg_size);
@@ -1571,6 +1575,10 @@ ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 		break;
 	case VIRTCHNL_OP_ENABLE_QUEUES:
 		ixl_vf_enable_queues_msg(pf, vf, msg, msg_size);
+		/* Notify VF of link state after it obtains queues, as this is
+		 * the last thing it will do as part of initialization
+		 */
+		ixl_notify_vf_link_state(pf, vf);
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
 		ixl_vf_disable_queues_msg(pf, vf, msg, msg_size);
