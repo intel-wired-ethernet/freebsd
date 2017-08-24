@@ -1132,6 +1132,9 @@ ixl_update_link_status(struct ixl_pf *pf)
 			ifp->if_baudrate = ixl_max_aq_speed_to_value(pf->link_speed);
 			if_link_state_change(ifp, LINK_STATE_UP);
 			ixl_link_up_msg(pf);
+#ifdef PCI_IOV
+			ixl_broadcast_link_state(pf);
+#endif
 		}
 	} else { /* Link down */
 		if (vsi->link_active == TRUE) {
@@ -1139,6 +1142,9 @@ ixl_update_link_status(struct ixl_pf *pf)
 				device_printf(dev, "Link is Down\n");
 			if_link_state_change(ifp, LINK_STATE_DOWN);
 			vsi->link_active = FALSE;
+#ifdef PCI_IOV
+			ixl_broadcast_link_state(pf);
+#endif
 		}
 	}
 }

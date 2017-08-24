@@ -1497,6 +1497,32 @@ ixl_vf_set_rss_hena_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 	ixl_send_vf_ack(pf, vf, VIRTCHNL_OP_SET_RSS_HENA);
 }
 
+static void
+ixl_notify_vf_link_state(struct ixl_pf *pf, struct ixl_vf *vf)
+{
+	struct virtchnl_pf_event event;
+	struct i40e_hw *hw;
+
+	hw = &pf->hw;
+	event.event = VIRTCHNL_EVENT_LINK_CHANGE;
+	event.severity = PF_EVENT_SEVERITY_INFO;
+	event.event_data.link_event.link_status = pf->vsi.link_active;
+	event.event_data.link_event.link_speed =
+		(enum virtchnl_link_speed)hw->phy.link_info.link_speed;
+
+	ixl_send_vf_msg(pf, vf, VIRTCHNL_OP_EVENT, I40E_SUCCESS, &event,
+			sizeof(event));
+}
+
+void
+ixl_broadcast_link_state(struct ixl_pf *pf)
+{
+	int i;
+
+	for (i = 0; i < pf->num_vfs; i++)
+		ixl_notify_vf_link_state(pf, &pf->vfs[i]);
+}
+
 void
 ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 {
