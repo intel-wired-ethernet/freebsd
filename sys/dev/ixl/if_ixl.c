@@ -394,6 +394,7 @@ ixl_attach(device_t dev)
 	*/
 	vsi = &pf->vsi;
 	vsi->dev = pf->dev;
+	vsi->back = pf;
 
 	/* Save tunable values */
 	error = ixl_save_pf_tunables(pf);
