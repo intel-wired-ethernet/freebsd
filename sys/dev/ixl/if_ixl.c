@@ -49,7 +49,7 @@
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
 #define IXL_DRIVER_VERSION_MINOR	7
-#define IXL_DRIVER_VERSION_BUILD	39
+#define IXL_DRIVER_VERSION_BUILD	40
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
@@ -646,7 +646,13 @@ ixl_attach(device_t dev)
 #endif
 
 #ifdef DEV_NETMAP
-	ixl_netmap_attach(vsi);
+	if (vsi->num_rx_desc == vsi->num_tx_desc) {
+		vsi->queues[0].num_desc = vsi->num_rx_desc;
+		ixl_netmap_attach(vsi);
+	} else
+		device_printf(dev,
+		    "Netmap is not supported when RX and TX descriptor ring sizes differ\n");
+
 #endif /* DEV_NETMAP */
 
 #ifdef IXL_IW
