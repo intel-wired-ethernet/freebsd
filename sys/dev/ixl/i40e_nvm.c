@@ -467,8 +467,7 @@ read_nvm_buffer_aq_exit:
  * @data: words read from the Shadow RAM
  *
  * Reads 16 bit words (data buffer) from the SR using the i40e_read_nvm_srrd()
- * method. The buffer read is preceded by the NVM ownership take
- * and followed by the release.
+ * method.
  **/
 enum i40e_status_code __i40e_read_nvm_buffer(struct i40e_hw *hw,
 					     u16 offset,
@@ -484,7 +483,7 @@ enum i40e_status_code __i40e_read_nvm_buffer(struct i40e_hw *hw,
 }
 
 /**
- * i40e_read_nvm_buffer - Reads Shadow RAM buffer and acuire lock if necessary
+ * i40e_read_nvm_buffer - Reads Shadow RAM buffer and acquire lock if necessary
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
  * @words: (in) number of words to read; (out) number of words actually read
