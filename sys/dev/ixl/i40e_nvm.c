@@ -208,39 +208,15 @@ static enum i40e_status_code i40e_poll_sr_srctl_done_bit(struct i40e_hw *hw)
 }
 
 /**
- * i40e_read_nvm_word - Reads nvm word and acquire lock if necessary
+ * __i40e_read_nvm_word - Reads NVM word, assumes caller does the locking
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
  * @data: word read from the Shadow RAM
  *
- * Reads one 16 bit word from the Shadow RAM using the GLNVM_SRCTL register.
- **/
-enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
-					 u16 *data)
-{
-	enum i40e_status_code ret_code = I40E_SUCCESS;
-
-	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
-		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
-	if (!ret_code) {
-		if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE) {
-			ret_code = i40e_read_nvm_word_aq(hw, offset, data);
-		} else {
-			ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
-		}
-		if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
-			i40e_release_nvm(hw);
-	}
-	return ret_code;
-}
-
-/**
- * __i40e_read_nvm_word - Reads nvm word, assumes caller does the locking
- * @hw: pointer to the HW structure
- * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
- * @data: word read from the Shadow RAM
+ * Reads one 16 bit word from the Shadow RAM.
  *
- * Reads one 16 bit word from the Shadow RAM using the GLNVM_SRCTL register.
+ * Do not use this function except in cases where the nvm lock is already
+ * taken via i40e_acquire_nvm().
  **/
 enum i40e_status_code __i40e_read_nvm_word(struct i40e_hw *hw,
 					   u16 offset,
@@ -252,6 +228,31 @@ enum i40e_status_code __i40e_read_nvm_word(struct i40e_hw *hw,
 		ret_code = i40e_read_nvm_word_aq(hw, offset, data);
 	else
 		ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
+	return ret_code;
+}
+
+/**
+ * i40e_read_nvm_word - Reads nvm word and acquire lock if necessary
+ * @hw: pointer to the HW structure
+ * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
+ * @data: word read from the Shadow RAM
+ *
+ * Reads one 16 bit word from the Shadow RAM.
+ **/
+enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
+					 u16 *data)
+{
+	enum i40e_status_code ret_code = I40E_SUCCESS;
+
+	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
+		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
+
+	if (ret_code)
+		return ret_code;
+	ret_code = __i40e_read_nvm_word(hw, offset, data);
+
+	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
+		i40e_release_nvm(hw);
 	return ret_code;
 }
 
@@ -311,7 +312,7 @@ read_nvm_exit:
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
  * @data: word read from the Shadow RAM
  *
- * Reads one 16 bit word from the Shadow RAM using the GLNVM_SRCTL register.
+ * Reads one 16 bit word from the Shadow RAM using the AdminQ
  **/
 enum i40e_status_code i40e_read_nvm_word_aq(struct i40e_hw *hw, u16 offset,
 					    u16 *data)
