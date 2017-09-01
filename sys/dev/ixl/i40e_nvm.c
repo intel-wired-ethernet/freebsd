@@ -34,18 +34,6 @@
 
 #include "i40e_prototype.h"
 
-enum i40e_status_code i40e_read_nvm_word_srctl(struct i40e_hw *hw, u16 offset,
-					       u16 *data);
-enum i40e_status_code i40e_read_nvm_word_aq(struct i40e_hw *hw, u16 offset,
-					    u16 *data);
-enum i40e_status_code i40e_read_nvm_buffer_srctl(struct i40e_hw *hw, u16 offset,
-						 u16 *words, u16 *data);
-enum i40e_status_code i40e_read_nvm_buffer_aq(struct i40e_hw *hw, u16 offset,
-					      u16 *words, u16 *data);
-enum i40e_status_code i40e_read_nvm_aq(struct i40e_hw *hw, u8 module_pointer,
-				       u32 offset, u16 words, void *data,
-				       bool last_command);
-
 /**
  * i40e_init_nvm_ops - Initialize NVM function pointers
  * @hw: pointer to the HW structure
@@ -208,55 +196,6 @@ static enum i40e_status_code i40e_poll_sr_srctl_done_bit(struct i40e_hw *hw)
 }
 
 /**
- * __i40e_read_nvm_word - Reads NVM word, assumes caller does the locking
- * @hw: pointer to the HW structure
- * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
- * @data: word read from the Shadow RAM
- *
- * Reads one 16 bit word from the Shadow RAM.
- *
- * Do not use this function except in cases where the nvm lock is already
- * taken via i40e_acquire_nvm().
- **/
-enum i40e_status_code __i40e_read_nvm_word(struct i40e_hw *hw,
-					   u16 offset,
-					   u16 *data)
-{
-	enum i40e_status_code ret_code = I40E_SUCCESS;
-
-	if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
-		ret_code = i40e_read_nvm_word_aq(hw, offset, data);
-	else
-		ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
-	return ret_code;
-}
-
-/**
- * i40e_read_nvm_word - Reads nvm word and acquire lock if necessary
- * @hw: pointer to the HW structure
- * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
- * @data: word read from the Shadow RAM
- *
- * Reads one 16 bit word from the Shadow RAM.
- **/
-enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
-					 u16 *data)
-{
-	enum i40e_status_code ret_code = I40E_SUCCESS;
-
-	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
-		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
-
-	if (ret_code)
-		return ret_code;
-	ret_code = __i40e_read_nvm_word(hw, offset, data);
-
-	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
-		i40e_release_nvm(hw);
-	return ret_code;
-}
-
-/**
  * i40e_read_nvm_word_srctl - Reads Shadow RAM via SRCTL register
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
@@ -307,6 +246,58 @@ read_nvm_exit:
 }
 
 /**
+ * i40e_read_nvm_aq - Read Shadow RAM.
+ * @hw: pointer to the HW structure.
+ * @module_pointer: module pointer location in words from the NVM beginning
+ * @offset: offset in words from module start
+ * @words: number of words to write
+ * @data: buffer with words to write to the Shadow RAM
+ * @last_command: tells the AdminQ that this is the last command
+ *
+ * Writes a 16 bit words buffer to the Shadow RAM using the admin command.
+ **/
+static enum i40e_status_code i40e_read_nvm_aq(struct i40e_hw *hw, u8 module_pointer,
+					      u32 offset, u16 words, void *data,
+					      bool last_command)
+{
+	enum i40e_status_code ret_code = I40E_ERR_NVM;
+	struct i40e_asq_cmd_details cmd_details;
+
+	DEBUGFUNC("i40e_read_nvm_aq");
+
+	memset(&cmd_details, 0, sizeof(cmd_details));
+	cmd_details.wb_desc = &hw->nvm_wb_desc;
+
+	/* Here we are checking the SR limit only for the flat memory model.
+	 * We cannot do it for the module-based model, as we did not acquire
+	 * the NVM resource yet (we cannot get the module pointer value).
+	 * Firmware will check the module-based model.
+	 */
+	if ((offset + words) > hw->nvm.sr_size)
+		i40e_debug(hw, I40E_DEBUG_NVM,
+			   "NVM write error: offset %d beyond Shadow RAM limit %d\n",
+			   (offset + words), hw->nvm.sr_size);
+	else if (words > I40E_SR_SECTOR_SIZE_IN_WORDS)
+		/* We can write only up to 4KB (one sector), in one AQ write */
+		i40e_debug(hw, I40E_DEBUG_NVM,
+			   "NVM write fail error: tried to write %d words, limit is %d.\n",
+			   words, I40E_SR_SECTOR_SIZE_IN_WORDS);
+	else if (((offset + (words - 1)) / I40E_SR_SECTOR_SIZE_IN_WORDS)
+		 != (offset / I40E_SR_SECTOR_SIZE_IN_WORDS))
+		/* A single write cannot spread over two sectors */
+		i40e_debug(hw, I40E_DEBUG_NVM,
+			   "NVM write error: cannot spread over two sectors in a single write offset=%d words=%d\n",
+			   offset, words);
+	else
+		ret_code = i40e_aq_read_nvm(hw, module_pointer,
+					    2 * offset,  /*bytes*/
+					    2 * words,   /*bytes*/
+					    data, last_command, &cmd_details);
+
+	return ret_code;
+}
+
+/**
  * i40e_read_nvm_word_aq - Reads Shadow RAM via AQ
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
@@ -314,8 +305,8 @@ read_nvm_exit:
  *
  * Reads one 16 bit word from the Shadow RAM using the AdminQ
  **/
-enum i40e_status_code i40e_read_nvm_word_aq(struct i40e_hw *hw, u16 offset,
-					    u16 *data)
+static enum i40e_status_code i40e_read_nvm_word_aq(struct i40e_hw *hw, u16 offset,
+						   u16 *data)
 {
 	enum i40e_status_code ret_code = I40E_ERR_TIMEOUT;
 
@@ -328,7 +319,148 @@ enum i40e_status_code i40e_read_nvm_word_aq(struct i40e_hw *hw, u16 offset,
 }
 
 /**
- * __i40e_read_nvm_buffer - Reads nvm buffer, caller must acquire lock
+ * __i40e_read_nvm_word - Reads NVM word, assumes caller does the locking
+ * @hw: pointer to the HW structure
+ * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
+ * @data: word read from the Shadow RAM
+ *
+ * Reads one 16 bit word from the Shadow RAM.
+ *
+ * Do not use this function except in cases where the nvm lock is already
+ * taken via i40e_acquire_nvm().
+ **/
+enum i40e_status_code __i40e_read_nvm_word(struct i40e_hw *hw,
+					   u16 offset,
+					   u16 *data)
+{
+	enum i40e_status_code ret_code = I40E_SUCCESS;
+
+	if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
+		ret_code = i40e_read_nvm_word_aq(hw, offset, data);
+	else
+		ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
+	return ret_code;
+}
+
+/**
+ * i40e_read_nvm_word - Reads NVM word, acquires lock if necessary
+ * @hw: pointer to the HW structure
+ * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF)
+ * @data: word read from the Shadow RAM
+ *
+ * Reads one 16 bit word from the Shadow RAM.
+ **/
+enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
+					 u16 *data)
+{
+	enum i40e_status_code ret_code = I40E_SUCCESS;
+
+	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
+		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
+
+	if (ret_code)
+		return ret_code;
+	ret_code = __i40e_read_nvm_word(hw, offset, data);
+
+	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
+		i40e_release_nvm(hw);
+	return ret_code;
+}
+
+/**
+ * i40e_read_nvm_buffer_srctl - Reads Shadow RAM buffer via SRCTL register
+ * @hw: pointer to the HW structure
+ * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
+ * @words: (in) number of words to read; (out) number of words actually read
+ * @data: words read from the Shadow RAM
+ *
+ * Reads 16 bit words (data buffer) from the SR using the i40e_read_nvm_srrd()
+ * method. The buffer read is preceded by the NVM ownership take
+ * and followed by the release.
+ **/
+static enum i40e_status_code i40e_read_nvm_buffer_srctl(struct i40e_hw *hw, u16 offset,
+							u16 *words, u16 *data)
+{
+	enum i40e_status_code ret_code = I40E_SUCCESS;
+	u16 index, word;
+
+	DEBUGFUNC("i40e_read_nvm_buffer_srctl");
+
+	/* Loop through the selected region */
+	for (word = 0; word < *words; word++) {
+		index = offset + word;
+		ret_code = i40e_read_nvm_word_srctl(hw, index, &data[word]);
+		if (ret_code != I40E_SUCCESS)
+			break;
+	}
+
+	/* Update the number of words read from the Shadow RAM */
+	*words = word;
+
+	return ret_code;
+}
+
+/**
+ * i40e_read_nvm_buffer_aq - Reads Shadow RAM buffer via AQ
+ * @hw: pointer to the HW structure
+ * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
+ * @words: (in) number of words to read; (out) number of words actually read
+ * @data: words read from the Shadow RAM
+ *
+ * Reads 16 bit words (data buffer) from the SR using the i40e_read_nvm_aq()
+ * method. The buffer read is preceded by the NVM ownership take
+ * and followed by the release.
+ **/
+static enum i40e_status_code i40e_read_nvm_buffer_aq(struct i40e_hw *hw, u16 offset,
+						     u16 *words, u16 *data)
+{
+	enum i40e_status_code ret_code;
+	u16 read_size = *words;
+	bool last_cmd = FALSE;
+	u16 words_read = 0;
+	u16 i = 0;
+
+	DEBUGFUNC("i40e_read_nvm_buffer_aq");
+
+	do {
+		/* Calculate number of bytes we should read in this step.
+		 * FVL AQ do not allow to read more than one page at a time or
+		 * to cross page boundaries.
+		 */
+		if (offset % I40E_SR_SECTOR_SIZE_IN_WORDS)
+			read_size = min(*words,
+					(u16)(I40E_SR_SECTOR_SIZE_IN_WORDS -
+				      (offset % I40E_SR_SECTOR_SIZE_IN_WORDS)));
+		else
+			read_size = min((*words - words_read),
+					I40E_SR_SECTOR_SIZE_IN_WORDS);
+
+		/* Check if this is last command, if so set proper flag */
+		if ((words_read + read_size) >= *words)
+			last_cmd = TRUE;
+
+		ret_code = i40e_read_nvm_aq(hw, 0x0, offset, read_size,
+					    data + words_read, last_cmd);
+		if (ret_code != I40E_SUCCESS)
+			goto read_nvm_buffer_aq_exit;
+
+		/* Increment counter for words already read and move offset to
+		 * new read location
+		 */
+		words_read += read_size;
+		offset += read_size;
+	} while (words_read < *words);
+
+	for (i = 0; i < *words; i++)
+		data[i] = LE16_TO_CPU(((__le16 *)data)[i]);
+
+read_nvm_buffer_aq_exit:
+	*words = words_read;
+	return ret_code;
+}
+
+/**
+ * __i40e_read_nvm_buffer - Reads NVM buffer, caller must acquire lock
  * @hw: pointer to the HW structure
  * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
  * @words: (in) number of words to read; (out) number of words actually read
@@ -380,149 +512,6 @@ enum i40e_status_code i40e_read_nvm_buffer(struct i40e_hw *hw, u16 offset,
 	return ret_code;
 }
 
-/**
- * i40e_read_nvm_buffer_srctl - Reads Shadow RAM buffer via SRCTL register
- * @hw: pointer to the HW structure
- * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
- * @words: (in) number of words to read; (out) number of words actually read
- * @data: words read from the Shadow RAM
- *
- * Reads 16 bit words (data buffer) from the SR using the i40e_read_nvm_srrd()
- * method. The buffer read is preceded by the NVM ownership take
- * and followed by the release.
- **/
-enum i40e_status_code i40e_read_nvm_buffer_srctl(struct i40e_hw *hw, u16 offset,
-						 u16 *words, u16 *data)
-{
-	enum i40e_status_code ret_code = I40E_SUCCESS;
-	u16 index, word;
-
-	DEBUGFUNC("i40e_read_nvm_buffer_srctl");
-
-	/* Loop through the selected region */
-	for (word = 0; word < *words; word++) {
-		index = offset + word;
-		ret_code = i40e_read_nvm_word_srctl(hw, index, &data[word]);
-		if (ret_code != I40E_SUCCESS)
-			break;
-	}
-
-	/* Update the number of words read from the Shadow RAM */
-	*words = word;
-
-	return ret_code;
-}
-
-/**
- * i40e_read_nvm_buffer_aq - Reads Shadow RAM buffer via AQ
- * @hw: pointer to the HW structure
- * @offset: offset of the Shadow RAM word to read (0x000000 - 0x001FFF).
- * @words: (in) number of words to read; (out) number of words actually read
- * @data: words read from the Shadow RAM
- *
- * Reads 16 bit words (data buffer) from the SR using the i40e_read_nvm_aq()
- * method. The buffer read is preceded by the NVM ownership take
- * and followed by the release.
- **/
-enum i40e_status_code i40e_read_nvm_buffer_aq(struct i40e_hw *hw, u16 offset,
-					      u16 *words, u16 *data)
-{
-	enum i40e_status_code ret_code;
-	u16 read_size = *words;
-	bool last_cmd = FALSE;
-	u16 words_read = 0;
-	u16 i = 0;
-
-	DEBUGFUNC("i40e_read_nvm_buffer_aq");
-
-	do {
-		/* Calculate number of bytes we should read in this step.
-		 * FVL AQ do not allow to read more than one page at a time or
-		 * to cross page boundaries.
-		 */
-		if (offset % I40E_SR_SECTOR_SIZE_IN_WORDS)
-			read_size = min(*words,
-					(u16)(I40E_SR_SECTOR_SIZE_IN_WORDS -
-				      (offset % I40E_SR_SECTOR_SIZE_IN_WORDS)));
-		else
-			read_size = min((*words - words_read),
-					I40E_SR_SECTOR_SIZE_IN_WORDS);
-
-		/* Check if this is last command, if so set proper flag */
-		if ((words_read + read_size) >= *words)
-			last_cmd = TRUE;
-
-		ret_code = i40e_read_nvm_aq(hw, 0x0, offset, read_size,
-					    data + words_read, last_cmd);
-		if (ret_code != I40E_SUCCESS)
-			goto read_nvm_buffer_aq_exit;
-
-		/* Increment counter for words already read and move offset to
-		 * new read location
-		 */
-		words_read += read_size;
-		offset += read_size;
-	} while (words_read < *words);
-
-	for (i = 0; i < *words; i++)
-		data[i] = LE16_TO_CPU(((__le16 *)data)[i]);
-
-read_nvm_buffer_aq_exit:
-	*words = words_read;
-	return ret_code;
-}
-
-/**
- * i40e_read_nvm_aq - Read Shadow RAM.
- * @hw: pointer to the HW structure.
- * @module_pointer: module pointer location in words from the NVM beginning
- * @offset: offset in words from module start
- * @words: number of words to write
- * @data: buffer with words to write to the Shadow RAM
- * @last_command: tells the AdminQ that this is the last command
- *
- * Writes a 16 bit words buffer to the Shadow RAM using the admin command.
- **/
-enum i40e_status_code i40e_read_nvm_aq(struct i40e_hw *hw, u8 module_pointer,
-				       u32 offset, u16 words, void *data,
-				       bool last_command)
-{
-	enum i40e_status_code ret_code = I40E_ERR_NVM;
-	struct i40e_asq_cmd_details cmd_details;
-
-	DEBUGFUNC("i40e_read_nvm_aq");
-
-	memset(&cmd_details, 0, sizeof(cmd_details));
-	cmd_details.wb_desc = &hw->nvm_wb_desc;
-
-	/* Here we are checking the SR limit only for the flat memory model.
-	 * We cannot do it for the module-based model, as we did not acquire
-	 * the NVM resource yet (we cannot get the module pointer value).
-	 * Firmware will check the module-based model.
-	 */
-	if ((offset + words) > hw->nvm.sr_size)
-		i40e_debug(hw, I40E_DEBUG_NVM,
-			   "NVM write error: offset %d beyond Shadow RAM limit %d\n",
-			   (offset + words), hw->nvm.sr_size);
-	else if (words > I40E_SR_SECTOR_SIZE_IN_WORDS)
-		/* We can write only up to 4KB (one sector), in one AQ write */
-		i40e_debug(hw, I40E_DEBUG_NVM,
-			   "NVM write fail error: tried to write %d words, limit is %d.\n",
-			   words, I40E_SR_SECTOR_SIZE_IN_WORDS);
-	else if (((offset + (words - 1)) / I40E_SR_SECTOR_SIZE_IN_WORDS)
-		 != (offset / I40E_SR_SECTOR_SIZE_IN_WORDS))
-		/* A single write cannot spread over two sectors */
-		i40e_debug(hw, I40E_DEBUG_NVM,
-			   "NVM write error: cannot spread over two sectors in a single write offset=%d words=%d\n",
-			   offset, words);
-	else
-		ret_code = i40e_aq_read_nvm(hw, module_pointer,
-					    2 * offset,  /*bytes*/
-					    2 * words,   /*bytes*/
-					    data, last_command, &cmd_details);
-
-	return ret_code;
-}
 
 /**
  * i40e_write_nvm_aq - Writes Shadow RAM.
@@ -654,16 +643,14 @@ enum i40e_status_code i40e_calc_nvm_checksum(struct i40e_hw *hw, u16 *checksum)
 	data = (u16 *)vmem.va;
 
 	/* read pointer to VPD area */
-	ret_code = __i40e_read_nvm_word(hw, I40E_SR_VPD_PTR,
-					&vpd_module);
+	ret_code = __i40e_read_nvm_word(hw, I40E_SR_VPD_PTR, &vpd_module);
 	if (ret_code != I40E_SUCCESS) {
 		ret_code = I40E_ERR_NVM_CHECKSUM;
 		goto i40e_calc_nvm_checksum_exit;
 	}
 
 	/* read pointer to PCIe Alt Auto-load module */
-	ret_code = __i40e_read_nvm_word(hw,
-					I40E_SR_PCIE_ALT_AUTO_LOAD_PTR,
+	ret_code = __i40e_read_nvm_word(hw, I40E_SR_PCIE_ALT_AUTO_LOAD_PTR,
 					&pcie_alt_module);
 	if (ret_code != I40E_SUCCESS) {
 		ret_code = I40E_ERR_NVM_CHECKSUM;

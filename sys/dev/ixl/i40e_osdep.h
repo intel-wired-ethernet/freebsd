@@ -239,4 +239,7 @@ ixl_flush_osdep(struct i40e_osdep *osdep)
 
 #define ixl_flush(a)		ixl_flush_osdep((a)->back)
 
+enum i40e_status_code i40e_read_nvm_word_srctl(struct i40e_hw *hw, u16 offset,
+					       u16 *data);
+
 #endif /* _I40E_OSDEP_H_ */
