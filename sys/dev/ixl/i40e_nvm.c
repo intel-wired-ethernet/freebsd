@@ -220,8 +220,7 @@ enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
 {
 	enum i40e_status_code ret_code = I40E_SUCCESS;
 
-	if (((hw->aq.api_maj_ver == 1) && (hw->aq.api_min_ver >= 5)) ||
-	    (hw->aq.api_maj_ver > 1))
+	if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
 		ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
 	if (!ret_code) {
 		if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE) {
@@ -229,9 +228,8 @@ enum i40e_status_code i40e_read_nvm_word(struct i40e_hw *hw, u16 offset,
 		} else {
 			ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
 		}
-	if (((hw->aq.api_maj_ver == 1) && (hw->aq.api_min_ver >= 5)) ||
-	    (hw->aq.api_maj_ver > 1))
-		i40e_release_nvm(hw);
+		if (hw->flags & I40E_HW_FLAG_NVM_READ_REQUIRES_LOCK)
+			i40e_release_nvm(hw);
 	}
 	return ret_code;
 }
