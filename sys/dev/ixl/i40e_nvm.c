@@ -739,25 +739,19 @@ enum i40e_status_code i40e_validate_nvm_checksum(struct i40e_hw *hw,
 
 	DEBUGFUNC("i40e_validate_nvm_checksum");
 
-	/* acquire_nvm provides exclusive NVM lock to synchronize access across
-	 * PFs. X710 uses i40e_read_nvm_word_srctl which polls for done bit
-	 * twice (first time to be able to write address to I40E_GLNVM_SRCTL
-	 * register, second to read data from I40E_GLNVM_SRDATA. One PF can see
-	 * done bit and try to write address, while another one will interpret
-	 * it as a good time to read data. It will cause invalid data to be
-	 * read.
+	/* We must acquire the NVM lock in order to correctly synchronize the
+	 * NVM accesses across multiple PFs. Without doing so it is possible
+	 * for one of the PFs to read invalid data potentially indicating that
+	 * the checksum is invalid.
 	 */
 	ret_code = i40e_acquire_nvm(hw, I40E_RESOURCE_READ);
-	if (!ret_code) {
-		ret_code = i40e_calc_nvm_checksum(hw, &checksum_local);
+	if (ret_code)
+		return ret_code;
+	ret_code = i40e_calc_nvm_checksum(hw, &checksum_local);
+	__i40e_read_nvm_word(hw, I40E_SR_SW_CHECKSUM_WORD, &checksum_sr);
 	i40e_release_nvm(hw);
-		if (ret_code != I40E_SUCCESS)
-			goto i40e_validate_nvm_checksum_exit;
-	} else {
-		goto i40e_validate_nvm_checksum_exit;
-	}
-
-	i40e_read_nvm_word(hw, I40E_SR_SW_CHECKSUM_WORD, &checksum_sr);
+	if (ret_code)
+		return ret_code;
 
 	/* Verify read checksum from EEPROM is the same as
 	 * calculated checksum
@@ -769,7 +763,6 @@ enum i40e_status_code i40e_validate_nvm_checksum(struct i40e_hw *hw,
 	if (checksum)
 		*checksum = checksum_local;
 
-i40e_validate_nvm_checksum_exit:
 	return ret_code;
 }
 
