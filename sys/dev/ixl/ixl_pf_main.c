@@ -4939,7 +4939,8 @@ ixl_handle_nvmupd_cmd(struct ixl_pf *pf, struct ifdrv *ifd)
 		perrno = -EBUSY;
 	}
 
-	if (status)
+	/* Let the nvmupdate report errors, show them only when debug is enabled */
+	if (status != 0 && (pf->dbg_mask & IXL_DBG_NVMUPD) != 0)
 		device_printf(dev, "i40e_nvmupd_command status %s, perrno %d\n",
 		    i40e_stat_str(hw, status), perrno);
 
