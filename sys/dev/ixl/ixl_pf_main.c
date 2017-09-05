@@ -1465,9 +1465,6 @@ ixl_init_msix(struct ixl_pf *pf)
 	if (!pf->enable_msix)
 		goto no_msix;
 
-	/* Ensure proper operation in virtualized environment */
-	ixl_set_busmaster(dev);
-
 	/* First try MSI/X */
 	rid = PCIR_BAR(IXL_MSIX_BAR);
 	pf->msix_mem = bus_alloc_resource_any(dev,
@@ -1482,6 +1479,7 @@ ixl_init_msix(struct ixl_pf *pf)
 	available = pci_msix_count(dev); 
 	if (available < 2) {
 		/* system has msix disabled (0), or only one vector (1) */
+		device_printf(pf->dev, "Less than two MSI-X vectors available\n");
 		bus_release_resource(dev, SYS_RES_MEMORY,
 		    rid, pf->msix_mem);
 		pf->msix_mem = NULL;
@@ -1748,6 +1746,8 @@ ixl_allocate_pci_resources(struct ixl_pf *pf)
 		device_printf(dev, "Unable to allocate bus resource: PCI memory\n");
 		return (ENXIO);
 	}
+	/* Ensure proper PCI device operation */
+	ixl_set_busmaster(dev);
 
 	/* Save off the PCI information */
 	hw->vendor_id = pci_get_vendor(dev);
