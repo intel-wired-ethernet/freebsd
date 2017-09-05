@@ -3122,6 +3122,8 @@ s32 ixgbe_read_ee_hostif_X550(struct ixgbe_hw *hw, u16 offset, u16 *data)
 	buffer.address = IXGBE_CPU_TO_BE32(offset * 2);
 	/* one word */
 	buffer.length = IXGBE_CPU_TO_BE16(sizeof(u16));
+	buffer.pad2 = 0;
+	buffer.pad3 = 0;
 
 	status = hw->mac.ops.acquire_swfw_sync(hw, mask);
 	if (status)
@@ -3180,6 +3182,8 @@ s32 ixgbe_read_ee_hostif_buffer_X550(struct ixgbe_hw *hw,
 		/* convert offset from words to bytes */
 		buffer.address = IXGBE_CPU_TO_BE32((offset + current_word) * 2);
 		buffer.length = IXGBE_CPU_TO_BE16(words_to_read * 2);
+		buffer.pad2 = 0;
+		buffer.pad3 = 0;
 
 		status = ixgbe_hic_unlocked(hw, (u32 *)&buffer, sizeof(buffer),
 					    IXGBE_HI_COMMAND_TIMEOUT);
