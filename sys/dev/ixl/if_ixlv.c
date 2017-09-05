@@ -60,7 +60,6 @@ static ixl_vendor_info_t ixlv_vendor_info_array[] =
 {
 	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_VF, 0, 0, 0},
 	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_X722_VF, 0, 0, 0},
-	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_X722_A0_VF, 0, 0, 0},
 	/* required last entry */
 	{0, 0, 0, 0, 0}
 };
