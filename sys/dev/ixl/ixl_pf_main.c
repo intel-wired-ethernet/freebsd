@@ -88,6 +88,7 @@ static int	ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
 
 #ifdef IXL_IW
 extern int ixl_enable_iwarp;
+extern int ixl_limit_iwarp_msix;
 #endif
 
 const uint8_t ixl_bcast_addr[ETHER_ADDR_LEN] =
@@ -1543,6 +1544,10 @@ ixl_init_msix(struct ixl_pf *pf)
 #endif
 		if(!iw_want)
 			iw_want = min(mp_ncpus, IXL_IW_MAX_MSIX);
+		if(ixl_limit_iwarp_msix > 0)
+			iw_want = min(iw_want, ixl_limit_iwarp_msix);
+		else
+			iw_want = min(iw_want, 1);
 
 		available -= vectors;
 		if (available > 0) {
