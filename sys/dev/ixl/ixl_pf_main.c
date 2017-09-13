@@ -2451,7 +2451,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		device_printf(dev,
 		    "Unable to allocate TX Descriptor memory\n");
 		error = ENOMEM;
-		goto fail;
+		goto err_destroy_tx_mtx;
 	}
 	txr->base = (struct i40e_tx_desc *)txr->dma.va;
 	bzero((void *)txr->base, tsize);
@@ -2460,7 +2460,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		device_printf(dev,
 		    "Critical Failure setting up TX structures\n");
 		error = ENOMEM;
-		goto fail;
+		goto err_free_tx_dma;
 	}
 	/* Allocate a buf ring */
 	txr->br = buf_ring_alloc(DEFAULT_TXBRSZ, M_DEVBUF,
@@ -2469,7 +2469,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		device_printf(dev,
 		    "Critical Failure setting up TX buf ring\n");
 		error = ENOMEM;
-		goto fail;
+		goto err_free_tx_data;
 	}
 
 	rsize = roundup2(que->num_rx_desc *
@@ -2487,7 +2487,7 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		device_printf(dev,
 		    "Unable to allocate RX Descriptor memory\n");
 		error = ENOMEM;
-		goto fail;
+		goto err_destroy_rx_mtx;
 	}
 	rxr->base = (union i40e_rx_desc *)rxr->dma.va;
 	bzero((void *)rxr->base, rsize);
@@ -2496,23 +2496,23 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 		device_printf(dev,
 		    "Critical Failure setting up receive structs\n");
 		error = ENOMEM;
-		goto fail;
+		goto err_free_rx_dma;
 	}
 
 	return (0);
-fail:
-	if (rxr->base)
-		i40e_free_dma_mem(&pf->hw, &rxr->dma);
-	if (mtx_initialized(&rxr->mtx))
-		mtx_destroy(&rxr->mtx);
-	if (txr->br) {
-		buf_ring_free(txr->br, M_DEVBUF);
-		txr->br = NULL;
-	}
-	if (txr->base)
-		i40e_free_dma_mem(&pf->hw, &txr->dma);
-	if (mtx_initialized(&txr->mtx))
-		mtx_destroy(&txr->mtx);
+
+err_free_rx_dma:
+	i40e_free_dma_mem(&pf->hw, &rxr->dma);
+err_destroy_rx_mtx:
+	mtx_destroy(&rxr->mtx);
+	/* err_free_tx_buf_ring */
+	buf_ring_free(txr->br, M_DEVBUF);
+err_free_tx_data:
+	ixl_free_que_tx(que);
+err_free_tx_dma:
+	i40e_free_dma_mem(&pf->hw, &txr->dma);
+err_destroy_tx_mtx:
+	mtx_destroy(&txr->mtx);
 
 	return (error);
 }
