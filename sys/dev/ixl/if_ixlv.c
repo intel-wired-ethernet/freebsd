@@ -92,6 +92,7 @@ static void	ixlv_config_rss(struct ixlv_sc *);
 static void	ixlv_stop(struct ixlv_sc *);
 static void	ixlv_add_multi(struct ixl_vsi *);
 static void	ixlv_del_multi(struct ixl_vsi *);
+static void	ixlv_free_queue(struct ixlv_sc *sc, struct ixl_queue *que);
 static void	ixlv_free_queues(struct ixl_vsi *);
 static int	ixlv_setup_interface(device_t, struct ixlv_sc *);
 static int	ixlv_teardown_adminq_msix(struct ixlv_sc *);
@@ -1654,6 +1655,116 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 }
 
 /*
+** Allocate and setup a single queue
+*/
+static int
+ixlv_setup_queue(struct ixlv_sc *sc, struct ixl_queue *que)
+{
+	device_t		dev = sc->dev;
+	struct tx_ring		*txr;
+	struct rx_ring		*rxr;
+	int 			rsize, tsize;
+	int			error = I40E_SUCCESS;
+
+	txr = &que->txr;
+	txr->que = que;
+	txr->tail = I40E_QTX_TAIL1(que->me);
+	/* Initialize the TX lock */
+	snprintf(txr->mtx_name, sizeof(txr->mtx_name), "%s:tx(%d)",
+	    device_get_nameunit(dev), que->me);
+	mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
+	/*
+	 * Create the TX descriptor ring
+	 *
+	 * In Head Writeback mode, the descriptor ring is one bigger
+	 * than the number of descriptors for space for the HW to
+	 * write back index of last completed descriptor.
+	 */
+	if (sc->vsi.enable_head_writeback) {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)) +
+		    sizeof(u32), DBA_ALIGN);
+	} else {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)), DBA_ALIGN);
+	}
+	if (i40e_allocate_dma_mem(&sc->hw,
+	    &txr->dma, i40e_mem_reserved, tsize, DBA_ALIGN)) {
+		device_printf(dev,
+		    "Unable to allocate TX Descriptor memory\n");
+		error = ENOMEM;
+		goto err_destroy_tx_mtx;
+	}
+	txr->base = (struct i40e_tx_desc *)txr->dma.va;
+	bzero((void *)txr->base, tsize);
+	/* Now allocate transmit soft structs for the ring */
+	if (ixl_allocate_tx_data(que)) {
+		device_printf(dev,
+		    "Critical Failure setting up TX structures\n");
+		error = ENOMEM;
+		goto err_free_tx_dma;
+	}
+	/* Allocate a buf ring */
+	txr->br = buf_ring_alloc(ixlv_txbrsz, M_DEVBUF,
+	    M_WAITOK, &txr->mtx);
+	if (txr->br == NULL) {
+		device_printf(dev,
+		    "Critical Failure setting up TX buf ring\n");
+		error = ENOMEM;
+		goto err_free_tx_data;
+	}
+
+	/*
+	 * Next the RX queues...
+	 */
+	rsize = roundup2(que->num_rx_desc *
+	    sizeof(union i40e_rx_desc), DBA_ALIGN);
+	rxr = &que->rxr;
+	rxr->que = que;
+	rxr->tail = I40E_QRX_TAIL1(que->me);
+
+	/* Initialize the RX side lock */
+	snprintf(rxr->mtx_name, sizeof(rxr->mtx_name), "%s:rx(%d)",
+	    device_get_nameunit(dev), que->me);
+	mtx_init(&rxr->mtx, rxr->mtx_name, NULL, MTX_DEF);
+
+	if (i40e_allocate_dma_mem(&sc->hw,
+	    &rxr->dma, i40e_mem_reserved, rsize, 4096)) { //JFV - should this be DBA?
+		device_printf(dev,
+		    "Unable to allocate RX Descriptor memory\n");
+		error = ENOMEM;
+		goto err_destroy_rx_mtx;
+	}
+	rxr->base = (union i40e_rx_desc *)rxr->dma.va;
+	bzero((void *)rxr->base, rsize);
+
+	/* Allocate receive soft structs for the ring */
+	if (ixl_allocate_rx_data(que)) {
+		device_printf(dev,
+		    "Critical Failure setting up receive structs\n");
+		error = ENOMEM;
+		goto err_free_rx_dma;
+	}
+
+	return (0);
+
+err_free_rx_dma:
+	i40e_free_dma_mem(&sc->hw, &rxr->dma);
+err_destroy_rx_mtx:
+	mtx_destroy(&rxr->mtx);
+	/* err_free_tx_buf_ring */
+	buf_ring_free(txr->br, M_DEVBUF);
+err_free_tx_data:
+	ixl_free_que_tx(que);
+err_free_tx_dma:
+	i40e_free_dma_mem(&sc->hw, &txr->dma);
+err_destroy_tx_mtx:
+	mtx_destroy(&txr->mtx);
+
+	return (error);
+}
+
+/*
 ** Allocate and setup the interface queues
 */
 static int
@@ -1662,9 +1773,7 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 	device_t		dev = sc->dev;
 	struct ixl_vsi		*vsi;
 	struct ixl_queue	*que;
-	struct tx_ring		*txr;
-	struct rx_ring		*rxr;
-	int 			rsize, tsize;
+	int			i;
 	int			error = I40E_SUCCESS;
 
 	vsi = &sc->vsi;
@@ -1677,113 +1786,30 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 		(struct ixl_queue *) malloc(sizeof(struct ixl_queue) *
 		vsi->num_queues, M_DEVBUF, M_NOWAIT | M_ZERO))) {
 			device_printf(dev, "Unable to allocate queue memory\n");
-			error = ENOMEM;
-			goto early;
+			return ENOMEM;
 	}
 
-	for (int i = 0; i < vsi->num_queues; i++) {
+	for (i = 0; i < vsi->num_queues; i++) {
 		que = &vsi->queues[i];
 		que->num_tx_desc = vsi->num_tx_desc;
 		que->num_rx_desc = vsi->num_rx_desc;
 		que->me = i;
 		que->vsi = vsi;
 
-		txr = &que->txr;
-		txr->que = que;
-		txr->tail = I40E_QTX_TAIL1(que->me);
-		/* Initialize the TX lock */
-		snprintf(txr->mtx_name, sizeof(txr->mtx_name), "%s:tx(%d)",
-		    device_get_nameunit(dev), que->me);
-		mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
-		/*
-		 * Create the TX descriptor ring
-		 *
-		 * In Head Writeback mode, the descriptor ring is one bigger
-		 * than the number of descriptors for space for the HW to
-		 * write back index of last completed descriptor.
-		 */
-		if (vsi->enable_head_writeback) {
-			tsize = roundup2((que->num_tx_desc *
-			    sizeof(struct i40e_tx_desc)) +
-			    sizeof(u32), DBA_ALIGN);
-		} else {
-			tsize = roundup2((que->num_tx_desc *
-			    sizeof(struct i40e_tx_desc)), DBA_ALIGN);
-		}
-		if (i40e_allocate_dma_mem(&sc->hw,
-		    &txr->dma, i40e_mem_reserved, tsize, DBA_ALIGN)) {
-			device_printf(dev,
-			    "Unable to allocate TX Descriptor memory\n");
+		if (ixlv_setup_queue(sc, que)) {
 			error = ENOMEM;
-			goto fail;
-		}
-		txr->base = (struct i40e_tx_desc *)txr->dma.va;
-		bzero((void *)txr->base, tsize);
-		/* Now allocate transmit soft structs for the ring */
-		if (ixl_allocate_tx_data(que)) {
-			device_printf(dev,
-			    "Critical Failure setting up TX structures\n");
-			error = ENOMEM;
-			goto fail;
-		}
-		/* Allocate a buf ring */
-		txr->br = buf_ring_alloc(ixlv_txbrsz, M_DEVBUF,
-		    M_WAITOK, &txr->mtx);
-		if (txr->br == NULL) {
-			device_printf(dev,
-			    "Critical Failure setting up TX buf ring\n");
-			error = ENOMEM;
-			goto fail;
-		}
-
-		/*
-		 * Next the RX queues...
-		 */ 
-		rsize = roundup2(que->num_rx_desc *
-		    sizeof(union i40e_rx_desc), DBA_ALIGN);
-		rxr = &que->rxr;
-		rxr->que = que;
-		rxr->tail = I40E_QRX_TAIL1(que->me);
-
-		/* Initialize the RX side lock */
-		snprintf(rxr->mtx_name, sizeof(rxr->mtx_name), "%s:rx(%d)",
-		    device_get_nameunit(dev), que->me);
-		mtx_init(&rxr->mtx, rxr->mtx_name, NULL, MTX_DEF);
-
-		if (i40e_allocate_dma_mem(&sc->hw,
-		    &rxr->dma, i40e_mem_reserved, rsize, 4096)) { //JFV - should this be DBA?
-			device_printf(dev,
-			    "Unable to allocate RX Descriptor memory\n");
-			error = ENOMEM;
-			goto fail;
-		}
-		rxr->base = (union i40e_rx_desc *)rxr->dma.va;
-		bzero((void *)rxr->base, rsize);
-
-		/* Allocate receive soft structs for the ring */
-		if (ixl_allocate_rx_data(que)) {
-			device_printf(dev,
-			    "Critical Failure setting up receive structs\n");
-			error = ENOMEM;
-			goto fail;
+			goto err_free_queues;
 		}
 	}
 
 	return (0);
 
-fail:
-	for (int i = 0; i < vsi->num_queues; i++) {
-		que = &vsi->queues[i];
-		rxr = &que->rxr;
-		txr = &que->txr;
-		if (rxr->base)
-			i40e_free_dma_mem(&sc->hw, &rxr->dma);
-		if (txr->base)
-			i40e_free_dma_mem(&sc->hw, &txr->dma);
-	}
+err_free_queues:
+	while (i--)
+		ixlv_free_queue(sc, &vsi->queues[i]);
+
 	free(vsi->queues, M_DEVBUF);
 
-early:
 	return (error);
 }
 
@@ -2615,6 +2641,33 @@ ixlv_stop(struct ixlv_sc *sc)
 	INIT_DBG_IF(ifp, "end");
 }
 
+/* Free a single queue struct */
+static void
+ixlv_free_queue(struct ixlv_sc *sc, struct ixl_queue *que)
+{
+	struct tx_ring *txr = &que->txr;
+	struct rx_ring *rxr = &que->rxr;
+
+	if (!mtx_initialized(&txr->mtx)) /* uninitialized */
+		return;
+	IXL_TX_LOCK(txr);
+	if (txr->br)
+		buf_ring_free(txr->br, M_DEVBUF);
+	ixl_free_que_tx(que);
+	if (txr->base)
+		i40e_free_dma_mem(&sc->hw, &txr->dma);
+	IXL_TX_UNLOCK(txr);
+	IXL_TX_LOCK_DESTROY(txr);
+
+	if (!mtx_initialized(&rxr->mtx)) /* uninitialized */
+		return;
+	IXL_RX_LOCK(rxr);
+	ixl_free_que_rx(que);
+	if (rxr->base)
+		i40e_free_dma_mem(&sc->hw, &rxr->dma);
+	IXL_RX_UNLOCK(rxr);
+	IXL_RX_LOCK_DESTROY(rxr);
+}
 
 /*********************************************************************
  *
@@ -2627,31 +2680,9 @@ ixlv_free_queues(struct ixl_vsi *vsi)
 	struct ixlv_sc	*sc = (struct ixlv_sc *)vsi->back;
 	struct ixl_queue	*que = vsi->queues;
 
-	for (int i = 0; i < vsi->num_queues; i++, que++) {
-		struct tx_ring *txr = &que->txr;
-		struct rx_ring *rxr = &que->rxr;
-	
-		if (!mtx_initialized(&txr->mtx)) /* uninitialized */
-			continue;
-		IXL_TX_LOCK(txr);
-		if (txr->br)
-			buf_ring_free(txr->br, M_DEVBUF);
-		ixl_free_que_tx(que);
-		if (txr->base)
-			i40e_free_dma_mem(&sc->hw, &txr->dma);
-		IXL_TX_UNLOCK(txr);
-		IXL_TX_LOCK_DESTROY(txr);
+	for (int i = 0; i < vsi->num_queues; i++, que++)
+		ixlv_free_queue(sc, que);
 
-		if (!mtx_initialized(&rxr->mtx)) /* uninitialized */
-			continue;
-		IXL_RX_LOCK(rxr);
-		ixl_free_que_rx(que);
-		if (rxr->base)
-			i40e_free_dma_mem(&sc->hw, &rxr->dma);
-		IXL_RX_UNLOCK(rxr);
-		IXL_RX_LOCK_DESTROY(rxr);
-		
-	}
 	free(vsi->queues, M_DEVBUF);
 }
 
