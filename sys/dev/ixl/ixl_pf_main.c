@@ -2244,16 +2244,26 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 
 		/* Setup the HMC TX Context  */
 		size = que->num_tx_desc * sizeof(struct i40e_tx_desc);
-		memset(&tctx, 0, sizeof(struct i40e_hmc_obj_txq));
+		bzero(&tctx, sizeof(tctx));
 		tctx.new_context = 1;
 		tctx.base = (txr->dma.pa/IXL_TX_CTX_BASE_UNITS);
 		tctx.qlen = que->num_tx_desc;
-		tctx.fc_ena = 0;
-		tctx.rdylist = vsi->info.qs_handle[0]; /* index is TC */
-		/* Enable HEAD writeback */
-		tctx.head_wb_ena = 1;
-		tctx.head_wb_addr = txr->dma.pa +
-		    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
+		tctx.fc_ena = 0;	/* Disable FCoE */
+		/*
+		 * This value needs to pulled from the VSI that this queue
+		 * is assigned to. Index into array is traffic class.
+		 */
+		tctx.rdylist = vsi->info.qs_handle[0];
+		/*
+		 * Set these to enable Head Writeback
+		 * - Address is last entry in TX ring (reserved for HWB index)
+		 * Leave these as 0 for Descriptor Writeback
+		 */
+		if (vsi->enable_head_writeback) {
+			tctx.head_wb_ena = 1;
+			tctx.head_wb_addr = txr->dma.pa +
+			    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
+		}
 		tctx.rdylist_act = 0;
 		err = i40e_clear_lan_tx_queue_context(hw, i);
 		if (err) {
@@ -2291,20 +2301,20 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		rctx.rxmax = (vsi->max_frame_size < max_rxmax) ?
 		    vsi->max_frame_size : max_rxmax;
 		rctx.dtype = 0;
-		rctx.dsize = 1;	/* do 32byte descriptors */
-		rctx.hsplit_0 = 0;  /* no header split */
+		rctx.dsize = 1;		/* do 32byte descriptors */
+		rctx.hsplit_0 = 0;	/* no header split */
 		rctx.base = (rxr->dma.pa/IXL_RX_CTX_BASE_UNITS);
 		rctx.qlen = que->num_rx_desc;
 		rctx.tphrdesc_ena = 1;
 		rctx.tphwdesc_ena = 1;
-		rctx.tphdata_ena = 0;
-		rctx.tphhead_ena = 0;
-		rctx.lrxqthresh = 2;
+		rctx.tphdata_ena = 0;	/* Header Split related */
+		rctx.tphhead_ena = 0;	/* Header Split related */
+		rctx.lrxqthresh = 2;	/* Interrupt at <128 desc avail */
 		rctx.crcstrip = 1;
 		rctx.l2tsel = 1;
-		rctx.showiv = 1;
-		rctx.fc_ena = 0;
-		rctx.prefena = 1;
+		rctx.showiv = 1;	/* Strip inner VLAN header */
+		rctx.fc_ena = 0;	/* Disable FCoE */
+		rctx.prefena = 1;	/* Prefetch descriptors */
 
 		err = i40e_clear_lan_rx_queue_context(hw, i);
 		if (err) {
@@ -2421,10 +2431,21 @@ ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
 	snprintf(txr->mtx_name, sizeof(txr->mtx_name), "%s:tx(%d)",
 	    device_get_nameunit(dev), que->me);
 	mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
-	/* Create the TX descriptor ring */
-	tsize = roundup2((que->num_tx_desc *
-	    sizeof(struct i40e_tx_desc)) +
-	    sizeof(u32), DBA_ALIGN);
+	/*
+	 * Create the TX descriptor ring
+	 *
+	 * In Head Writeback mode, the descriptor ring is one bigger
+	 * than the number of descriptors for space for the HW to
+	 * write back index of last completed descriptor.
+	 */
+	if (vsi->enable_head_writeback) {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)) +
+		    sizeof(u32), DBA_ALIGN);
+	} else {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)), DBA_ALIGN);
+	}
 	if (i40e_allocate_dma_mem(hw,
 	    &txr->dma, i40e_mem_reserved, tsize, DBA_ALIGN)) {
 		device_printf(dev,

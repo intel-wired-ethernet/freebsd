@@ -549,6 +549,7 @@ struct ixl_vsi {
 	u32			rx_itr_setting;
 	u32			tx_itr_setting;
 	u16			max_frame_size;
+	bool			enable_head_writeback;
 
 	struct ixl_queue	*queues;	/* head of queues */
 

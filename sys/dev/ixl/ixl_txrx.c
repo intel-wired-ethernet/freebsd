@@ -131,13 +131,13 @@ ixl_mq_start(struct ifnet *ifp, struct mbuf *m)
 #endif
 
 	/*
-	** Which queue to use:
-	**
-	** When doing RSS, map it to the same outbound
-	** queue as the incoming flow would be mapped to.
-	** If everything is setup correctly, it should be
-	** the same bucket that the current CPU we're on is.
-	*/
+	 * Which queue to use:
+	 *
+	 * When doing RSS, map it to the same outbound
+	 * queue as the incoming flow would be mapped to.
+	 * If everything is setup correctly, it should be
+	 * the same bucket that the current CPU we're on is.
+	 */
 	if (M_HASHTYPE_GET(m) != M_HASHTYPE_NONE) {
 #ifdef  RSS
 		if (rss_hash2bucket(m->m_pkthdr.flowid,
@@ -411,7 +411,10 @@ ixl_xmit(struct ixl_queue *que, struct mbuf **m_headp)
 	txr->next_avail = i;
 
 	buf->m_head = m_head;
-	/* Swap the dma map between the first and last descriptor */
+	/* Swap the dma map between the first and last descriptor.
+	 * The descriptor that gets checked on completion will now
+	 * have the real map from the first descriptor.
+	 */
 	txr->buffers[first].map = buf->map;
 	buf->map = map;
 	bus_dmamap_sync(tag, map, BUS_DMASYNC_PREWRITE);
@@ -850,10 +853,10 @@ ixl_tso_setup(struct ixl_queue *que, struct mbuf *mp)
 	return TRUE;
 }
 
-/*             
-** ixl_get_tx_head - Retrieve the value from the 
-**    location the HW records its HEAD index
-*/
+/*
+ * ixl_get_tx_head - Retrieve the value from the
+ *    location the HW records its HEAD index
+ */
 static inline u32
 ixl_get_tx_head(struct ixl_queue *que)
 {
@@ -869,8 +872,8 @@ ixl_get_tx_head(struct ixl_queue *que)
  *  tx_buffer is put back on the free queue.
  *
  **********************************************************************/
-bool
-ixl_txeof(struct ixl_queue *que)
+static bool
+ixl_txeof_hwb(struct ixl_queue *que)
 {
 	struct tx_ring		*txr = &que->txr;
 	u32			first, last, head, done, processed;
@@ -977,6 +980,148 @@ ixl_txeof(struct ixl_queue *que)
 
 	return TRUE;
 }
+
+/**********************************************************************
+ *
+ *  Examine each tx_buffer in the used queue. If the hardware is done
+ *  processing the packet then free associated resources. The
+ *  tx_buffer is put back on the free queue.
+ *
+ **********************************************************************/
+static bool
+ixl_txeof_dwb(struct ixl_queue *que)
+{
+	struct tx_ring		*txr = &que->txr;
+	u32			first, last, done, processed;
+	// XXX: Set this properly
+	u32			limit = 16;
+	struct ixl_tx_buf	*buf;
+	struct i40e_tx_desc	*tx_desc, *eop_desc;
+
+	mtx_assert(&txr->mtx, MA_OWNED);
+
+#ifdef DEV_NETMAP
+	// XXX todo: implement moderation
+	if (netmap_tx_irq(que->vsi->ifp, que->me))
+		return FALSE;
+#endif /* DEF_NETMAP */
+
+	/* There are no descriptors to clean */
+	if (txr->avail == que->num_tx_desc) {
+		atomic_store_rel_32(&txr->watchdog_timer, 0);
+		return FALSE;
+	}
+
+	processed = 0;
+
+	/* Set starting index/descriptor/buffer */
+	first = txr->next_to_clean;
+	buf = &txr->buffers[first];
+	tx_desc = &txr->base[first];
+
+	/*
+	 * This function operates per-packet -- identifies the
+	 * start of the packet and gets the index of the last
+	 * descriptor of the packet from it, from eop_index.
+	 *
+	 * If the last packet is marked "done" by the hardware,
+	 * then we can clean all of the packet's descriptors.
+	 */
+	last = buf->eop_index;
+	if (last == -1)
+		return FALSE;
+	eop_desc = &txr->base[last];
+
+	/* Sync DMA before reading from ring */
+        bus_dmamap_sync(txr->dma.tag, txr->dma.map, BUS_DMASYNC_POSTREAD);
+
+	/*
+	** Get the index of the first descriptor
+	** BEYOND the EOP and call that 'done'.
+	** I do this so the comparison in the
+	** inner while loop below can be simple
+	*/
+	if (++last == que->num_tx_desc) last = 0;
+	done = last;
+
+	/*
+	 * We find the last completed descriptor by examining each
+	 * descriptor's status bits to see if it's done.
+	 */
+	do {
+		/* Break if last descriptor in packet isn't marked done */
+		if ((eop_desc->cmd_type_offset_bsz & I40E_TXD_QW1_DTYPE_MASK)
+		    != I40E_TX_DESC_DTYPE_DESC_DONE)
+			break;
+
+		/* Clean the descriptors that make up the processed packet */
+		while (first != done) {
+			/*
+			 * If there was a buffer attached to this descriptor, prevent
+			 * the adapter from accessing it, and add its length to the
+			 * queue's TX stats.
+			 */
+			if (buf->m_head) {
+				txr->bytes += buf->m_head->m_pkthdr.len;
+				txr->tx_bytes += buf->m_head->m_pkthdr.len;
+				bus_dmamap_sync(buf->tag, buf->map,
+				    BUS_DMASYNC_POSTWRITE);
+				bus_dmamap_unload(buf->tag, buf->map);
+				m_freem(buf->m_head);
+				buf->m_head = NULL;
+			}
+			buf->eop_index = -1;
+			++txr->avail;
+			++processed;
+
+			if (++first == que->num_tx_desc)
+				first = 0;
+			buf = &txr->buffers[first];
+			tx_desc = &txr->base[first];
+		}
+		++txr->packets;
+		/* If a packet was successfully cleaned, reset the watchdog timer */
+		atomic_store_rel_32(&txr->watchdog_timer, IXL_WATCHDOG);
+
+		/*
+		 * Since buf is the first buffer after the one that was just
+		 * cleaned, check if the packet it starts is done, too.
+		 */
+		last = buf->eop_index;
+		if (last != -1) {
+			eop_desc = &txr->base[last];
+			/* Get next done point */
+			if (++last == que->num_tx_desc) last = 0;
+			done = last;
+		} else
+			break;
+	} while (--limit);
+
+	bus_dmamap_sync(txr->dma.tag, txr->dma.map,
+	    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
+
+	txr->next_to_clean = first;
+
+	/*
+	 * If there are no pending descriptors, clear the watchdog timer.
+	 */
+	if (txr->avail == que->num_tx_desc) {
+		atomic_store_rel_32(&txr->watchdog_timer, 0);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+bool
+ixl_txeof(struct ixl_queue *que)
+{
+	struct ixl_vsi *vsi = que->vsi;
+
+	return (vsi->enable_head_writeback) ? ixl_txeof_hwb(que)
+	    : ixl_txeof_dwb(que);
+}
+
 
 /*********************************************************************
  *
