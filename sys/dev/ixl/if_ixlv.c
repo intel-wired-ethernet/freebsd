@@ -39,8 +39,8 @@
  *  Driver version
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
-#define IXLV_DRIVER_VERSION_MINOR	4
-#define IXLV_DRIVER_VERSION_BUILD	22
+#define IXLV_DRIVER_VERSION_MINOR	5
+#define IXLV_DRIVER_VERSION_BUILD	0
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
