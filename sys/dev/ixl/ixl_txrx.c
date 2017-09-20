@@ -875,7 +875,7 @@ static bool
 ixl_txeof_hwb(struct ixl_queue *que)
 {
 	struct tx_ring		*txr = &que->txr;
-	u32			first, last, head, done, processed;
+	u32			first, last, head, done;
 	struct ixl_tx_buf	*buf;
 	struct i40e_tx_desc	*tx_desc, *eop_desc;
 
@@ -893,7 +893,6 @@ ixl_txeof_hwb(struct ixl_queue *que)
 		return FALSE;
 	}
 
-	processed = 0;
 	first = txr->next_to_clean;
 	buf = &txr->buffers[first];
 	tx_desc = (struct i40e_tx_desc *)&txr->base[first];
@@ -928,7 +927,6 @@ ixl_txeof_hwb(struct ixl_queue *que)
 		/* We clean the range of the packet */
 		while (first != done) {
 			++txr->avail;
-			++processed;
 
 			if (buf->m_head) {
 				txr->bytes += /* for ITR adjustment */
@@ -996,9 +994,9 @@ static bool
 ixl_txeof_dwb(struct ixl_queue *que)
 {
 	struct tx_ring		*txr = &que->txr;
-	u32			first, last, done, processed;
 	// XXX: Set this properly
 	u32			limit = 16;
+	u32			first, last, done;
 	struct ixl_tx_buf	*buf;
 	struct i40e_tx_desc	*tx_desc, *eop_desc;
 
@@ -1009,8 +1007,6 @@ ixl_txeof_dwb(struct ixl_queue *que)
 		atomic_store_rel_32(&txr->watchdog_timer, 0);
 		return FALSE;
 	}
-
-	processed = 0;
 
 	/* Set starting index/descriptor/buffer */
 	first = txr->next_to_clean;
@@ -1069,7 +1065,6 @@ ixl_txeof_dwb(struct ixl_queue *que)
 			}
 			buf->eop_index = -1;
 			++txr->avail;
-			++processed;
 
 			if (++first == que->num_tx_desc)
 				first = 0;
