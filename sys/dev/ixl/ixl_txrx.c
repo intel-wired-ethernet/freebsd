@@ -1000,12 +1000,6 @@ ixl_txeof_dwb(struct ixl_queue *que)
 
 	mtx_assert(&txr->mtx, MA_OWNED);
 
-#ifdef DEV_NETMAP
-	// XXX todo: implement moderation
-	if (netmap_tx_irq(que->vsi->ifp, que->me))
-		return FALSE;
-#endif /* DEF_NETMAP */
-
 	/* There are no descriptors to clean */
 	if (txr->avail == que->num_tx_desc) {
 		atomic_store_rel_32(&txr->watchdog_timer, 0);

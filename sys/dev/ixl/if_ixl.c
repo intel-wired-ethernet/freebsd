@@ -352,7 +352,14 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
-	pf->vsi.enable_head_writeback = ixl_enable_head_writeback;
+#ifdef DEV_NETMAP
+	if (ixl_enable_head_writeback == 0)
+		device_printf(dev, "Head writeback mode cannot be disabled "
+		    "when netmap is enabled\n");
+	pf->vsi.enable_head_writeback = 1;
+#else
+	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
+#endif
 
 	ixl_vsi_setup_rings_size(&pf->vsi, ixl_tx_ring_size, ixl_rx_ring_size);
 
