@@ -195,7 +195,7 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, enable_tx_fc_filter, CTLFLAG_RDTUN,
  * Different method for processing TX descriptor
  * completion.
  */
-static int ixl_enable_head_writeback = 0;
+static int ixl_enable_head_writeback = 1;
 TUNABLE_INT("hw.ixl.enable_head_writeback",
     &ixl_enable_head_writeback);
 SYSCTL_INT(_hw_ixl, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
