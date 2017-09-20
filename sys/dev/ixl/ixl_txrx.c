@@ -867,9 +867,8 @@ ixl_get_tx_head(struct ixl_queue *que)
 
 /**********************************************************************
  *
- *  Examine each tx_buffer in the used queue. If the hardware is done
- *  processing the packet then free associated resources. The
- *  tx_buffer is put back on the free queue.
+ * Get index of last used descriptor/buffer from hardware, and clean
+ * the descriptors/buffers up to that index.
  *
  **********************************************************************/
 static bool
@@ -983,9 +982,14 @@ ixl_txeof_hwb(struct ixl_queue *que)
 
 /**********************************************************************
  *
- *  Examine each tx_buffer in the used queue. If the hardware is done
- *  processing the packet then free associated resources. The
- *  tx_buffer is put back on the free queue.
+ * Use index kept by driver and the flag on each descriptor to find used
+ * descriptor/buffers and clean them up for re-use.
+ *
+ * This method of reclaiming descriptors is current incompatible with
+ * DEV_NETMAP.
+ *
+ * Returns TRUE if there are more descriptors to be cleaned after this
+ * function exits.
  *
  **********************************************************************/
 static bool
@@ -1014,12 +1018,12 @@ ixl_txeof_dwb(struct ixl_queue *que)
 	tx_desc = &txr->base[first];
 
 	/*
-	 * This function operates per-packet -- identifies the
-	 * start of the packet and gets the index of the last
-	 * descriptor of the packet from it, from eop_index.
+	 * This function operates per-packet -- identifies the start of the
+	 * packet and gets the index of the last descriptor of the packet from
+	 * it, from eop_index.
 	 *
-	 * If the last packet is marked "done" by the hardware,
-	 * then we can clean all of the packet's descriptors.
+	 * If the last descriptor is marked "done" by the hardware, then all
+	 * of the descriptors for the packet are cleaned.
 	 */
 	last = buf->eop_index;
 	if (last == -1)
@@ -1030,12 +1034,11 @@ ixl_txeof_dwb(struct ixl_queue *que)
         bus_dmamap_sync(txr->dma.tag, txr->dma.map, BUS_DMASYNC_POSTREAD);
 
 	/*
-	** Get the index of the first descriptor
-	** BEYOND the EOP and call that 'done'.
-	** I do this so the comparison in the
-	** inner while loop below can be simple
-	*/
-	if (++last == que->num_tx_desc) last = 0;
+	 * Get the index of the first descriptor beyond the EOP and call that
+	 * 'done'. Simplifies the comparison for the inner loop below.
+	 */
+	if (++last == que->num_tx_desc)
+		last = 0;
 	done = last;
 
 	/*
@@ -1051,9 +1054,9 @@ ixl_txeof_dwb(struct ixl_queue *que)
 		/* Clean the descriptors that make up the processed packet */
 		while (first != done) {
 			/*
-			 * If there was a buffer attached to this descriptor, prevent
-			 * the adapter from accessing it, and add its length to the
-			 * queue's TX stats.
+			 * If there was a buffer attached to this descriptor,
+			 * prevent the adapter from accessing it, and add its
+			 * length to the queue's TX stats.
 			 */
 			if (buf->m_head) {
 				txr->bytes += buf->m_head->m_pkthdr.len;
