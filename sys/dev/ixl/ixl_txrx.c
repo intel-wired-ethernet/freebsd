@@ -994,9 +994,8 @@ static bool
 ixl_txeof_dwb(struct ixl_queue *que)
 {
 	struct tx_ring		*txr = &que->txr;
-	// XXX: Set this properly
-	u32			limit = 16;
 	u32			first, last, done;
+	u32			limit = 256;
 	struct ixl_tx_buf	*buf;
 	struct i40e_tx_desc	*tx_desc, *eop_desc;
 
