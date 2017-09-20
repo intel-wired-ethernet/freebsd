@@ -203,6 +203,17 @@ SYSCTL_INT(_hw_ixlv, OID_AUTO, txbr_size, CTLFLAG_RDTUN,
     &ixlv_txbrsz, 0, "TX Buf Ring Size");
 
 /*
+ * Different method for processing TX descriptor
+ * completion.
+ */
+static int ixlv_enable_head_writeback = 0;
+TUNABLE_INT("hw.ixlv.enable_head_writeback",
+    &ixlv_enable_head_writeback);
+SYSCTL_INT(_hw_ixlv, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
+    &ixlv_enable_head_writeback, 0,
+    "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
+
+/*
 ** Controls for Interrupt Throttling
 **      - true/false for dynamic adjustment
 **      - default values for static ITR
@@ -463,6 +474,9 @@ ixlv_attach(device_t dev)
 
 	/* Set things up to run init */
 	sc->init_state = IXLV_INIT_READY;
+
+	/* Save this tunable */
+	sc->vsi.enable_head_writeback = ixlv_enable_head_writeback;
 
 	ixl_vc_init_mgr(sc, &sc->vc_mgr);
 
@@ -1682,12 +1696,20 @@ ixlv_setup_queues(struct ixlv_sc *sc)
 		    device_get_nameunit(dev), que->me);
 		mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
 		/*
-		** Create the TX descriptor ring, the extra int is
-		** added as the location for HEAD WB.
-		*/
-		tsize = roundup2((que->num_tx_desc *
-		    sizeof(struct i40e_tx_desc)) +
-		    sizeof(u32), DBA_ALIGN);
+		 * Create the TX descriptor ring
+		 *
+		 * In Head Writeback mode, the descriptor ring is one bigger
+		 * than the number of descriptors for space for the HW to
+		 * write back index of last completed descriptor.
+		 */
+		if (vsi->enable_head_writeback) {
+			tsize = roundup2((que->num_tx_desc *
+			    sizeof(struct i40e_tx_desc)) +
+			    sizeof(u32), DBA_ALIGN);
+		} else {
+			tsize = roundup2((que->num_tx_desc *
+			    sizeof(struct i40e_tx_desc)), DBA_ALIGN);
+		}
 		if (i40e_allocate_dma_mem(&sc->hw,
 		    &txr->dma, i40e_mem_reserved, tsize, DBA_ALIGN)) {
 			device_printf(dev,

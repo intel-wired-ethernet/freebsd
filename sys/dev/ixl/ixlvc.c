@@ -417,9 +417,11 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 		vqpi->txq.ring_len = que->num_tx_desc;
 		vqpi->txq.dma_ring_addr = txr->dma.pa;
 		/* Enable Head writeback */
-		vqpi->txq.headwb_enabled = 1;
-		vqpi->txq.dma_headwb_addr = txr->dma.pa +
-		    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
+		if (vsi->enable_head_writeback) {
+			vqpi->txq.headwb_enabled = 1;
+			vqpi->txq.dma_headwb_addr = txr->dma.pa +
+			    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
+		}
 
 		vqpi->rxq.vsi_id = vqci->vsi_id;
 		vqpi->rxq.queue_id = i;
