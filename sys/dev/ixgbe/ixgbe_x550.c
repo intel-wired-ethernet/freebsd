@@ -1672,6 +1672,73 @@ static s32 ixgbe_restart_an_internal_phy_x550em(struct ixgbe_hw *hw)
 }
 
 /**
+ * ixgbe_setup_sgmii - Set up link for sgmii
+ * @hw: pointer to hardware structure
+ */
+static s32 ixgbe_setup_sgmii(struct ixgbe_hw *hw, ixgbe_link_speed speed,
+			     bool autoneg_wait)
+{
+	struct ixgbe_mac_info *mac = &hw->mac;
+	u32 lval, sval, flx_val;
+	s32 rc;
+
+	rc = mac->ops.read_iosf_sb_reg(hw,
+				       IXGBE_KRM_LINK_CTRL_1(hw->bus.lan_id),
+				       IXGBE_SB_IOSF_TARGET_KR_PHY, &lval);
+	if (rc)
+		return rc;
+
+	lval &= ~IXGBE_KRM_LINK_CTRL_1_TETH_AN_ENABLE;
+	lval &= ~IXGBE_KRM_LINK_CTRL_1_TETH_FORCE_SPEED_MASK;
+	lval |= IXGBE_KRM_LINK_CTRL_1_TETH_AN_SGMII_EN;
+	lval |= IXGBE_KRM_LINK_CTRL_1_TETH_AN_CLAUSE_37_EN;
+	lval |= IXGBE_KRM_LINK_CTRL_1_TETH_FORCE_SPEED_1G;
+	rc = mac->ops.write_iosf_sb_reg(hw,
+					IXGBE_KRM_LINK_CTRL_1(hw->bus.lan_id),
+					IXGBE_SB_IOSF_TARGET_KR_PHY, lval);
+	if (rc)
+		return rc;
+
+	rc = mac->ops.read_iosf_sb_reg(hw,
+				       IXGBE_KRM_SGMII_CTRL(hw->bus.lan_id),
+				       IXGBE_SB_IOSF_TARGET_KR_PHY, &sval);
+	if (rc)
+		return rc;
+
+	sval |= IXGBE_KRM_SGMII_CTRL_MAC_TAR_FORCE_10_D;
+	sval |= IXGBE_KRM_SGMII_CTRL_MAC_TAR_FORCE_100_D;
+	rc = mac->ops.write_iosf_sb_reg(hw,
+					IXGBE_KRM_SGMII_CTRL(hw->bus.lan_id),
+					IXGBE_SB_IOSF_TARGET_KR_PHY, sval);
+	if (rc)
+		return rc;
+
+	rc = mac->ops.read_iosf_sb_reg(hw,
+				    IXGBE_KRM_PMD_FLX_MASK_ST20(hw->bus.lan_id),
+				    IXGBE_SB_IOSF_TARGET_KR_PHY, &flx_val);
+	if (rc)
+		return rc;
+
+	flx_val &= ~IXGBE_KRM_PMD_FLX_MASK_ST20_SPEED_MASK;
+	flx_val |= IXGBE_KRM_PMD_FLX_MASK_ST20_SPEED_1G;
+	flx_val &= ~IXGBE_KRM_PMD_FLX_MASK_ST20_AN_EN;
+	flx_val |= IXGBE_KRM_PMD_FLX_MASK_ST20_SGMII_EN;
+	flx_val |= IXGBE_KRM_PMD_FLX_MASK_ST20_AN37_EN;
+
+	rc = mac->ops.write_iosf_sb_reg(hw,
+				    IXGBE_KRM_PMD_FLX_MASK_ST20(hw->bus.lan_id),
+				    IXGBE_SB_IOSF_TARGET_KR_PHY, flx_val);
+	if (rc)
+		return rc;
+
+	rc = ixgbe_restart_an_internal_phy_x550em(hw);
+	if (rc)
+		return rc;
+
+	return hw->phy.ops.setup_link_speed(hw, speed, autoneg_wait);
+}
+
+/**
  * ixgbe_setup_sgmii_fw - Set up link for internal PHY SGMII auto-negotiation
  * @hw: pointer to hardware structure
  */
@@ -1793,7 +1860,7 @@ void ixgbe_init_mac_link_ops_X550em(struct ixgbe_hw *hw)
 	case ixgbe_media_type_backplane:
 		if (hw->device_id == IXGBE_DEV_ID_X550EM_A_SGMII ||
 		    hw->device_id == IXGBE_DEV_ID_X550EM_A_SGMII_L)
-			mac->ops.setup_link = ixgbe_setup_sgmii_fw;
+			mac->ops.setup_link = ixgbe_setup_sgmii;
 		break;
 	default:
 		break;
@@ -1844,9 +1911,7 @@ s32 ixgbe_get_link_capabilities_X550em(struct ixgbe_hw *hw,
 		switch (hw->phy.type) {
 		case ixgbe_phy_ext_1g_t:
 		case ixgbe_phy_sgmii:
-			*speed = IXGBE_LINK_SPEED_1GB_FULL |
-				 IXGBE_LINK_SPEED_100_FULL |
-				 IXGBE_LINK_SPEED_10_FULL;
+			*speed = IXGBE_LINK_SPEED_1GB_FULL;
 			break;
 		case ixgbe_phy_x550em_kr:
 			if (hw->mac.type == ixgbe_mac_X550EM_a) {
@@ -3590,9 +3655,7 @@ u64 ixgbe_get_supported_physical_layer_X550em(struct ixgbe_hw *hw)
 			physical_layer |= IXGBE_PHYSICAL_LAYER_10BASE_T;
 		break;
 	case ixgbe_phy_sgmii:
-		physical_layer = IXGBE_PHYSICAL_LAYER_1000BASE_KX |
-				 IXGBE_PHYSICAL_LAYER_100BASE_TX |
-				 IXGBE_PHYSICAL_LAYER_10BASE_T;
+		physical_layer = IXGBE_PHYSICAL_LAYER_1000BASE_KX;
 		break;
 	case ixgbe_phy_ext_1g_t:
 		physical_layer = IXGBE_PHYSICAL_LAYER_1000BASE_T;
