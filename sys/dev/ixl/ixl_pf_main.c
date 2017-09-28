@@ -1410,37 +1410,6 @@ ixl_setup_queue_msix(struct ixl_vsi *vsi)
 }
 
 /*
- * When used in a virtualized environment PCI BUSMASTER capability may not be set
- * so explicity set it here and rewrite the ENABLE in the MSIX control register
- * at this point to cause the host to successfully initialize us.
- */
-void
-ixl_set_busmaster(device_t dev)
-{
-	u16 pci_cmd_word;
-
-	pci_cmd_word = pci_read_config(dev, PCIR_COMMAND, 2);
-	pci_cmd_word |= PCIM_CMD_BUSMASTEREN;
-	pci_write_config(dev, PCIR_COMMAND, pci_cmd_word, 2);
-}
-
-/*
- * rewrite the ENABLE in the MSIX control register
- * to cause the host to successfully initialize us.
- */
-void
-ixl_set_msix_enable(device_t dev)
-{
-	int msix_ctrl, rid;
-
-	pci_find_cap(dev, PCIY_MSIX, &rid);
-	rid += PCIR_MSIX_CTRL;
-	msix_ctrl = pci_read_config(dev, rid, 2);
-	msix_ctrl |= PCIM_MSIXCTRL_MSIX_ENABLE;
-	pci_write_config(dev, rid, msix_ctrl, 2);
-}
-
-/*
  * Allocate MSI/X vectors from the OS.
  * Returns 0 for legacy, 1 for MSI, >1 for MSIX.
  */

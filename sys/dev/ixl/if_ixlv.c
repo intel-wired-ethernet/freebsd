@@ -1351,29 +1351,10 @@ ixlv_allocate_pci_resources(struct ixlv_sc *sc)
 	sc->osdep.mem_bus_space_size = rman_get_size(sc->pci_mem);
 	sc->osdep.flush_reg = I40E_VFGEN_RSTAT;
 	sc->hw.hw_addr = (u8 *) &sc->osdep.mem_bus_space_handle;
-
 	sc->hw.back = &sc->osdep;
 
-	/*
-	** Explicitly set the guest PCI BUSMASTER capability
-	** and we must rewrite the ENABLE in the MSIX control
-	** register again at this point to cause the host to
-	** successfully initialize us.
-	**
-	** This must be set before accessing any registers.
-	*/
-	{
-		u16 pci_cmd_word;
-		int msix_ctrl;
-		pci_cmd_word = pci_read_config(dev, PCIR_COMMAND, 2);
-		pci_cmd_word |= PCIM_CMD_BUSMASTEREN;
-		pci_write_config(dev, PCIR_COMMAND, pci_cmd_word, 2);
-		pci_find_cap(dev, PCIY_MSIX, &rid);
-		rid += PCIR_MSIX_CTRL;
-		msix_ctrl = pci_read_config(dev, rid, 2);
-		msix_ctrl |= PCIM_MSIXCTRL_MSIX_ENABLE;
-		pci_write_config(dev, rid, msix_ctrl, 2);
-	}
+	ixl_set_busmaster(dev);
+	ixl_set_msix_enable(dev);
 
 	/* Disable adminq interrupts (just in case) */
 	ixlv_disable_adminq_irq(&sc->hw);

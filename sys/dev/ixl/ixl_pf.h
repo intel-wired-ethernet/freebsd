@@ -203,8 +203,6 @@ void	ixl_debug_core(struct ixl_pf *, enum ixl_dbg_mask, char *, ...);
  * PF-only function declarations
  */
 
-void	ixl_set_busmaster(device_t);
-void	ixl_set_msix_enable(device_t);
 int	ixl_setup_interface(device_t, struct ixl_vsi *);
 void	ixl_print_nvm_cmd(device_t, struct i40e_nvm_access *);
 char *	ixl_aq_speed_to_str(enum i40e_aq_link_speed);
