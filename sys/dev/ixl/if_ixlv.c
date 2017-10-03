@@ -559,8 +559,8 @@ ixlv_detach(device_t dev)
 
 	if_free(vsi->ifp);
 	free(sc->vf_res, M_DEVBUF);
-	ixlv_free_pci_resources(sc);
 	ixlv_free_queues(vsi);
+	ixlv_free_pci_resources(sc);
 	ixlv_free_filters(sc);
 
 	bus_generic_detach(dev);
@@ -1363,36 +1363,37 @@ ixlv_allocate_pci_resources(struct ixlv_sc *sc)
 	return (0);
 }
 
+/*
+ * Free MSI-X related resources for a single queue
+ */
 static void
-ixlv_free_pci_resources(struct ixlv_sc *sc)
+ixlv_free_msix_resources(struct ixlv_sc *sc, struct ixl_queue *que)
 {
-	struct ixl_vsi         *vsi = &sc->vsi;
-	struct ixl_queue       *que = vsi->queues;
 	device_t                dev = sc->dev;
-
-	/* We may get here before stations are setup */
-	if (que == NULL)
-		goto early;
 
 	/*
 	**  Release all msix queue resources:
 	*/
-	for (int i = 0; i < vsi->num_queues; i++, que++) {
-		int rid = que->msix + 1;
-		if (que->tag != NULL) {
-			bus_teardown_intr(dev, que->res, que->tag);
-			que->tag = NULL;
-		}
-		if (que->res != NULL) {
-			bus_release_resource(dev, SYS_RES_IRQ, rid, que->res);
-			que->res = NULL;
-		}
-		if (que->tq != NULL) {
-			taskqueue_free(que->tq);
-			que->tq = NULL;
-		}
+	if (que->tag != NULL) {
+		bus_teardown_intr(dev, que->res, que->tag);
+		que->tag = NULL;
 	}
-early:
+	if (que->res != NULL) {
+		int rid = que->msix + 1;
+		bus_release_resource(dev, SYS_RES_IRQ, rid, que->res);
+		que->res = NULL;
+	}
+	if (que->tq != NULL) {
+		taskqueue_free(que->tq);
+		que->tq = NULL;
+	}
+}
+
+static void
+ixlv_free_pci_resources(struct ixlv_sc *sc)
+{
+	device_t                dev = sc->dev;
+
 	pci_release_msi(dev);
 
 	if (sc->msix_mem != NULL)
@@ -2662,8 +2663,12 @@ ixlv_free_queues(struct ixl_vsi *vsi)
 	struct ixlv_sc	*sc = (struct ixlv_sc *)vsi->back;
 	struct ixl_queue	*que = vsi->queues;
 
-	for (int i = 0; i < vsi->num_queues; i++, que++)
+	for (int i = 0; i < vsi->num_queues; i++, que++) {
+		/* First, free the MSI-X resources */
+		ixlv_free_msix_resources(sc, que);
+		/* Then free other queue data */
 		ixlv_free_queue(sc, que);
+	}
 
 	free(vsi->queues, M_DEVBUF);
 }
