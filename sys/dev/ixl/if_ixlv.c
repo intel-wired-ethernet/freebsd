@@ -1456,7 +1456,7 @@ ixlv_assign_msix(struct ixlv_sc *sc)
 		    INTR_TYPE_NET | INTR_MPSAFE, NULL,
 		    ixlv_msix_que, que, &que->tag);
 		if (error) {
-			que->res = NULL;
+			que->tag = NULL;
 			device_printf(dev, "Failed to register que handler");
 			return (error);
 		}
