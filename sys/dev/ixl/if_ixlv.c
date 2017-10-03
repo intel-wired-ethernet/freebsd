@@ -486,6 +486,7 @@ ixlv_attach(device_t dev)
 
 out:
 	ixlv_free_queues(vsi);
+	ixlv_teardown_adminq_msix(sc);
 err_res_buf:
 	free(sc->vf_res, M_DEVBUF);
 err_aq:
