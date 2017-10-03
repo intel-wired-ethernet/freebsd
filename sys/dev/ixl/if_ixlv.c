@@ -323,6 +323,9 @@ ixlv_attach(device_t dev)
 	/* Allocate filter lists */
 	ixlv_init_filters(sc);
 
+	/* Save this tunable */
+	vsi->enable_head_writeback = ixlv_enable_head_writeback;
+
 	/* Core Lock Init */
 	mtx_init(&sc->mtx, device_get_nameunit(dev),
 	    "IXL SC Lock", MTX_DEF);
@@ -475,9 +478,6 @@ ixlv_attach(device_t dev)
 
 	/* Set things up to run init */
 	sc->init_state = IXLV_INIT_READY;
-
-	/* Save this tunable */
-	sc->vsi.enable_head_writeback = ixlv_enable_head_writeback;
 
 	ixl_vc_init_mgr(sc, &sc->vc_mgr);
 
