@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	5
-#define IXLV_DRIVER_VERSION_BUILD	0
+#define IXLV_DRIVER_VERSION_BUILD	1
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -439,6 +439,16 @@ ixlv_attach(device_t dev)
 		goto out;
 	}
 
+	/* Do queue interrupt setup */
+	if (ixlv_assign_msix(sc) != 0) {
+		device_printf(dev, "%s: allocating queue interrupts failed!\n",
+		    __func__);
+		error = ENXIO;
+		goto out;
+	}
+
+	INIT_DBG_DEV(dev, "Queue memory and interrupts setup");
+
 	/* Setup the stack interface */
 	if (ixlv_setup_interface(dev, sc) != 0) {
 		device_printf(dev, "%s: setup interface failed!\n",
@@ -447,15 +457,7 @@ ixlv_attach(device_t dev)
 		goto out;
 	}
 
-	INIT_DBG_DEV(dev, "Queue memory and interface setup");
-
-	/* Do queue interrupt setup */
-	if (ixlv_assign_msix(sc) != 0) {
-		device_printf(dev, "%s: allocating queue interrupts failed!\n",
-		    __func__);
-		error = ENXIO;
-		goto out;
-	}
+	INIT_DBG_DEV(dev, "Interface setup complete");
 
 	/* Start AdminQ taskqueue */
 	ixlv_init_taskqueue(sc);
