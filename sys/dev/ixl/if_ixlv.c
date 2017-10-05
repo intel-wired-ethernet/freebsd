@@ -1635,6 +1635,13 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	ifmedia_init(&sc->media, IFM_IMASK, ixlv_media_change,
 		     ixlv_media_status);
 
+	/* Media types based on reported link speed over AdminQ */
+	ifmedia_add(&sc->media, IFM_ETHER | IFM_100_TX, 0, NULL);
+	ifmedia_add(&sc->media, IFM_ETHER | IFM_1000_T, 0, NULL);
+	ifmedia_add(&sc->media, IFM_ETHER | IFM_10G_SR, 0, NULL);
+	ifmedia_add(&sc->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
+	ifmedia_add(&sc->media, IFM_ETHER | IFM_40G_SR4, 0, NULL);
+
 	ifmedia_add(&sc->media, IFM_ETHER | IFM_AUTO, 0, NULL);
 	ifmedia_set(&sc->media, IFM_ETHER | IFM_AUTO);
 
@@ -2315,6 +2322,34 @@ ixlv_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 	ifmr->ifm_status |= IFM_ACTIVE;
 	/* Hardware is always full-duplex */
 	ifmr->ifm_active |= IFM_FDX;
+
+	/* Based on the link speed reported by the PF over the AdminQ, choose a
+	 * PHY type to report. This isn't 100% correct since we don't really
+	 * know the underlying PHY type of the PF, but at least we can report
+	 * a valid link speed...
+	 */
+	switch (sc->link_speed) {
+	case VIRTCHNL_LINK_SPEED_100MB:
+		ifmr->ifm_active |= IFM_100_TX;
+		break;
+	case VIRTCHNL_LINK_SPEED_1GB:
+		ifmr->ifm_active |= IFM_1000_T;
+		break;
+	case VIRTCHNL_LINK_SPEED_10GB:
+		ifmr->ifm_active |= IFM_10G_SR;
+		break;
+	case VIRTCHNL_LINK_SPEED_20GB:
+	case VIRTCHNL_LINK_SPEED_25GB:
+		ifmr->ifm_active |= IFM_25G_SR;
+		break;
+	case VIRTCHNL_LINK_SPEED_40GB:
+		ifmr->ifm_active |= IFM_40G_SR4;
+		break;
+	default:
+		ifmr->ifm_active |= IFM_UNKNOWN;
+		break;
+	}
+
 	mtx_unlock(&sc->mtx);
 	INIT_DBG_IF(ifp, "end");
 	return;
@@ -2339,8 +2374,10 @@ ixlv_media_change(struct ifnet * ifp)
 	if (IFM_TYPE(ifm->ifm_media) != IFM_ETHER)
 		return (EINVAL);
 
+	if_printf(ifp, "Changing speed is not supported\n");
+
 	INIT_DBG_IF(ifp, "end");
-	return (0);
+	return (ENODEV);
 }
 
 
