@@ -136,6 +136,8 @@ static int	ixlv_vf_config(struct ixlv_sc *);
 static void	ixlv_cap_txcsum_tso(struct ixl_vsi *,
 		    struct ifnet *, int);
 
+static char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
+
 static void	ixlv_add_sysctls(struct ixlv_sc *);
 #ifdef IXL_DEBUG
 static int 	ixlv_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
@@ -2577,8 +2579,8 @@ ixlv_update_link_status(struct ixlv_sc *sc)
 	if (sc->link_up){ 
 		if (vsi->link_active == FALSE) {
 			if (bootverbose)
-				if_printf(ifp,"Link is Up, %d Gbps\n",
-				    (sc->link_speed == I40E_LINK_SPEED_40GB) ? 40:10);
+				if_printf(ifp,"Link is Up, %s\n",
+				    ixlv_vc_speed_to_string(sc->link_speed));
 			vsi->link_active = TRUE;
 			if_link_state_change(ifp, LINK_STATE_UP);
 		}
@@ -3127,6 +3129,49 @@ ixlv_free_filters(struct ixlv_sc *sc)
 	}
 	free(sc->vlan_filters, M_DEVBUF);
 	return;
+}
+
+static char *
+ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed)
+{
+	int index;
+
+	char *speeds[] = {
+		"Unknown",
+		"100 Mbps",
+		"1 Gbps",
+		"10 Gbps",
+		"40 Gbps",
+		"20 Gbps",
+		"25 Gbps",
+	};
+
+	switch (link_speed) {
+	case VIRTCHNL_LINK_SPEED_100MB:
+		index = 1;
+		break;
+	case VIRTCHNL_LINK_SPEED_1GB:
+		index = 2;
+		break;
+	case VIRTCHNL_LINK_SPEED_10GB:
+		index = 3;
+		break;
+	case VIRTCHNL_LINK_SPEED_40GB:
+		index = 4;
+		break;
+	case VIRTCHNL_LINK_SPEED_20GB:
+		index = 5;
+		break;
+	case VIRTCHNL_LINK_SPEED_25GB:
+		index = 6;
+		break;
+	case VIRTCHNL_LINK_SPEED_UNKNOWN:
+	default:
+		index = 0;
+		break;
+	}
+
+	return speeds[index];
 }
 
 #ifdef IXL_DEBUG
