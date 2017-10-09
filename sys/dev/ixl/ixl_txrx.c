@@ -265,11 +265,6 @@ ixl_qflush(struct ifnet *ifp)
 	if_qflush(ifp);
 }
 
-/*
-** Find mbuf chains passed to the driver 
-** that are 'sparse', using more than 8
-** mbufs to deliver an mss-size chunk of data
-*/
 static inline bool
 ixl_tso_detect_sparse(struct mbuf *mp)
 {
@@ -286,9 +281,9 @@ ixl_tso_detect_sparse(struct mbuf *mp)
 		num++;
 		mss -= m->m_len % mp->m_pkthdr.tso_segsz;
 
+		if (num > IXL_SPARSE_CHAIN)
+			return (true);
 		if (mss < 1) {
-			if (num > IXL_SPARSE_CHAIN)
-				return (true);
 			num = (mss == 0) ? 0 : 1;
 			mss += mp->m_pkthdr.tso_segsz;
 		}

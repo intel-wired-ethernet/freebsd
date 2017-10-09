@@ -235,7 +235,7 @@ enum ixl_dbg_mask {
 #define IXL_MAX_FRAME		9728
 #define IXL_MAX_TX_SEGS		8
 #define IXL_MAX_TSO_SEGS	128
-#define IXL_SPARSE_CHAIN	6
+#define IXL_SPARSE_CHAIN	7
 #define IXL_QUEUE_HUNG		0x80000000
 #define IXL_MIN_TSO_MSS		64
 #define IXL_MAX_DMA_SEG_SIZE	((16 * 1024) - 1)
