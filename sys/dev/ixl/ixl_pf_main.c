@@ -1061,13 +1061,9 @@ ixl_local_timer(void *arg)
 
 	/* Increment stat when a queue shows hung */
 	if (ixl_queue_hang_check(pf))
-		goto hung;
+		pf->watchdog_events++;
 
 	callout_reset(&pf->timer, hz, ixl_local_timer, pf);
-	return;
-
-hung:
-	pf->watchdog_events++;
 }
 
 void
