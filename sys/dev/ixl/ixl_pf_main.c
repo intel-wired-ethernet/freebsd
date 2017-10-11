@@ -1071,26 +1071,17 @@ ixl_link_up_msg(struct ixl_pf *pf)
 {
 	struct i40e_hw *hw = &pf->hw;
 	struct ifnet *ifp = pf->vsi.ifp;
-	struct i40e_aq_get_phy_abilities_resp abilities;
 	char *req_fec_string, *neg_fec_string;
-	enum i40e_status_code status;
 	u8 fec_abilities;
 
-	status = i40e_aq_get_phy_capabilities(hw,
-	   FALSE, FALSE, &abilities, NULL);
-	if (status)
-		req_fec_string = "Error";
-	else {
-		fec_abilities = abilities.fec_cfg_curr_mod_ext_info;
-
-		/* If both RS and KR are requested, only show RS */
-		if (fec_abilities & I40E_AQ_REQUEST_FEC_RS)
-			req_fec_string = ixl_fec_string[0];
-		else if (fec_abilities & I40E_AQ_REQUEST_FEC_KR)
-			req_fec_string = ixl_fec_string[1];
-		else
-			req_fec_string = ixl_fec_string[2];
-	}
+	fec_abilities = hw->phy.link_info.req_fec_info;
+	/* If both RS and KR are requested, only show RS */
+	if (fec_abilities & I40E_AQ_REQUEST_FEC_RS)
+		req_fec_string = ixl_fec_string[0];
+	else if (fec_abilities & I40E_AQ_REQUEST_FEC_KR)
+		req_fec_string = ixl_fec_string[1];
+	else
+		req_fec_string = ixl_fec_string[2];
 
 	if (hw->phy.link_info.fec_info & I40E_AQ_CONFIG_FEC_RS_ENA)
 		neg_fec_string = ixl_fec_string[0];
