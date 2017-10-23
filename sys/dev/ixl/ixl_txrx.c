@@ -765,7 +765,6 @@ ixl_tx_setup_offload(struct ixl_queue *que,
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 			}
 			break;
-
 		case IPPROTO_SCTP:
 			if (mp->m_pkthdr.csum_flags & (CSUM_SCTP|CSUM_SCTP_IPV6)) {
 				*cmd |= I40E_TX_DESC_CMD_L4T_EOFT_SCTP;

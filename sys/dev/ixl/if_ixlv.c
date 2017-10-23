@@ -40,7 +40,7 @@
  *********************************************************************/
 #define IXLV_DRIVER_VERSION_MAJOR	1
 #define IXLV_DRIVER_VERSION_MINOR	5
-#define IXLV_DRIVER_VERSION_BUILD	2
+#define IXLV_DRIVER_VERSION_BUILD	3
 
 char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
@@ -2820,10 +2820,10 @@ ixlv_config_rss_pf(struct ixlv_sc *sc)
 static void
 ixlv_config_rss(struct ixlv_sc *sc)
 {
-	if (sc->vf_res->vf_offload_flags & VIRTCHNL_VF_OFFLOAD_RSS_REG) {
+	if (sc->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_REG) {
 		DDPRINTF(sc->dev, "Setting up RSS using VF registers...");
 		ixlv_config_rss_reg(sc);
-	} else if (sc->vf_res->vf_offload_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF) {
+	} else if (sc->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF) {
 		DDPRINTF(sc->dev, "Setting up RSS using messages to PF...");
 		ixlv_config_rss_pf(sc);
 	} else

@@ -522,12 +522,12 @@ ixl_vf_get_resources_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 	bzero(&reply, sizeof(reply));
 
 	if (vf->version == VIRTCHNL_VERSION_MINOR_NO_VF_CAPS)
-		reply.vf_offload_flags = VIRTCHNL_VF_OFFLOAD_L2 |
+		reply.vf_cap_flags = VIRTCHNL_VF_OFFLOAD_L2 |
 					 VIRTCHNL_VF_OFFLOAD_RSS_REG |
 					 VIRTCHNL_VF_OFFLOAD_VLAN;
 	else
 		/* Force VF RSS setup by PF in 1.1+ VFs */
-		reply.vf_offload_flags = *(u32 *)msg & (
+		reply.vf_cap_flags = *(u32 *)msg & (
 					 VIRTCHNL_VF_OFFLOAD_L2 |
 					 VIRTCHNL_VF_OFFLOAD_RSS_PF |
 					 VIRTCHNL_VF_OFFLOAD_VLAN);
