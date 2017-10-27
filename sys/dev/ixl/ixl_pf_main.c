@@ -81,6 +81,7 @@ static int	ixl_sysctl_fec_fc_request(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_fec_rs_request(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_fec_auto_enable(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_dump_debug_data(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS);
 #ifdef IXL_DEBUG
 static int	ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
@@ -4431,6 +4432,10 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 		    pf, 0, ixl_sysctl_fec_auto_enable, "I", "Let FW decide FEC ability/request modes");
 	}
 
+	SYSCTL_ADD_PROC(ctx, ctx_list,
+	    OID_AUTO, "fw_lldp", CTLTYPE_INT | CTLFLAG_RW,
+	    pf, 0, ixl_sysctl_fw_lldp, "I", IXL_SYSCTL_HELP_FW_LLDP);
+
 	/* Add sysctls meant to print debug information, but don't list them
 	 * in "sysctl -a" output. */
 	debug_node = SYSCTL_ADD_NODE(ctx, ctx_list,
@@ -6285,4 +6290,76 @@ out:
 	sbuf_delete(buf);
 
 	return (error);
+}
+
+static int
+ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
+{
+	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	int error = 0;
+	int state, new_state;
+	state = new_state = (pf->state & IXL_PF_STATE_FW_LLDP_DISABLED) == 0;
+
+	/* Read in new mode */
+	error = sysctl_handle_int(oidp, &new_state, 0, req);
+	if ((error) || (req->newptr == NULL))
+		return (error);
+
+	/* Already in requested state */
+	if (new_state == state)
+		return (error);
+
+	if (new_state == 0) {
+		if (hw->mac.type == I40E_MAC_X722 || hw->func_caps.npar_enable != 0) {
+			device_printf(dev, "Disabling FW LLDP engine is not supported on this device\n");
+			return (EINVAL);
+		}
+
+		if (pf->hw.aq.api_maj_ver < 1 ||
+			(pf->hw.aq.api_maj_ver == 1 &&
+			 pf->hw.aq.api_min_ver < 7)) {
+			device_printf(dev, "Disabling FW LLDP engine is not supported in this FW version. Please update FW to enable this feature.\n");
+			return (EINVAL);
+		}
+
+		i40e_aq_stop_lldp(&pf->hw, TRUE, NULL);
+		i40e_aq_set_dcb_parameters(&pf->hw, true, NULL);
+		atomic_set_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
+	} else {
+		i40e_aq_start_lldp(&pf->hw, NULL);
+		atomic_clear_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
+	}
+
+	return (0);
+}
+
+/*
+ * Get FW LLDP Agent status
+ */
+int ixl_get_fw_lldp_status(struct ixl_pf *pf)
+{
+        enum i40e_status_code ret = I40E_SUCCESS;
+        struct i40e_hw *hw = &pf->hw;
+        struct i40e_virt_mem mem;
+        u8 *lldpmib;
+
+        /* Allocate the LLDPDU */
+        ret = i40e_allocate_virt_mem(hw, &mem, I40E_LLDPDU_SIZE);
+        if (ret)
+                return (ENOMEM);
+
+        lldpmib = (u8 *)mem.va;
+        ret = i40e_aq_get_lldp_mib(hw, 0, I40E_AQ_LLDP_MIB_LOCAL,
+                                   (void *)lldpmib, I40E_LLDPDU_SIZE,
+                                   NULL, NULL, NULL);
+
+        if (pf->hw.aq.asq_last_status == I40E_AQ_RC_EPERM) {
+                device_printf(pf->dev, "FW LLDP disabled for this PF.\n");
+                pf->state |= IXL_PF_STATE_FW_LLDP_DISABLED;
+	}
+
+        i40e_free_virt_mem(hw, &mem);
+        return (0);
 }

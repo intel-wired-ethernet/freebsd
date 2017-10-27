@@ -48,8 +48,8 @@
  *  Driver version
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
-#define IXL_DRIVER_VERSION_MINOR	8
-#define IXL_DRIVER_VERSION_BUILD	2
+#define IXL_DRIVER_VERSION_MINOR	9
+#define IXL_DRIVER_VERSION_BUILD	0
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
@@ -548,8 +548,10 @@ ixl_attach(device_t dev)
 
 	/* Disable LLDP from the firmware for certain NVM versions */
 	if (((pf->hw.aq.fw_maj_ver == 4) && (pf->hw.aq.fw_min_ver < 3)) ||
-	    (pf->hw.aq.fw_maj_ver < 4))
+	    (pf->hw.aq.fw_maj_ver < 4)) {
 		i40e_aq_stop_lldp(hw, TRUE, NULL);
+		pf->state |= IXL_PF_STATE_FW_LLDP_DISABLED;
+	}
 
 	/* Get MAC addresses from hardware */
 	i40e_get_mac_addr(hw, hw->mac.addr);
@@ -560,6 +562,9 @@ ixl_attach(device_t dev)
 	}
 	bcopy(hw->mac.addr, hw->mac.perm_addr, ETHER_ADDR_LEN);
 	i40e_get_port_mac_addr(hw, hw->mac.port_addr);
+
+	i40e_aq_set_dcb_parameters(hw, TRUE, NULL);
+	ixl_get_fw_lldp_status(pf);
 
 	/* Initialize mac filter list for VSI */
 	SLIST_INIT(&vsi->ftl);
