@@ -3411,7 +3411,7 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	** the add bit.
 	*/
 	SLIST_FOREACH(f, &vsi->ftl, next) {
-		if (f->flags == flags) {
+		if ((f->flags & flags) == flags) {
 			b = &a[j]; // a pox on fvl long names :)
 			bcopy(f->macaddr, b->mac_addr, ETHER_ADDR_LEN);
 			if (f->vlan == IXL_VLAN_ANY) {
