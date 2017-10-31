@@ -57,6 +57,7 @@ static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 /* Sysctls */
 static int	ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_supported_speeds(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_show_fw(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_unallocated_queues(SYSCTL_HANDLER_ARGS);
@@ -4368,6 +4369,10 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    pf, 0, ixl_sysctl_set_advertise, "I", IXL_SYSCTL_HELP_SET_ADVERTISE);
 
 	SYSCTL_ADD_PROC(ctx, ctx_list,
+	    OID_AUTO, "supported_speeds", CTLTYPE_INT | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_supported_speeds, "I", IXL_SYSCTL_HELP_SUPPORTED_SPEED);
+
+	SYSCTL_ADD_PROC(ctx, ctx_list,
 	    OID_AUTO, "current_speed", CTLTYPE_STRING | CTLFLAG_RD,
 	    pf, 0, ixl_sysctl_current_speed, "A", "Current Port Speed");
 
@@ -4695,6 +4700,25 @@ ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds)
 	}
 
 	return (0);
+}
+
+/*
+** Supported link speedsL
+**	Flags:
+**	 0x1 - 100 Mb
+**	 0x2 - 1G
+**	 0x4 - 10G
+**	 0x8 - 20G
+**	0x10 - 25G
+**	0x20 - 40G
+*/
+static int
+ixl_sysctl_supported_speeds(SYSCTL_HANDLER_ARGS)
+{
+	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	int supported = ixl_convert_sysctl_aq_link_speed(pf->supported_speeds, false);
+
+	return sysctl_handle_int(oidp, NULL, supported, req);
 }
 
 /*

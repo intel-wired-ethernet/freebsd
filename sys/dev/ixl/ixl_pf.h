@@ -157,6 +157,17 @@ struct ixl_pf {
 "Set to 0 to disable link.\n"		\
 "Use \"sysctl -x\" to view flags properly."
 
+#define IXL_SYSCTL_HELP_SUPPORTED_SPEED	\
+"\nSupported link speeds.\n"		\
+"Flags:\n"				\
+"\t 0x1 - 100M\n"			\
+"\t 0x2 - 1G\n"				\
+"\t 0x4 - 10G\n"			\
+"\t 0x8 - 20G\n"			\
+"\t0x10 - 25G\n"			\
+"\t0x20 - 40G\n\n"			\
+"Use \"sysctl -x\" to view flags properly."
+
 #define IXL_SYSCTL_HELP_FC				\
 "\nSet flow control mode using the values below.\n" 	\
 "\t0 - off\n" 						\
