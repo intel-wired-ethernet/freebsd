@@ -49,7 +49,7 @@
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
 #define IXL_DRIVER_VERSION_MINOR	9
-#define IXL_DRIVER_VERSION_BUILD	1
+#define IXL_DRIVER_VERSION_BUILD	2
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
@@ -659,7 +659,7 @@ ixl_attach(device_t dev)
 	}
 
 	/* Set initial advertised speed sysctl value */
-	ixl_get_initial_advertised_speeds(pf);
+	ixl_set_initial_advertised_speeds(pf);
 
 	/* Initialize statistics & add sysctls */
 	ixl_add_device_sysctls(pf);

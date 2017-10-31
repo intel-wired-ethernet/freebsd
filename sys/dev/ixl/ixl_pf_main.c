@@ -487,25 +487,25 @@ ixl_cap_txcsum_tso(struct ixl_vsi *vsi, struct ifnet *ifp, int mask)
 
 /* For the set_advertise sysctl */
 void
-ixl_get_initial_advertised_speeds(struct ixl_pf *pf)
+ixl_set_initial_advertised_speeds(struct ixl_pf *pf)
 {
-	struct i40e_hw *hw = &pf->hw;
 	device_t dev = pf->dev;
-	enum i40e_status_code status;
-	struct i40e_aq_get_phy_abilities_resp abilities;
+	int err;
 
-	/* Set initial sysctl values */
-	status = i40e_aq_get_phy_capabilities(hw, FALSE, false, &abilities,
-					      NULL);
-	if (status) {
+	/* Make sure to initialize the device to the complete list of
+	 * supported speeds on driver load, to ensure unloading and
+	 * reloading the driver will restore this value.
+	 */
+	err = ixl_set_advertised_speeds(pf, pf->supported_speeds);
+	if (err) {
 		/* Non-fatal error */
-		device_printf(dev, "%s: i40e_aq_get_phy_capabilities() error %d\n",
-		     __func__, status);
+		device_printf(dev, "%s: ixl_set_advertised_speeds() error %d\n",
+			      __func__, err);
 		return;
 	}
 
 	pf->advertised_speed =
-	    ixl_convert_sysctl_aq_link_speed(abilities.link_speed, false);
+	    ixl_convert_sysctl_aq_link_speed(pf->supported_speeds, false);
 }
 
 int
