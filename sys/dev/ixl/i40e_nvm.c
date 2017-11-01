@@ -334,13 +334,11 @@ enum i40e_status_code __i40e_read_nvm_word(struct i40e_hw *hw,
 					   u16 offset,
 					   u16 *data)
 {
-	enum i40e_status_code ret_code = I40E_SUCCESS;
 
 	if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
-		ret_code = i40e_read_nvm_word_aq(hw, offset, data);
-	else
-		ret_code = i40e_read_nvm_word_srctl(hw, offset, data);
-	return ret_code;
+		return i40e_read_nvm_word_aq(hw, offset, data);
+
+	return i40e_read_nvm_word_srctl(hw, offset, data);
 }
 
 /**
@@ -474,13 +472,10 @@ enum i40e_status_code __i40e_read_nvm_buffer(struct i40e_hw *hw,
 					     u16 offset,
 					     u16 *words, u16 *data)
 {
-	enum i40e_status_code ret_code = I40E_SUCCESS;
-
 	if (hw->flags & I40E_HW_FLAG_AQ_SRCTL_ACCESS_ENABLE)
-		ret_code = i40e_read_nvm_buffer_aq(hw, offset, words, data);
-	else
-		ret_code = i40e_read_nvm_buffer_srctl(hw, offset, words, data);
-	return ret_code;
+		return i40e_read_nvm_buffer_aq(hw, offset, words, data);
+
+	return i40e_read_nvm_buffer_srctl(hw, offset, words, data);
 }
 
 /**
