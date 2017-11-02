@@ -137,7 +137,7 @@ static void	ixlv_cap_txcsum_tso(struct ixl_vsi *,
 		    struct ifnet *, int);
 
 static char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
-static int ixlv_current_speed(SYSCTL_HANDLER_ARGS);
+static int ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 
 static void	ixlv_add_sysctls(struct ixlv_sc *);
 #ifdef IXL_DEBUG
@@ -3037,7 +3037,7 @@ ixlv_add_sysctls(struct ixlv_sc *sc)
 
 	SYSCTL_ADD_PROC(ctx, child, OID_AUTO, "current_speed",
 			CTLTYPE_STRING | CTLFLAG_RD,
-			sc, 0, ixlv_current_speed,
+			sc, 0, ixlv_sysctl_current_speed,
 			"A", "Current Port Speed");
 
 	/* VSI statistics sysctls */
@@ -3218,7 +3218,7 @@ ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed)
 }
 
 static int
-ixlv_current_speed(SYSCTL_HANDLER_ARGS)
+ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 {
 	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
 	int error = 0;

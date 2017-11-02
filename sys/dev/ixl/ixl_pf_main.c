@@ -55,9 +55,9 @@ static u64	ixl_max_aq_speed_to_value(u8);
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 
 /* Sysctls */
-static int	ixl_set_flowcntl(SYSCTL_HANDLER_ARGS);
-static int	ixl_set_advertise(SYSCTL_HANDLER_ARGS);
-static int	ixl_current_speed(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_show_fw(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_unallocated_queues(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_pf_tx_itr(SYSCTL_HANDLER_ARGS);
@@ -4361,15 +4361,15 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	/* Set up sysctls */
 	SYSCTL_ADD_PROC(ctx, ctx_list,
 	    OID_AUTO, "fc", CTLTYPE_INT | CTLFLAG_RW,
-	    pf, 0, ixl_set_flowcntl, "I", IXL_SYSCTL_HELP_FC);
+	    pf, 0, ixl_sysctl_set_flowcntl, "I", IXL_SYSCTL_HELP_FC);
 
 	SYSCTL_ADD_PROC(ctx, ctx_list,
 	    OID_AUTO, "advertise_speed", CTLTYPE_INT | CTLFLAG_RW,
-	    pf, 0, ixl_set_advertise, "I", IXL_SYSCTL_HELP_SET_ADVERTISE);
+	    pf, 0, ixl_sysctl_set_advertise, "I", IXL_SYSCTL_HELP_SET_ADVERTISE);
 
 	SYSCTL_ADD_PROC(ctx, ctx_list,
 	    OID_AUTO, "current_speed", CTLTYPE_STRING | CTLFLAG_RD,
-	    pf, 0, ixl_current_speed, "A", "Current Port Speed");
+	    pf, 0, ixl_sysctl_current_speed, "A", "Current Port Speed");
 
 	SYSCTL_ADD_PROC(ctx, ctx_list,
 	    OID_AUTO, "fw_version", CTLTYPE_STRING | CTLFLAG_RD,
@@ -4532,7 +4532,7 @@ ixl_sysctl_unallocated_queues(SYSCTL_HANDLER_ARGS)
 **	3 - full
 */
 int
-ixl_set_flowcntl(SYSCTL_HANDLER_ARGS)
+ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	struct i40e_hw *hw = &pf->hw;
@@ -4615,7 +4615,7 @@ ixl_aq_speed_to_str(enum i40e_aq_link_speed link_speed)
 }
 
 int
-ixl_current_speed(SYSCTL_HANDLER_ARGS)
+ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	struct i40e_hw *hw = &pf->hw;
@@ -4710,7 +4710,7 @@ ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds)
 **	Set to 0 to disable link
 */
 int
-ixl_set_advertise(SYSCTL_HANDLER_ARGS)
+ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	device_t dev = pf->dev;
