@@ -4682,6 +4682,7 @@ ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds)
 	config.eee_capability = abilities.eee_capability;
 	config.eeer = abilities.eeer_val;
 	config.low_power_ctrl = abilities.d3_lpan;
+	config.fec_config = (abilities.fec_cfg_curr_mod_ext_info & 0x1e);
 
 	/* Do aq command & restart link */
 	aq_error = i40e_aq_set_phy_config(hw, &config, NULL);
@@ -5542,8 +5543,8 @@ ixl_sysctl_phy_abilities(SYSCTL_HANDLER_ARGS)
 	    abilities.phy_id[0], abilities.phy_id[1],
 	    abilities.phy_id[2], abilities.phy_id[3],
 	    abilities.module_type[0], abilities.module_type[1],
-	    abilities.module_type[2], abilities.phy_type_ext >> 5,
-	    abilities.phy_type_ext & 0x1F,
+	    abilities.module_type[2], (abilities.fec_cfg_curr_mod_ext_info & 0xe0) >> 5,
+	    abilities.fec_cfg_curr_mod_ext_info & 0x1F,
 	    abilities.ext_comp_code);
 
 	error = sbuf_finish(buf);
@@ -6071,7 +6072,7 @@ ixl_get_fec_config(struct ixl_pf *pf, struct i40e_aq_get_phy_abilities_resp *abi
 		return (EIO);
 	}
 
-	*is_set = !!(abilities->phy_type_ext & bit_pos);
+	*is_set = !!(abilities->fec_cfg_curr_mod_ext_info & bit_pos);
 	return (0);
 }
 
@@ -6086,10 +6087,10 @@ ixl_set_fec_config(struct ixl_pf *pf, struct i40e_aq_get_phy_abilities_resp *abi
 
 	/* Set new PHY config */
 	memset(&config, 0, sizeof(config));
-	config.fec_config = abilities->phy_type_ext & ~(bit_pos);
+	config.fec_config = abilities->fec_cfg_curr_mod_ext_info & ~(bit_pos);
 	if (set)
 		config.fec_config |= bit_pos;
-	if (config.fec_config != abilities->phy_type_ext) {
+	if (config.fec_config != abilities->fec_cfg_curr_mod_ext_info) {
 		config.abilities |= I40E_AQ_PHY_ENABLE_ATOMIC_LINK;
 		config.phy_type = abilities->phy_type;
 		config.phy_type_ext = abilities->phy_type_ext;

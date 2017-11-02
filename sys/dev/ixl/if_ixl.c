@@ -49,7 +49,7 @@
  *********************************************************************/
 #define IXL_DRIVER_VERSION_MAJOR	1
 #define IXL_DRIVER_VERSION_MINOR	9
-#define IXL_DRIVER_VERSION_BUILD	0
+#define IXL_DRIVER_VERSION_BUILD	1
 
 char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
