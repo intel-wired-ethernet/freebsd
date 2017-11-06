@@ -1341,7 +1341,7 @@ enum i40e_status_code i40e_pf_reset(struct i40e_hw *hw)
 				break;
 			reg2 = rd32(hw, I40E_GLGEN_RSTAT);
 			if (reg2 & I40E_GLGEN_RSTAT_DEVSTATE_MASK) {
-				DEBUGOUT("Core reset upcoming.\n");
+				DEBUGOUT("Core reset upcoming. Skipping PF reset request.\n");
 				DEBUGOUT1("I40E_GLGEN_RSTAT = 0x%x\n", reg2);
 				return I40E_ERR_NOT_READY;
 			}
