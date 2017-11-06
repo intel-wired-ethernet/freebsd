@@ -287,7 +287,7 @@ void	ixl_configure_legacy(struct ixl_pf *);
 void	ixl_free_pci_resources(struct ixl_pf *);
 void	ixl_link_event(struct ixl_pf *, struct i40e_arq_event_info *);
 void	ixl_config_rss(struct ixl_pf *);
-int	ixl_set_advertised_speeds(struct ixl_pf *, int);
+int	ixl_set_advertised_speeds(struct ixl_pf *, int, bool);
 void	ixl_set_initial_advertised_speeds(struct ixl_pf *);
 void	ixl_print_nvm_version(struct ixl_pf *pf);
 void	ixl_add_device_sysctls(struct ixl_pf *);
@@ -353,6 +353,6 @@ s32	ixl_read_i2c_byte(struct ixl_pf *pf, u8 byte_offset,
 s32	ixl_write_i2c_byte(struct ixl_pf *pf, u8 byte_offset,
 	    u8 dev_addr, u8 data);
 
-int ixl_get_fw_lldp_status(struct ixl_pf *pf);
+int	ixl_get_fw_lldp_status(struct ixl_pf *pf);
 
 #endif /* _IXL_PF_H_ */

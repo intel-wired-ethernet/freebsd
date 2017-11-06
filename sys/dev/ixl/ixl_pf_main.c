@@ -496,7 +496,7 @@ ixl_set_initial_advertised_speeds(struct ixl_pf *pf)
 	 * supported speeds on driver load, to ensure unloading and
 	 * reloading the driver will restore this value.
 	 */
-	err = ixl_set_advertised_speeds(pf, pf->supported_speeds);
+	err = ixl_set_advertised_speeds(pf, pf->supported_speeds, true);
 	if (err) {
 		/* Non-fatal error */
 		device_printf(dev, "%s: ixl_set_advertised_speeds() error %d\n",
@@ -4634,6 +4634,10 @@ ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 	return (error);
 }
 
+/*
+ * Converts 8-bit speeds value to and from sysctl flags and
+ * Admin Queue flags.
+ */
 static u8
 ixl_convert_sysctl_aq_link_speed(u8 speeds, bool to_aq)
 {
@@ -4658,7 +4662,7 @@ ixl_convert_sysctl_aq_link_speed(u8 speeds, bool to_aq)
 }
 
 int
-ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds)
+ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds, bool from_aq)
 {
 	struct i40e_hw *hw = &pf->hw;
 	device_t dev = pf->dev;
@@ -4679,7 +4683,10 @@ ixl_set_advertised_speeds(struct ixl_pf *pf, int speeds)
 
 	/* Prepare new config */
 	bzero(&config, sizeof(config));
-	config.link_speed = ixl_convert_sysctl_aq_link_speed(speeds, true);
+	if (from_aq)
+		config.link_speed = speeds;
+	else
+		config.link_speed = ixl_convert_sysctl_aq_link_speed(speeds, true);
 	config.phy_type = abilities.phy_type;
 	config.phy_type_ext = abilities.phy_type_ext;
 	config.abilities = abilities.abilities
@@ -4765,7 +4772,7 @@ ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS)
 		return (EINVAL);
 	}
 
-	error = ixl_set_advertised_speeds(pf, requested_ls);
+	error = ixl_set_advertised_speeds(pf, requested_ls, false);
 	if (error)
 		return (error);
 
@@ -6349,7 +6356,7 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 			return (EINVAL);
 		}
 
-		i40e_aq_stop_lldp(&pf->hw, TRUE, NULL);
+		i40e_aq_stop_lldp(&pf->hw, true, NULL);
 		i40e_aq_set_dcb_parameters(&pf->hw, true, NULL);
 		atomic_set_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
 	} else {
@@ -6363,7 +6370,8 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 /*
  * Get FW LLDP Agent status
  */
-int ixl_get_fw_lldp_status(struct ixl_pf *pf)
+int
+ixl_get_fw_lldp_status(struct ixl_pf *pf)
 {
         enum i40e_status_code ret = I40E_SUCCESS;
         struct i40e_hw *hw = &pf->hw;
