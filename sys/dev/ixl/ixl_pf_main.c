@@ -6331,7 +6331,8 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 	device_t dev = pf->dev;
 	int error = 0;
 	int state, new_state;
-	state = new_state = (pf->state & IXL_PF_STATE_FW_LLDP_DISABLED) == 0;
+	enum i40e_status_code status;
+	state = new_state = ((pf->state & IXL_PF_STATE_FW_LLDP_DISABLED) == 0);
 
 	/* Read in new mode */
 	error = sysctl_handle_int(oidp, &new_state, 0, req);
@@ -6344,14 +6345,14 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 
 	if (new_state == 0) {
 		if (hw->mac.type == I40E_MAC_X722 || hw->func_caps.npar_enable != 0) {
-			device_printf(dev, "Disabling FW LLDP engine is not supported on this device\n");
+			device_printf(dev, "Disabling FW LLDP agent is not supported on this device\n");
 			return (EINVAL);
 		}
 
 		if (pf->hw.aq.api_maj_ver < 1 ||
 			(pf->hw.aq.api_maj_ver == 1 &&
 			 pf->hw.aq.api_min_ver < 7)) {
-			device_printf(dev, "Disabling FW LLDP engine is not supported in this FW version. Please update FW to enable this feature.\n");
+			device_printf(dev, "Disabling FW LLDP agent is not supported in this FW version. Please update FW to enable this feature.\n");
 			return (EINVAL);
 		}
 
@@ -6359,7 +6360,9 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 		i40e_aq_set_dcb_parameters(&pf->hw, true, NULL);
 		atomic_set_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
 	} else {
-		i40e_aq_start_lldp(&pf->hw, NULL);
+		status = i40e_aq_start_lldp(&pf->hw, NULL);
+		if (status != I40E_SUCCESS && hw->aq.asq_last_status == I40E_AQ_RC_EEXIST)
+			device_printf(dev, "FW LLDP agent is already running\n");
 		atomic_clear_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
 	}
 

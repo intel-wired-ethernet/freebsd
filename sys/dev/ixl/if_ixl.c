@@ -563,8 +563,13 @@ ixl_attach(device_t dev)
 	bcopy(hw->mac.addr, hw->mac.perm_addr, ETHER_ADDR_LEN);
 	i40e_get_port_mac_addr(hw, hw->mac.port_addr);
 
-	i40e_aq_set_dcb_parameters(hw, TRUE, NULL);
+	/* Query device FW LLDP status */
 	ixl_get_fw_lldp_status(pf);
+	/* Tell FW to apply DCB config on link up */
+	if ((hw->mac.type != I40E_MAC_X722)
+	    && ((pf->hw.aq.api_maj_ver > 1)
+	    || (pf->hw.aq.api_maj_ver == 1 && pf->hw.aq.api_min_ver >= 7)))
+		i40e_aq_set_dcb_parameters(hw, true, NULL);
 
 	/* Initialize mac filter list for VSI */
 	SLIST_INIT(&vsi->ftl);
