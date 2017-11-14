@@ -50,7 +50,7 @@
 #include <dev/netmap/netmap_kern.h>
 #endif /* DEV_NETMAP */
 
-static int	ixl_setup_queue(struct ixl_queue *, struct ixl_pf *, int);
+static int	ixl_vsi_setup_queue(struct ixl_vsi *, struct ixl_queue *, int);
 static u64	ixl_max_aq_speed_to_value(u8);
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 
@@ -255,6 +255,7 @@ ixl_init_locked(struct ixl_pf *pf)
 	      ETH_ALEN);
 	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&
 	    (i40e_validate_mac_addr(tmpaddr) == I40E_SUCCESS)) {
+		device_printf(dev, "ixl_init_locked: reconfigure MAC addr\n");
 		ixl_del_filter(vsi, hw->mac.addr, IXL_VLAN_ANY);
 		bcopy(tmpaddr, hw->mac.addr,
 		    ETH_ALEN);
@@ -2304,20 +2305,16 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 }
 
 
-/*********************************************************************
- *
- *  Free all VSI structs.
- *
- **********************************************************************/
+
+
 void
-ixl_free_vsi(struct ixl_vsi *vsi)
+ixl_vsi_free_queues(struct ixl_vsi *vsi)
 {
 	struct ixl_pf		*pf = (struct ixl_pf *)vsi->back;
 	struct ixl_queue	*que = vsi->queues;
 
-	/* Free station queues */
-	if (!vsi->queues)
-		goto free_filters;
+	if (NULL == vsi->queues)
+		return;
 
 	for (int i = 0; i < vsi->num_queues; i++, que++) {
 		struct tx_ring *txr = &que->txr;
@@ -2343,9 +2340,23 @@ ixl_free_vsi(struct ixl_vsi *vsi)
 		IXL_RX_UNLOCK(rxr);
 		IXL_RX_LOCK_DESTROY(rxr);
 	}
-	free(vsi->queues, M_DEVBUF);
+}
 
-free_filters:
+
+/*********************************************************************
+ *
+ *  Free all VSI structs.
+ *
+ **********************************************************************/
+void
+ixl_free_vsi(struct ixl_vsi *vsi)
+{
+
+	/* Free station queues */
+	ixl_vsi_free_queues(vsi);
+	if (vsi->queues)
+		free(vsi->queues, M_DEVBUF);
+
 	/* Free VSI filter list */
 	ixl_free_mac_filters(vsi);
 }
@@ -2366,11 +2377,11 @@ ixl_free_mac_filters(struct ixl_vsi *vsi)
  * Fill out fields in queue struct and setup tx/rx memory and structs
  */
 static int
-ixl_setup_queue(struct ixl_queue *que, struct ixl_pf *pf, int index)
+ixl_vsi_setup_queue(struct ixl_vsi *vsi, struct ixl_queue *que, int index)
 {
+	struct ixl_pf	*pf = (struct ixl_pf *)vsi->back;
 	device_t dev = pf->dev;
 	struct i40e_hw *hw = &pf->hw;
-	struct ixl_vsi *vsi = &pf->vsi;
 	struct tx_ring *txr = &que->txr;
 	struct rx_ring *rxr = &que->rxr;
 	int error = 0;
@@ -2474,6 +2485,22 @@ err_destroy_tx_mtx:
 	return (error);
 }
 
+int
+ixl_vsi_setup_queues(struct ixl_vsi *vsi)
+{
+	struct ixl_queue	*que;
+	int			error = 0;
+
+	for (int i = 0; i < vsi->num_queues; i++) {
+		que = &vsi->queues[i];
+		error = ixl_vsi_setup_queue(vsi, que, i);
+		if (error)
+			break;
+	}
+	return (error);
+}
+
+
 /*********************************************************************
  *
  *  Allocate memory for the VSI (virtual station interface) and their
@@ -2486,7 +2513,6 @@ ixl_setup_stations(struct ixl_pf *pf)
 {
 	device_t		dev = pf->dev;
 	struct ixl_vsi		*vsi;
-	struct ixl_queue	*que;
 	int			error = 0;
 
 	vsi = &pf->vsi;
@@ -2502,18 +2528,13 @@ ixl_setup_stations(struct ixl_pf *pf)
             vsi->num_queues, M_DEVBUF, M_NOWAIT | M_ZERO))) {
                 device_printf(dev, "Unable to allocate queue memory\n");
                 error = ENOMEM;
-                return (error);
+		goto ixl_setup_stations_err;
         }
 
 	/* Then setup each queue */
-	for (int i = 0; i < vsi->num_queues; i++) {
-		que = &vsi->queues[i];
-		error = ixl_setup_queue(que, pf, i);
-		if (error)
-			return (error);
-	}
-
-	return (0);
+	error = ixl_vsi_setup_queues(vsi);
+ixl_setup_stations_err:
+	return (error);
 }
 
 /*
@@ -2904,11 +2925,6 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				sizeof(struct ixl_queue),
 				ixl_sysctl_qtx_tail_handler, "IU",
 				"Queue Transmit Descriptor Tail");
-		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qrx_tail", 
-				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
-				sizeof(struct ixl_queue),
-				ixl_sysctl_qrx_tail_handler, "IU",
-				"Queue Receive Descriptor Tail");
 #endif
 	}
 
@@ -4015,81 +4031,185 @@ ixl_update_stats_counters(struct ixl_pf *pf)
 }
 
 int
-ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf)
+ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up)
 {
 	struct i40e_hw *hw = &pf->hw;
 	struct ixl_vsi *vsi = &pf->vsi;
 	device_t dev = pf->dev;
-	bool is_up = false;
 	int error = 0;
-
-	is_up = !!(vsi->ifp->if_drv_flags & IFF_DRV_RUNNING);
 
 	/* Teardown */
 	if (is_up)
 		ixl_stop(pf);
+
+	ixl_teardown_queue_msix(vsi);
+
 	error = i40e_shutdown_lan_hmc(hw);
 	if (error)
 		device_printf(dev,
 		    "Shutdown LAN HMC failed with code %d\n", error);
+
 	ixl_disable_intr0(hw);
 	ixl_teardown_adminq_msix(pf);
+
 	error = i40e_shutdown_adminq(hw);
 	if (error)
 		device_printf(dev,
 		    "Shutdown Admin queue failed with code %d\n", error);
+
+	callout_drain(&pf->timer);
+
+	/* Free ring buffers, locks and filters */
+	ixl_vsi_free_queues(vsi);
+
+	/* Free VSI filter list */
+	ixl_free_mac_filters(vsi);
+
+	ixl_pf_qmgr_release(&pf->qmgr, &pf->qtag);
+
+	return (error);
+}
+
+int
+ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
+{
+	struct i40e_hw *hw = &pf->hw;
+	struct ixl_vsi *vsi = &pf->vsi;
+	device_t dev = pf->dev;
+	int error = 0;
+
+	device_printf(dev, "Rebuilding driver state...\n");
+
+	error = i40e_pf_reset(hw);
+	if (error) {
+		device_printf(dev, "PF reset failure %s\n",
+		    i40e_stat_str(hw, error));
+		goto ixl_rebuild_hw_structs_after_reset_err;
+	}
 
 	/* Setup */
 	error = i40e_init_adminq(hw);
 	if (error != 0 && error != I40E_ERR_FIRMWARE_API_VERSION) {
 		device_printf(dev, "Unable to initialize Admin Queue, error %d\n",
 		    error);
+		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
-	error = ixl_setup_adminq_msix(pf);
+
+	i40e_clear_pxe_mode(hw);
+
+	error = ixl_get_hw_capabilities(pf);
 	if (error) {
-		device_printf(dev, "ixl_setup_adminq_msix error: %d\n",
-		    error);
+		device_printf(dev, "ixl_get_hw_capabilities failed: %d\n", error);
+		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
-	ixl_configure_intr0_msix(pf);
-	ixl_enable_intr0(hw);
+
 	error = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
 	    hw->func_caps.num_rx_qp, 0, 0);
 	if (error) {
 		device_printf(dev, "init_lan_hmc failed: %d\n", error);
+		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
+
 	error = i40e_configure_lan_hmc(hw, I40E_HMC_MODEL_DIRECT_ONLY);
 	if (error) {
 		device_printf(dev, "configure_lan_hmc failed: %d\n", error);
+		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
+
+	/* reserve a contiguous allocation for the PF's VSI */
+	error = ixl_pf_qmgr_alloc_contiguous(&pf->qmgr, vsi->num_queues, &pf->qtag);
+	if (error) {
+		device_printf(dev, "Failed to reserve queues for PF LAN VSI, error %d\n",
+		    error);
+		/* TODO: error handling */
+	}
+
+	device_printf(dev, "Allocating %d queues for PF LAN VSI; %d queues active\n",
+	    pf->qtag.num_allocated, pf->qtag.num_active);
+
+	error = ixl_switch_config(pf);
+	if (error) {
+		device_printf(dev, "ixl_rebuild_hw_structs_after_reset: ixl_switch_config() failed: %d\n",
+		     error);
+		goto ixl_rebuild_hw_structs_after_reset_err;
+	}
+
+	if (ixl_vsi_setup_queues(vsi)) {
+		device_printf(dev, "setup queues failed!\n");
+		error = ENOMEM;
+		goto ixl_rebuild_hw_structs_after_reset_err;
+	}
+
+	if (pf->msix > 1) {
+		error = ixl_setup_adminq_msix(pf);
+		if (error) {
+			device_printf(dev, "ixl_setup_adminq_msix() error: %d\n",
+			    error);
+			goto ixl_rebuild_hw_structs_after_reset_err;
+		}
+
+		ixl_configure_intr0_msix(pf);
+		ixl_enable_intr0(hw);
+
+		error = ixl_setup_queue_msix(vsi);
+		if (error) {
+			device_printf(dev, "ixl_setup_queue_msix() error: %d\n",
+			    error);
+			goto ixl_rebuild_hw_structs_after_reset_err;
+		}
+	} else {
+		error = ixl_setup_legacy(pf);
+		if (error) {
+			device_printf(dev, "ixl_setup_legacy() error: %d\n",
+			    error);
+			goto ixl_rebuild_hw_structs_after_reset_err;
+		}
+	}
+
+	/* Determine link state */
+	if (ixl_attach_get_link_status(pf)) {
+		error = EINVAL;
+		/* TODO: error handling */
+	}
+
+	i40e_aq_set_dcb_parameters(hw, TRUE, NULL);
+	ixl_get_fw_lldp_status(pf);
+
 	if (is_up)
 		ixl_init(pf);
 
+	device_printf(dev, "Rebuilding driver state done.\n");
 	return (0);
+
+ixl_rebuild_hw_structs_after_reset_err:
+	device_printf(dev, "Reload the driver to recover\n");
+	return (error);
 }
 
 void
 ixl_handle_empr_reset(struct ixl_pf *pf)
 {
-	struct i40e_hw *hw = &pf->hw;
-	device_t dev = pf->dev;
+	struct ixl_vsi	*vsi = &pf->vsi;
+	struct i40e_hw	*hw = &pf->hw;
+	bool is_up = !!(vsi->ifp->if_drv_flags & IFF_DRV_RUNNING);
 	int count = 0;
 	u32 reg;
+
+	ixl_prepare_for_reset(pf, is_up);
 
 	/* Typically finishes within 3-4 seconds */
 	while (count++ < 100) {
 		reg = rd32(hw, I40E_GLGEN_RSTAT)
-		    & I40E_GLGEN_RSTAT_DEVSTATE_MASK;
+			& I40E_GLGEN_RSTAT_DEVSTATE_MASK;
 		if (reg)
 			i40e_msec_delay(100);
 		else
 			break;
 	}
 	ixl_dbg(pf, IXL_DBG_INFO,
-	    "EMPR reset wait count: %d\n", count);
+			"EMPR reset wait count: %d\n", count);
 
-	device_printf(dev, "Rebuilding driver state...\n");
-	ixl_rebuild_hw_structs_after_reset(pf);
-	device_printf(dev, "Rebuilding driver state done.\n");
+	ixl_rebuild_hw_structs_after_reset(pf, is_up);
 
 	atomic_clear_int(&pf->state, IXL_PF_STATE_EMPR_RESETTING);
 }
@@ -4986,6 +5106,11 @@ ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
 	struct i40e_hw  *hw = &pf->hw;
 
 	INIT_DEBUGOUT("ixl_media_status: begin");
+
+	/* Don't touch PF during reset */
+	if (atomic_load_acq_int(&pf->state) & IXL_PF_STATE_EMPR_RESETTING)
+		return;
+
 	IXL_PF_LOCK(pf);
 
 	i40e_get_link_status(hw, &pf->link_up);
@@ -6401,5 +6526,29 @@ ixl_get_fw_lldp_status(struct ixl_pf *pf)
 	}
 
 	i40e_free_virt_mem(hw, &mem);
+	return (0);
+}
+
+int
+ixl_attach_get_link_status(struct ixl_pf *pf)
+{
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	int error = 0;
+
+	if (((hw->aq.fw_maj_ver == 4) && (hw->aq.fw_min_ver < 33)) ||
+	    (hw->aq.fw_maj_ver < 4)) {
+		i40e_msec_delay(75);
+		error = i40e_aq_set_link_restart_an(hw, TRUE, NULL);
+		if (error) {
+			device_printf(dev, "link restart failed, aq_err=%d\n",
+			    pf->hw.aq.asq_last_status);
+			return error;
+		}
+	}
+
+	/* Determine link state */
+	hw->phy.get_link_info = TRUE;
+	i40e_get_link_status(hw, &pf->link_up);
 	return (0);
 }
