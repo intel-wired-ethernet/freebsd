@@ -867,25 +867,24 @@ ixl_set_promisc(struct ixl_vsi *vsi)
 	int		err, mcnt = 0;
 	bool		uni = FALSE, multi = FALSE;
 
-	if (ifp->if_flags & IFF_ALLMULTI)
-                multi = TRUE;
+        if (ifp->if_flags & IFF_PROMISC)
+		uni = multi = TRUE;
+	else if (ifp->if_flags & IFF_ALLMULTI)
+			multi = TRUE;
 	else { /* Need to count the multicast addresses */
 		struct  ifmultiaddr *ifma;
 		if_maddr_rlock(ifp);
 		TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
-                        if (ifma->ifma_addr->sa_family != AF_LINK)
-                                continue;
-                        if (mcnt == MAX_MULTICAST_ADDR)
-                                break;
-                        mcnt++;
+			if (ifma->ifma_addr->sa_family != AF_LINK)
+				continue;
+			if (mcnt == MAX_MULTICAST_ADDR) {
+				multi = TRUE;
+				break;
+			}
+			mcnt++;
 		}
 		if_maddr_runlock(ifp);
 	}
-
-	if (mcnt >= MAX_MULTICAST_ADDR)
-                multi = TRUE;
-        if (ifp->if_flags & IFF_PROMISC)
-		uni = TRUE;
 
 	err = i40e_aq_set_vsi_unicast_promiscuous(hw,
 	    vsi->seid, uni, NULL, TRUE);
