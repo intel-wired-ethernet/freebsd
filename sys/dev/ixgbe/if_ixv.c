@@ -1342,7 +1342,7 @@ ixv_initialize_receive_units(if_ctx_t ctx)
 	struct ixgbe_hw    *hw = &adapter->hw;
 	struct ifnet       *ifp = iflib_get_ifp(ctx);
 	struct ix_rx_queue *que = adapter->rx_queues;
-	u32                bufsz, rxcsum, psrtype;
+	u32                bufsz, psrtype;
 
 	if (ifp->if_mtu > ETHERMTU)
 		bufsz = 4096 >> IXGBE_SRRCTL_BSIZEPKT_SHIFT;
@@ -1447,22 +1447,7 @@ ixv_initialize_receive_units(if_ctx_t ctx)
 			    scctx->isc_nrxd[0] - 1);
 	}
 
-	rxcsum = IXGBE_READ_REG(hw, IXGBE_RXCSUM);
-
 	ixv_initialize_rss_mapping(adapter);
-
-	if (adapter->num_rx_queues > 1) {
-		/* RSS and RX IPP Checksum are mutually exclusive */
-		rxcsum |= IXGBE_RXCSUM_PCSD;
-	}
-
-	if (ifp->if_capenable & IFCAP_RXCSUM)
-		rxcsum |= IXGBE_RXCSUM_PCSD;
-
-	if (!(rxcsum & IXGBE_RXCSUM_PCSD))
-		rxcsum |= IXGBE_RXCSUM_IPPCSE;
-
-	IXGBE_WRITE_REG(hw, IXGBE_RXCSUM, rxcsum);
 } /* ixv_initialize_receive_units */
 
 /************************************************************************
