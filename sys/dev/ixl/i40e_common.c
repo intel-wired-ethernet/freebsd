@@ -4456,6 +4456,11 @@ i40e_aq_set_dcb_parameters(struct i40e_hw *hw, bool dcb_enable,
 		(struct i40e_aqc_set_dcb_parameters *)&desc.params.raw;
 	enum i40e_status_code status;
 
+	if ((hw->mac.type != I40E_MAC_XL710) ||
+	    ((hw->aq.api_maj_ver < 1) ||
+	     ((hw->aq.api_maj_ver == 1) && (hw->aq.api_min_ver < 6))))
+		return I40E_ERR_DEVICE_NOT_SUPPORTED;
+
 	i40e_fill_default_direct_cmd_desc(&desc,
 					  i40e_aqc_opc_set_dcb_parameters);
 
