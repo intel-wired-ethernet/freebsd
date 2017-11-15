@@ -6350,8 +6350,8 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 		}
 
 		if (pf->hw.aq.api_maj_ver < 1 ||
-			(pf->hw.aq.api_maj_ver == 1 &&
-			 pf->hw.aq.api_min_ver < 7)) {
+		    (pf->hw.aq.api_maj_ver == 1 &&
+		    pf->hw.aq.api_min_ver < 7)) {
 			device_printf(dev, "Disabling FW LLDP agent is not supported in this FW version. Please update FW to enable this feature.\n");
 			return (EINVAL);
 		}
@@ -6375,26 +6375,31 @@ ixl_sysctl_fw_lldp(SYSCTL_HANDLER_ARGS)
 int
 ixl_get_fw_lldp_status(struct ixl_pf *pf)
 {
-        enum i40e_status_code ret = I40E_SUCCESS;
-        struct i40e_hw *hw = &pf->hw;
-        struct i40e_virt_mem mem;
-        u8 *lldpmib;
+	enum i40e_status_code ret = I40E_SUCCESS;
+	struct i40e_hw *hw = &pf->hw;
+	struct i40e_virt_mem mem;
+	u8 *lldpmib;
 
-        /* Allocate the LLDPDU */
-        ret = i40e_allocate_virt_mem(hw, &mem, I40E_LLDPDU_SIZE);
-        if (ret)
-                return (ENOMEM);
-
-        lldpmib = (u8 *)mem.va;
-        ret = i40e_aq_get_lldp_mib(hw, 0, I40E_AQ_LLDP_MIB_LOCAL,
-                                   (void *)lldpmib, I40E_LLDPDU_SIZE,
-                                   NULL, NULL, NULL);
-
-        if (pf->hw.aq.asq_last_status == I40E_AQ_RC_EPERM) {
-                device_printf(pf->dev, "FW LLDP disabled for this PF.\n");
-                pf->state |= IXL_PF_STATE_FW_LLDP_DISABLED;
+	/* Always report FW LLDP agent state as ON for X722 */
+	if (hw->mac.type == I40E_MAC_X722) {
+		atomic_clear_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
+		return (0);
 	}
 
-        i40e_free_virt_mem(hw, &mem);
-        return (0);
+	/* Allocate the LLDPDU */
+	ret = i40e_allocate_virt_mem(hw, &mem, I40E_LLDPDU_SIZE);
+	if (ret)
+		return (ENOMEM);
+
+	lldpmib = (u8 *)mem.va;
+	ret = i40e_aq_get_lldp_mib(hw, 0, I40E_AQ_LLDP_MIB_LOCAL,
+	   (void *)lldpmib, I40E_LLDPDU_SIZE, NULL, NULL, NULL);
+
+	if (pf->hw.aq.asq_last_status == I40E_AQ_RC_EPERM) {
+		device_printf(pf->dev, "FW LLDP agent is disabled for this PF.\n");
+		atomic_set_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
+	}
+
+	i40e_free_virt_mem(hw, &mem);
+	return (0);
 }
