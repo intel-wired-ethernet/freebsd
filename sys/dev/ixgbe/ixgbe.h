@@ -430,6 +430,7 @@ struct adapter {
 	struct grouptask        mod_task;   /* SFP tasklet */
 	struct grouptask        msf_task;   /* Multispeed Fiber */
 	struct grouptask        mbx_task;   /* VF -> PF mailbox interrupt */
+	int                     sfp_reinit;
 
 	/* Flow Director */
 	int                     fdir_reinit;

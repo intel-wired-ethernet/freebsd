@@ -3359,6 +3359,7 @@ ixgbe_handle_mod(void *context)
 	device_t        dev = iflib_get_dev(ctx);
 	u32             err, cage_full = 0;
 
+	adapter->sfp_reinit = 1;
 	if (adapter->hw.need_crosstalk_fix) {
 		switch (hw->mac.type) {
 		case ixgbe_mac_82599EB:
@@ -3375,23 +3376,31 @@ ixgbe_handle_mod(void *context)
 		}
 
 		if (!cage_full)
-			return;
+			goto handle_mod_out;
 	}
 
 	err = hw->phy.ops.identify_sfp(hw);
 	if (err == IXGBE_ERR_SFP_NOT_SUPPORTED) {
 		device_printf(dev,
 		    "Unsupported SFP+ module type was detected.\n");
-		return;
+		goto handle_mod_out;
 	}
 
-	err = hw->mac.ops.setup_sfp(hw);
+	if (hw->mac.type == ixgbe_mac_82598EB)
+		err = hw->phy.ops.reset(hw);
+	else
+		err = hw->mac.ops.setup_sfp(hw);
+
 	if (err == IXGBE_ERR_SFP_NOT_SUPPORTED) {
 		device_printf(dev,
 		    "Setup failure - unsupported SFP+ module type.\n");
-		return;
+		goto handle_mod_out;
 	}
 	GROUPTASK_ENQUEUE(&adapter->msf_task);
+	return;
+
+handle_mod_out:
+	adapter->sfp_reinit = 0;
 } /* ixgbe_handle_mod */
 
 
@@ -3407,6 +3416,9 @@ ixgbe_handle_msf(void *context)
 	u32             autoneg;
 	bool            negotiate;
 
+	if (adapter->sfp_reinit != 1)
+		return;
+
 	/* get_supported_phy_layer will call hw->phy.ops.identify_sfp() */
 	adapter->phy_layer = ixgbe_get_supported_physical_layer(hw);
 
@@ -3420,6 +3432,8 @@ ixgbe_handle_msf(void *context)
 	ifmedia_removeall(adapter->media);
 	ixgbe_add_media_types(adapter->ctx);
 	ifmedia_set(adapter->media, IFM_ETHER | IFM_AUTO);
+
+	adapter->sfp_reinit = 0;
 } /* ixgbe_handle_msf */
 
 /************************************************************************
