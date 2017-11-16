@@ -2440,14 +2440,16 @@ ixgbe_msix_link(void *arg)
 
 		if (eicr & eicr_mask) {
 			IXGBE_WRITE_REG(hw, IXGBE_EICR, eicr_mask);
-			GROUPTASK_ENQUEUE(&adapter->mod_task);
+			if (atomic_cmpset_acq_int(&adapter->sfp_reinit, 0, 1))
+				GROUPTASK_ENQUEUE(&adapter->mod_task);
 		}
 
 		if ((hw->mac.type == ixgbe_mac_82599EB) &&
 		    (eicr & IXGBE_EICR_GPI_SDP1_BY_MAC(hw))) {
 			IXGBE_WRITE_REG(hw, IXGBE_EICR,
 			    IXGBE_EICR_GPI_SDP1_BY_MAC(hw));
-			GROUPTASK_ENQUEUE(&adapter->msf_task);
+			if (atomic_cmpset_acq_int(&adapter->sfp_reinit, 0, 1))
+				GROUPTASK_ENQUEUE(&adapter->msf_task);
 		}
 	}
 
@@ -3776,7 +3778,8 @@ ixgbe_intr(void *arg)
 		    (eicr & IXGBE_EICR_GPI_SDP1_BY_MAC(hw))) {
 			IXGBE_WRITE_REG(hw, IXGBE_EICR,
 			    IXGBE_EICR_GPI_SDP1_BY_MAC(hw));
-			GROUPTASK_ENQUEUE(&adapter->msf_task);
+			if (atomic_cmpset_acq_int(&adapter->sfp_reinit, 0, 1))
+				GROUPTASK_ENQUEUE(&adapter->msf_task);
 		}
 	}
 
