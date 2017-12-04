@@ -2099,6 +2099,7 @@ static void ixgbe_shift_out_eeprom_bits(struct ixgbe_hw *hw, u16 data,
 /**
  *  ixgbe_shift_in_eeprom_bits - Shift data bits in from the EEPROM
  *  @hw: pointer to hardware structure
+ *  @count: number of bits to shift
  **/
 static u16 ixgbe_shift_in_eeprom_bits(struct ixgbe_hw *hw, u16 count)
 {
@@ -2157,7 +2158,7 @@ static void ixgbe_raise_eeprom_clk(struct ixgbe_hw *hw, u32 *eec)
 /**
  *  ixgbe_lower_eeprom_clk - Lowers the EEPROM's clock input.
  *  @hw: pointer to hardware structure
- *  @eecd: EECD's current value
+ *  @eec: EEC's current value
  **/
 static void ixgbe_lower_eeprom_clk(struct ixgbe_hw *hw, u32 *eec)
 {
@@ -2537,6 +2538,7 @@ s32 ixgbe_init_rx_addrs_generic(struct ixgbe_hw *hw)
  *  ixgbe_add_uc_addr - Adds a secondary unicast address.
  *  @hw: pointer to hardware structure
  *  @addr: new address
+ *  @vmdq: VMDq "set" or "pool" index
  *
  *  Adds it to unused receive address register or goes into promiscuous mode.
  **/
@@ -2681,7 +2683,7 @@ static s32 ixgbe_mta_vector(struct ixgbe_hw *hw, u8 *mc_addr)
 /**
  *  ixgbe_set_mta - Set bit-vector in multicast table
  *  @hw: pointer to hardware structure
- *  @hash_value: Multicast address hash value
+ *  @mc_addr: Multicast address
  *
  *  Sets the bit-vector in the multicast table.
  **/
@@ -3385,6 +3387,7 @@ s32 ixgbe_disable_sec_rx_path_generic(struct ixgbe_hw *hw)
 /**
  *  prot_autoc_read_generic - Hides MAC differences needed for AUTOC read
  *  @hw: pointer to hardware structure
+ *  @locked: bool to indicate whether the SW/FW lock was taken
  *  @reg_val: Value we read from AUTOC
  *
  *  The default case requires no protection so just to the register read.
@@ -3911,6 +3914,9 @@ s32 ixgbe_init_uta_tables_generic(struct ixgbe_hw *hw)
  *  ixgbe_find_vlvf_slot - find the vlanid or the first empty slot
  *  @hw: pointer to hardware structure
  *  @vlan: VLAN id to write to VLAN filter
+ *  @vlvf_bypass: TRUE to find vlanid only, FALSE returns first empty slot if
+ *		  vlanid not found
+ *
  *
  *  return the VLVF index where this VLAN id should be placed
  *
@@ -4664,6 +4670,8 @@ rel_out:
  *  @min: driver version minor number
  *  @build: driver version build number
  *  @sub: driver version sub build number
+ *  @len: unused
+ *  @driver_ver: unused
  *
  *  Sends driver version number to firmware through the manageability
  *  block.  On success return IXGBE_SUCCESS

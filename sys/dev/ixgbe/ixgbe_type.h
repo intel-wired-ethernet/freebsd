@@ -274,7 +274,6 @@
 #define IXGBE_I2C_BB_EN_X550		0x00000100
 #define IXGBE_I2C_BB_EN_X550EM_x	IXGBE_I2C_BB_EN_X550
 #define IXGBE_I2C_BB_EN_X550EM_a	IXGBE_I2C_BB_EN_X550
-
 #define IXGBE_I2C_BB_EN_BY_MAC(_hw)	IXGBE_BY_MAC((_hw), I2C_BB_EN)
 
 #define IXGBE_I2C_CLK_OE_N_EN		0
@@ -594,7 +593,6 @@ struct ixgbe_nvm_version {
 #define IXGBE_VXLANCTRL_VXLAN_UDPPORT_MASK	0x0000ffff /* VXLAN port */
 #define IXGBE_VXLANCTRL_GENEVE_UDPPORT_MASK	0xffff0000 /* GENEVE port */
 #define IXGBE_VXLANCTRL_ALL_UDPPORT_MASK	0xffffffff /* GENEVE/VXLAN */
-
 #define IXGBE_VXLANCTRL_GENEVE_UDPPORT_SHIFT	16
 
 #define IXGBE_FHFT(_n)	(0x09000 + ((_n) * 0x100)) /* Flex host filter table */
@@ -604,7 +602,6 @@ struct ixgbe_nvm_version {
 
 /* Four Flexible Filters are supported */
 #define IXGBE_FLEXIBLE_FILTER_COUNT_MAX		4
-
 /* Six Flexible Filters are supported */
 #define IXGBE_FLEXIBLE_FILTER_COUNT_MAX_6	6
 /* Eight Flexible Filters are supported */
@@ -752,8 +749,6 @@ struct ixgbe_dmac_config {
 #define IXGBE_EEE_RX_LPI_STATUS		0x40000000 /* RX Link in LPI status */
 #define IXGBE_EEE_TX_LPI_STATUS		0x80000000 /* TX Link in LPI status */
 
-
-
 /* Security Control Registers */
 #define IXGBE_SECTXCTRL		0x08800
 #define IXGBE_SECTXSTAT		0x08804
@@ -890,7 +885,6 @@ struct ixgbe_dmac_config {
 #define IXGBE_RTFRTIMER	0x08B14
 #define IXGBE_RTTBCNRTT	0x05150
 #define IXGBE_RTTBCNRD	0x0498C
-
 
 /* FCoE DMA Context Registers */
 /* FCoE Direct DMA Context */
@@ -4315,7 +4309,6 @@ struct ixgbe_bypass_eeprom {
 
 #define BYPASS_LOG_EVENT_SHIFT	28
 #define BYPASS_LOG_CLEAR_SHIFT	24 /* bit offset */
-
 
 #define IXGBE_FUSES0_GROUP(_i)		(0x11158 + ((_i) * 4))
 #define IXGBE_FUSES0_300MHZ		(1 << 5)
