@@ -996,9 +996,11 @@ ixgbe_if_attach_pre(if_ctx_t ctx)
 	case ixgbe_mac_X550EM_x:
 	case ixgbe_mac_X550EM_a:
 		scctx->isc_rss_table_size = 512;
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
 		break;
 	default:
 		scctx->isc_rss_table_size = 128;
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 16;
 	}
 
 	/* Allow legacy interrupts */
@@ -1012,7 +1014,6 @@ ixgbe_if_attach_pre(if_ctx_t ctx)
 	    DBA_ALIGN);
 
 	/* XXX */
-	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 32;
 	scctx->isc_tx_csum_flags = CSUM_IP | CSUM_TCP | CSUM_UDP | CSUM_TSO |
 	    CSUM_IP6_TCP | CSUM_IP6_UDP | CSUM_IP6_TSO;
 	if (adapter->hw.mac.type == ixgbe_mac_82598EB) {

@@ -476,6 +476,15 @@ ixv_if_attach_pre(if_ctx_t ctx)
 	/* Most of the iflib initialization... */
 
 	iflib_set_mac(ctx, hw->mac.addr);
+	switch (adapter->hw.mac.type) {
+	case ixgbe_mac_X550_vf:
+	case ixgbe_mac_X550EM_x_vf:
+	case ixgbe_mac_X550EM_a_vf:
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 2;
+		break;
+	default:
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 1;
+	}
 	scctx->isc_txqsizes[0] =
 	    roundup2(scctx->isc_ntxd[0] * sizeof(union ixgbe_adv_tx_desc) +
 	    sizeof(u32), DBA_ALIGN);
@@ -483,7 +492,6 @@ ixv_if_attach_pre(if_ctx_t ctx)
 	    roundup2(scctx->isc_nrxd[0] * sizeof(union ixgbe_adv_rx_desc),
 	    DBA_ALIGN);
 	/* XXX */
-	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 1;
 	scctx->isc_tx_csum_flags = CSUM_IP | CSUM_TCP | CSUM_UDP | CSUM_TSO |
 	    CSUM_IP6_TCP | CSUM_IP6_UDP | CSUM_IP6_TSO;
 	scctx->isc_tx_nsegments = IXGBE_82599_SCATTER;
