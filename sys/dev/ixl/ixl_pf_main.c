@@ -3034,29 +3034,25 @@ ixl_set_rss_key(struct ixl_pf *pf)
 	struct i40e_hw *hw = &pf->hw;
 	struct ixl_vsi *vsi = &pf->vsi;
 	device_t	dev = pf->dev;
+	u32 rss_seed[IXL_RSS_KEY_SIZE_REG];
 	enum i40e_status_code status;
-#ifdef RSS
-	u32		rss_seed[IXL_RSS_KEY_SIZE_REG];
-#else
-	u32             rss_seed[IXL_RSS_KEY_SIZE_REG] = {0x41b01687,
-			    0x183cfd8c, 0xce880440, 0x580cbc3c,
-			    0x35897377, 0x328b25e1, 0x4fa98922,
-			    0xb7d90c14, 0xd5bad70d, 0xcd15a2c1,
-			    0x0, 0x0, 0x0};
-#endif
 
 #ifdef RSS
         /* Fetch the configured RSS key */
         rss_getkey((uint8_t *) &rss_seed);
+#else
+	ixl_get_default_rss_key(rss_seed);
 #endif
 	/* Fill out hash function seed */
 	if (hw->mac.type == I40E_MAC_X722) {
 		struct i40e_aqc_get_set_rss_key_data key_data;
-		bcopy(rss_seed, key_data.standard_rss_key, 40);
+		bcopy(rss_seed, &key_data, 52);
 		status = i40e_aq_set_rss_key(hw, vsi->vsi_num, &key_data);
 		if (status)
-			device_printf(dev, "i40e_aq_set_rss_key status %s, error %s\n",
-			    i40e_stat_str(hw, status), i40e_aq_str(hw, hw->aq.asq_last_status));
+			device_printf(dev,
+			    "i40e_aq_set_rss_key status %s, error %s\n",
+			    i40e_stat_str(hw, status),
+			    i40e_aq_str(hw, hw->aq.asq_last_status));
 	} else {
 		for (int i = 0; i < IXL_RSS_KEY_SIZE_REG; i++)
 			i40e_write_rx_ctl(hw, I40E_PFQF_HKEY(i), rss_seed[i]);
