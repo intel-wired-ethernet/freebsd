@@ -53,6 +53,7 @@
 static int	ixl_vsi_setup_queue(struct ixl_vsi *, struct ixl_queue *, int);
 static u64	ixl_max_aq_speed_to_value(u8);
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
+static void	ixl_sbuf_print_bytes(struct sbuf *, u8 *, int, int, bool);
 
 /* Sysctls */
 static int	ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS);
@@ -6011,20 +6012,22 @@ ixl_sysctl_hkey(SYSCTL_HANDLER_ARGS)
 		return (ENOMEM);
 	}
 
+	bzero(key_data.standard_rss_key, sizeof(key_data.standard_rss_key));
+
 	sbuf_cat(buf, "\n");
 	if (hw->mac.type == I40E_MAC_X722) {
-		bzero(key_data.standard_rss_key, sizeof(key_data.standard_rss_key));
 		status = i40e_aq_get_rss_key(hw, pf->vsi.vsi_num, &key_data);
 		if (status)
 			device_printf(dev, "i40e_aq_get_rss_key status %s, error %s\n",
 			    i40e_stat_str(hw, status), i40e_aq_str(hw, hw->aq.asq_last_status));
-		sbuf_printf(buf, "%40D", (u_char *)key_data.standard_rss_key, "");
 	} else {
 		for (int i = 0; i < IXL_RSS_KEY_SIZE_REG; i++) {
 			reg = i40e_read_rx_ctl(hw, I40E_PFQF_HKEY(i));
-			sbuf_printf(buf, "%4D", (u_char *)&reg, "");
+			bcopy(&reg, ((caddr_t)&key_data) + (i << 2), 4);
 		}
 	}
+
+	ixl_sbuf_print_bytes(buf, (u8 *)&key_data, sizeof(key_data), 0, true);
 
 	error = sbuf_finish(buf);
 	if (error)
@@ -6032,6 +6035,52 @@ ixl_sysctl_hkey(SYSCTL_HANDLER_ARGS)
 	sbuf_delete(buf);
 
 	return (error);
+}
+
+static void
+ixl_sbuf_print_bytes(struct sbuf *sb, u8 *buf, int length, int label_offset, bool text)
+{
+	int i, j, k, width;
+	char c;
+
+	if (length < 1 || buf == NULL) return;
+
+	int byte_stride = 16;
+	int lines = length / byte_stride;
+	int rem = length % byte_stride;
+	if (rem > 0)
+		lines++;
+
+	for (i = 0; i < lines; i++) {
+		width = (rem > 0 && i == lines - 1)
+		    ? rem : byte_stride;
+
+		sbuf_printf(sb, "%4d | ", label_offset + i * byte_stride);
+
+		for (j = 0; j < width; j++)
+			sbuf_printf(sb, "%02x ", buf[i * byte_stride + j]);
+
+		if (width < byte_stride) {
+			for (k = 0; k < (byte_stride - width); k++)
+				sbuf_printf(sb, "   ");
+		}
+
+		if (!text) {
+			sbuf_printf(sb, "\n");
+			continue;
+		}
+
+		for (j = 0; j < width; j++) {
+			c = (char)buf[i * byte_stride + j];
+			if (c < 32 || c > 126)
+				sbuf_printf(sb, ".");
+			else
+				sbuf_printf(sb, "%c", c);
+
+			if (j == width - 1)
+				sbuf_printf(sb, "\n");
+		}
+	}
 }
 
 static int
@@ -6052,20 +6101,20 @@ ixl_sysctl_hlut(SYSCTL_HANDLER_ARGS)
 		return (ENOMEM);
 	}
 
+	bzero(hlut, sizeof(hlut));
 	sbuf_cat(buf, "\n");
 	if (hw->mac.type == I40E_MAC_X722) {
-		bzero(hlut, sizeof(hlut));
 		status = i40e_aq_get_rss_lut(hw, pf->vsi.vsi_num, TRUE, hlut, sizeof(hlut));
 		if (status)
 			device_printf(dev, "i40e_aq_get_rss_lut status %s, error %s\n",
 			    i40e_stat_str(hw, status), i40e_aq_str(hw, hw->aq.asq_last_status));
-		sbuf_printf(buf, "%512D", (u_char *)hlut, "");
 	} else {
 		for (int i = 0; i < hw->func_caps.rss_table_size >> 2; i++) {
 			reg = rd32(hw, I40E_PFQF_HLUT(i));
-			sbuf_printf(buf, "%4D", (u_char *)&reg, "");
+			bcopy(&reg, &hlut[i << 2], 4);
 		}
 	}
+	ixl_sbuf_print_bytes(buf, hlut, 512, 0, false);
 
 	error = sbuf_finish(buf);
 	if (error)
