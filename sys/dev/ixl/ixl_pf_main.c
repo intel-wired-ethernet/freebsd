@@ -3114,10 +3114,7 @@ ixl_set_rss_hlut(struct ixl_pf *pf)
 	u32		lut = 0;
 	enum i40e_status_code status;
 
-	if (hw->mac.type == I40E_MAC_X722)
-		lut_entry_width = 7;
-	else
-		lut_entry_width = pf->hw.func_caps.rss_table_entry_width;
+	lut_entry_width = pf->hw.func_caps.rss_table_entry_width;
 
 	/* Populate the LUT with max no. of queues in round robin fashion */
 	u8 hlut_buf[512];
