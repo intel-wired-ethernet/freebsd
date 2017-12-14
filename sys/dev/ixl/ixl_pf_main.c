@@ -1120,7 +1120,11 @@ ixl_update_link_status(struct ixl_pf *pf)
 	if (pf->link_up) {
 		if (vsi->link_active == FALSE) {
 			vsi->link_active = TRUE;
+#if __FreeBSD_version >= 1100000
 			ifp->if_baudrate = ixl_max_aq_speed_to_value(pf->link_speed);
+#else
+			if_initbaudrate(ifp, ixl_max_aq_speed_to_value(pf->link_speed));
+#endif
 			if_link_state_change(ifp, LINK_STATE_UP);
 			ixl_link_up_msg(pf);
 #ifdef PCI_IOV
@@ -2015,7 +2019,11 @@ ixl_setup_interface(device_t dev, struct ixl_vsi *vsi)
 			    " AQ error %d\n", aq_error, hw->aq.asq_last_status);
 	} else {
 		pf->supported_speeds = abilities.link_speed;
+#if __FreeBSD_version >= 1100000
 		ifp->if_baudrate = ixl_max_aq_speed_to_value(pf->supported_speeds);
+#else
+		if_initbaudrate(ifp, ixl_max_aq_speed_to_value(pf->supported_speeds));
+#endif
 
 		ixl_add_ifmedia(vsi, hw->phy.phy_types);
 	}
