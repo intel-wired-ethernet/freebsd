@@ -3021,10 +3021,10 @@ ixlv_add_sysctls(struct ixlv_sc *sc)
 	struct rx_ring *rxr;
 
 	/* Driver statistics sysctls */
-	SYSCTL_ADD_ULONG(ctx, child, OID_AUTO, "watchdog_events",
+	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "watchdog_events",
 			CTLFLAG_RD, &sc->watchdog_events,
 			"Watchdog timeouts");
-	SYSCTL_ADD_ULONG(ctx, child, OID_AUTO, "admin_irq",
+	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "admin_irq",
 			CTLFLAG_RD, &sc->admin_irq,
 			"Admin Queue IRQ Handled");
 

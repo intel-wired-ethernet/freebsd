@@ -2839,10 +2839,10 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 	char queue_namebuf[QUEUE_NAME_LEN];
 
 	/* Driver statistics */
-	SYSCTL_ADD_ULONG(ctx, child, OID_AUTO, "watchdog_events",
+	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "watchdog_events",
 			CTLFLAG_RD, &pf->watchdog_events,
 			"Watchdog timeouts");
-	SYSCTL_ADD_ULONG(ctx, child, OID_AUTO, "admin_irq",
+	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "admin_irq",
 			CTLFLAG_RD, &pf->admin_irq,
 			"Admin Queue IRQ Handled");
 
