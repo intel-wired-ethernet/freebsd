@@ -5038,7 +5038,7 @@ ixl_handle_nvmupd_cmd(struct ixl_pf *pf, struct ifdrv *ifd)
 	    ifd->ifd_data == NULL) {
 		device_printf(dev, "%s: incorrect ifdrv length or data pointer\n",
 		    __func__);
-		device_printf(dev, "%s: ifdrv length: %lu, sizeof(struct i40e_nvm_access): %lu\n",
+		device_printf(dev, "%s: ifdrv length: %zu, sizeof(struct i40e_nvm_access): %zu\n",
 		    __func__, ifd->ifd_len, sizeof(struct i40e_nvm_access));
 		device_printf(dev, "%s: data pointer: %p\n", __func__,
 		    ifd->ifd_data);
