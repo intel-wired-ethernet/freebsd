@@ -1576,7 +1576,11 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	if_initname(ifp, device_get_name(dev), device_get_unit(dev));
 
 	ifp->if_mtu = ETHERMTU;
+#if __FreeBSD_version >= 1100000
 	ifp->if_baudrate = IF_Gbps(40);
+#else
+	if_initbaudrate(ifp, IF_Gbps(40));
+#endif
 	ifp->if_init = ixlv_init;
 	ifp->if_softc = vsi;
 	ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;

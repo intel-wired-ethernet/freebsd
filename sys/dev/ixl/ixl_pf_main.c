@@ -4524,6 +4524,7 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	SYSCTL_ADD_INT(ctx, ctx_list,
 	    OID_AUTO, "rx_ring_size", CTLFLAG_RD,
 	    &pf->vsi.num_rx_desc, 0, "RX ring size");
+
 	/* Add FEC sysctls for 25G adapters */
 	if (i40e_is_25G_device(hw->device_id)) {
 		fec_node = SYSCTL_ADD_NODE(ctx, ctx_list,
