@@ -52,8 +52,8 @@ base16_input_body()
 0.1 p	# Leading zeros are ignored
 00.1 p	# Leading zeros are ignored
 EOF
-dc input.dc > output.txt
-cat > expect.txt << EOF
+	dc input.dc > output.txt
+	cat > expect.txt << EOF
 0
 16
 1
