@@ -915,8 +915,10 @@ ixv_if_update_admin_status(if_ctx_t ctx)
 	device_t       dev = iflib_get_dev(ctx);
 
 	adapter->hw.mac.get_link_status = TRUE;
-	ixgbe_check_link(&adapter->hw, &adapter->link_speed, &adapter->link_up,
-	    FALSE);
+
+	if (ixgbe_check_link(&adapter->hw, &adapter->link_speed,
+	    &adapter->link_up, FALSE))
+		iflib_get_ifp(ctx)->if_init(ctx);
 
 	if (adapter->link_up) {
 		if (adapter->link_active == FALSE) {
