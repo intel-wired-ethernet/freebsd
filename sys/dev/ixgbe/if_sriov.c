@@ -370,7 +370,7 @@ ixgbe_vf_reset_msg(struct adapter *adapter, struct ixgbe_vf *vf, uint32_t *msg)
 
 	vf->flags |= IXGBE_VF_CTS;
 
-	resp[0] = IXGBE_VF_RESET | ack | IXGBE_VT_MSGTYPE_CTS;
+	resp[0] = IXGBE_VF_RESET | ack;
 	bcopy(vf->ether_addr, &resp[1], ETHER_ADDR_LEN);
 	resp[3] = hw->mac.mc_filter_type;
 	hw->mbx.ops.write(hw, resp, IXGBE_VF_PERMADDR_MSG_LEN, vf->pool);
@@ -697,8 +697,11 @@ ixgbe_if_iov_init(if_ctx_t ctx, u16 num_vfs, const nvlist_t *config)
 	}
 
 	adapter->num_vfs = num_vfs;
-	ixgbe_if_init(adapter->ctx);
+
+	/* set the SRIOV flag now as it's needed
+	 * by ixgbe_if_init() */
 	adapter->feat_en |= IXGBE_FEATURE_SRIOV;
+	ixgbe_if_init(adapter->ctx);
 
 	return (retval);
 
