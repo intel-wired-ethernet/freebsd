@@ -616,6 +616,7 @@ ixv_if_init(if_ctx_t ctx)
 
 	/* Reset VF and renegotiate mailbox API version */
 	hw->mac.ops.reset_hw(hw);
+	hw->mac.ops.start_hw(hw);
 	error = ixv_negotiate_api(adapter);
 	if (error) {
 		device_printf(dev,
