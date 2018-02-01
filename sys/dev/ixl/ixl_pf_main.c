@@ -6553,31 +6553,25 @@ int
 ixl_get_fw_lldp_status(struct ixl_pf *pf)
 {
 	enum i40e_status_code ret = I40E_SUCCESS;
+	struct i40e_lldp_variables lldp_cfg;
 	struct i40e_hw *hw = &pf->hw;
-	struct i40e_virt_mem mem;
-	u8 *lldpmib;
+	u8 adminstatus = 0;
 
-	/* Always report FW LLDP agent state as ON for X722 */
-	if (hw->mac.type == I40E_MAC_X722) {
-		atomic_clear_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
-		return (0);
-	}
-
-	/* Allocate the LLDPDU */
-	ret = i40e_allocate_virt_mem(hw, &mem, I40E_LLDPDU_SIZE);
+	ret = i40e_read_lldp_cfg(hw, &lldp_cfg);
 	if (ret)
-		return (ENOMEM);
+		return ret;
 
-	lldpmib = (u8 *)mem.va;
-	ret = i40e_aq_get_lldp_mib(hw, 0, I40E_AQ_LLDP_MIB_LOCAL,
-	   (void *)lldpmib, I40E_LLDPDU_SIZE, NULL, NULL, NULL);
+	/* Get the LLDP AdminStatus for the current port */
+	adminstatus = lldp_cfg.adminstatus >> (hw->port * 4);
+	adminstatus &= 0xf;
 
-	if (pf->hw.aq.asq_last_status == I40E_AQ_RC_EPERM) {
+	/* Check if LLDP agent is disabled */
+	if (!adminstatus) {
 		device_printf(pf->dev, "FW LLDP agent is disabled for this PF.\n");
 		atomic_set_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
-	}
+	} else
+		atomic_clear_int(&pf->state, IXL_PF_STATE_FW_LLDP_DISABLED);
 
-	i40e_free_virt_mem(hw, &mem);
 	return (0);
 }
 
