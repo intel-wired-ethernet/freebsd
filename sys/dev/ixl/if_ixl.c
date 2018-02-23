@@ -464,7 +464,7 @@ ixl_attach(device_t dev)
 	}
 
         if (hw->aq.api_maj_ver == I40E_FW_API_VERSION_MAJOR &&
-	    hw->aq.api_min_ver > I40E_FW_API_VERSION_MINOR) {
+	    hw->aq.api_min_ver > I40E_FW_MINOR_VERSION(hw)) {
 		device_printf(dev, "The driver for the device detected "
 		    "a newer version of the NVM image than expected.\n");
 		device_printf(dev, "Please install the most recent version "
