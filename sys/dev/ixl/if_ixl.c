@@ -65,22 +65,22 @@ char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 
 static pci_vendor_info_t ixl_vendor_info_array[] =
 {
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_B, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_C, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_A, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_B, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_C, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T4, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_1G_BASE_T_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_I_X722, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_B, "Intel(R) Ethernet Connection 700 Series Driver"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_SFP28, "Intel(R) Ethernet Connection 700 Series Driver"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710, "Intel(R) Ethernet Controller X710 for 10GbE SFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_B, "Intel(R) Ethernet Controller XL710 for 40GbE backplane"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_C, "Intel(R) Ethernet Controller X710 for 10GbE backplane"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_A, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_B, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_C, "Intel(R) Ethernet Controller X710 for 10GbE QSFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T, "Intel(R) Ethernet Controller X710 for 10GBASE-T"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T4, "Intel(R) Ethernet Controller X710/X557-AT 10GBASE-T"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_X722, "Intel(R) Ethernet Connection X722 for 10GbE backplane"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE QSFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_1G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 1GbE"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 10GBASE-T"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_I_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_B, "Intel(R) Ethernet Controller XXV710 for 25GbE backplane"),
+	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_SFP28, "Intel(R) Ethernet Controller XXV710 for 25GbE SFP28"),
 	/* required last entry */
 	PVID_END
 };
