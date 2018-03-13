@@ -116,6 +116,7 @@ static void	 ixl_if_vlan_unregister(if_ctx_t ctx, u16 vtag);
 static uint64_t	 ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt);
 static void	 ixl_if_vflr_handle(if_ctx_t ctx);
 // static void	 ixl_if_link_intr_enable(if_ctx_t ctx);
+static int	 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req);
 
 /*** Other ***/
 static int	 ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int);
@@ -181,6 +182,7 @@ static device_method_t ixl_if_methods[] = {
 	DEVMETHOD(ifdi_vlan_unregister, ixl_if_vlan_unregister),
 	DEVMETHOD(ifdi_get_counter, ixl_if_get_counter),
 	DEVMETHOD(ifdi_vflr_handle, ixl_if_vflr_handle),
+	DEVMETHOD(ifdi_i2c_req, ixl_if_i2c_req),
 	// ifdi_led_func
 	// ifdi_debug
 	DEVMETHOD_END
@@ -1683,6 +1685,19 @@ ixl_if_vflr_handle(if_ctx_t ctx)
 	IXL_DEV_ERR(iflib_get_dev(ctx), "");
 
 	// TODO: call ixl_handle_vflr()
+}
+
+static int
+ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req)
+{
+	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf		*pf = vsi->back;
+
+	for (int i = 0; i < req->len; i++)
+		if (ixl_read_i2c_byte(pf, req->offset + i,
+		    req->dev_addr, &req->data[i]))
+			return (EIO);
+	return (0);
 }
 
 static int
