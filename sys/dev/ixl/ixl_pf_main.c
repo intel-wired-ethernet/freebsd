@@ -2168,9 +2168,8 @@ ixl_init_filters(struct ixl_vsi *vsi)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)vsi->back;
 
-	/* TODO: Set broadcast promiscuous here */
-	/* Add broadcast address */
-	ixl_add_filter(vsi, ixl_bcast_addr, IXL_VLAN_ANY);
+	/* Receive broadcast Ethernet frames */
+	i40e_aq_set_vsi_broadcast(&pf->hw, vsi->seid, TRUE, NULL);
 
 	/*
 	 * Prevent Tx flow control frames from being sent out by
