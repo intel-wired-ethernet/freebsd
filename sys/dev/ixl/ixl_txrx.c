@@ -87,6 +87,33 @@ ixl_get_default_rss_key(u32 *key)
 	bcopy(rss_seed, key, IXL_RSS_KEY_SIZE);
 }
 
+/**
+ * i40e_vc_stat_str - convert virtchnl status err code to a string
+ * @hw: pointer to the HW structure
+ * @stat_err: the status error code to convert
+ **/
+const char *
+i40e_vc_stat_str(struct i40e_hw *hw, enum virtchnl_status_code stat_err)
+{
+	switch (stat_err) {
+	case VIRTCHNL_STATUS_SUCCESS:
+		return "OK";
+	case VIRTCHNL_ERR_PARAM:
+		return "VIRTCHNL_ERR_PARAM";
+	case VIRTCHNL_STATUS_ERR_OPCODE_MISMATCH:
+		return "VIRTCHNL_STATUS_ERR_OPCODE_MISMATCH";
+	case VIRTCHNL_STATUS_ERR_CQP_COMPL_ERROR:
+		return "VIRTCHNL_STATUS_ERR_CQP_COMPL_ERROR";
+	case VIRTCHNL_STATUS_ERR_INVALID_VF_ID:
+		return "VIRTCHNL_STATUS_ERR_INVALID_VF_ID";
+	case VIRTCHNL_STATUS_NOT_SUPPORTED:
+		return "VIRTCHNL_STATUS_NOT_SUPPORTED";
+	}
+
+	snprintf(hw->err_str, sizeof(hw->err_str), "%d", stat_err);
+	return hw->err_str;
+}
+
 /*
 ** Multiqueue Transmit driver
 */

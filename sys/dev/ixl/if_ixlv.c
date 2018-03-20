@@ -38,7 +38,13 @@
 /*********************************************************************
  *  Driver version
  *********************************************************************/
-char ixlv_driver_version[] = "1.4.12-k";
+#define IXLV_DRIVER_VERSION_MAJOR	1
+#define IXLV_DRIVER_VERSION_MINOR	4
+#define IXLV_DRIVER_VERSION_BUILD	14
+
+char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
+			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
+			     __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-k";
 
 /*********************************************************************
  *  PCI Device ID Table
@@ -64,7 +70,7 @@ static ixl_vendor_info_t ixlv_vendor_info_array[] =
  *********************************************************************/
 
 static char    *ixlv_strings[] = {
-	"Intel(R) Ethernet Connection XL710/X722 VF Driver"
+	"Intel(R) Ethernet Connection 700 Series VF Driver"
 };
 
 
@@ -1138,8 +1144,8 @@ retry_config:
 	    retried + 1);
 
 	if (!sc->vf_res) {
-		bufsz = sizeof(struct i40e_virtchnl_vf_resource) +
-		    (I40E_MAX_VF_VSI * sizeof(struct i40e_virtchnl_vsi_resource));
+		bufsz = sizeof(struct virtchnl_vf_resource) +
+		    (I40E_MAX_VF_VSI * sizeof(struct virtchnl_vsi_resource));
 		sc->vf_res = malloc(bufsz, M_DEVBUF, M_NOWAIT);
 		if (!sc->vf_res) {
 			device_printf(dev,
@@ -1518,8 +1524,8 @@ ixlv_reset_complete(struct i40e_hw *hw)
 		reg = rd32(hw, I40E_VFGEN_RSTAT) &
 		    I40E_VFGEN_RSTAT_VFR_STATE_MASK;
 
-                if ((reg == I40E_VFR_VFACTIVE) ||
-		    (reg == I40E_VFR_COMPLETED))
+                if ((reg == VIRTCHNL_VFR_VFACTIVE) ||
+		    (reg == VIRTCHNL_VFR_COMPLETED))
 			return (0);
 		i40e_msec_pause(100);
 	}
@@ -2342,7 +2348,7 @@ ixlv_add_multi(struct ixl_vsi *vsi)
 	if (__predict_false(mcnt >= MAX_MULTICAST_ADDR)) {
 		/* delete all multicast filters */
 		ixlv_init_multi(vsi);
-		sc->promiscuous_flags |= I40E_FLAG_VF_MULTICAST_PROMISC;
+		sc->promiscuous_flags |= FLAG_VF_MULTICAST_PROMISC;
 		ixl_vc_enqueue(&sc->vc_mgr, &sc->add_multi_cmd,
 		    IXLV_FLAG_AQ_CONFIGURE_PROMISC, ixl_init_cmd_complete,
 		    sc);
@@ -2455,8 +2461,8 @@ ixlv_local_timer(void *arg)
 	val = rd32(hw, I40E_VFGEN_RSTAT) &
 	    I40E_VFGEN_RSTAT_VFR_STATE_MASK;
 
-	if (val != I40E_VFR_VFACTIVE
-	    && val != I40E_VFR_COMPLETED) {
+	if (val != VIRTCHNL_VFR_VFACTIVE
+	    && val != VIRTCHNL_VFR_COMPLETED) {
 		DDPRINTF(dev, "reset in progress! (%d)", val);
 		return;
 	}
@@ -2716,10 +2722,10 @@ ixlv_config_rss_pf(struct ixlv_sc *sc)
 static void
 ixlv_config_rss(struct ixlv_sc *sc)
 {
-	if (sc->vf_res->vf_offload_flags & I40E_VIRTCHNL_VF_OFFLOAD_RSS_REG) {
+	if (sc->vf_res->vf_offload_flags & VIRTCHNL_VF_OFFLOAD_RSS_REG) {
 		DDPRINTF(sc->dev, "Setting up RSS using VF registers...");
 		ixlv_config_rss_reg(sc);
-	} else if (sc->vf_res->vf_offload_flags & I40E_VIRTCHNL_VF_OFFLOAD_RSS_PF) {
+	} else if (sc->vf_res->vf_offload_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF) {
 		DDPRINTF(sc->dev, "Setting up RSS using messages to PF...");
 		ixlv_config_rss_pf(sc);
 	} else
@@ -2823,7 +2829,7 @@ ixlv_do_adminq_locked(struct ixlv_sc *sc)
 {
 	struct i40e_hw			*hw = &sc->hw;
 	struct i40e_arq_event_info	event;
-	struct i40e_virtchnl_msg	*v_msg;
+	struct virtchnl_msg	*v_msg;
 	device_t			dev = sc->dev;
 	u16				result = 0;
 	u32				reg, oldreg;
@@ -2834,7 +2840,7 @@ ixlv_do_adminq_locked(struct ixlv_sc *sc)
 
 	event.buf_len = IXL_AQ_BUF_SZ;
         event.msg_buf = sc->aq_buffer;
-	v_msg = (struct i40e_virtchnl_msg *)&event.desc;
+	v_msg = (struct virtchnl_msg *)&event.desc;
 
 	do {
 		ret = i40e_clean_arq_element(hw, &event, &result);

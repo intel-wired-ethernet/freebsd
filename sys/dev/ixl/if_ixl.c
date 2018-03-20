@@ -47,7 +47,13 @@
 /*********************************************************************
  *  Driver version
  *********************************************************************/
-char ixl_driver_version[] = "1.7.12-k";
+#define IXL_DRIVER_VERSION_MAJOR	1
+#define IXL_DRIVER_VERSION_MINOR	7
+#define IXL_DRIVER_VERSION_BUILD	21
+
+char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
+			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
+			    __XSTRING(IXL_DRIVER_VERSION_BUILD) "-k";
 
 /*********************************************************************
  *  PCI Device ID Table
@@ -86,7 +92,7 @@ static ixl_vendor_info_t ixl_vendor_info_array[] =
  *********************************************************************/
 
 static char    *ixl_strings[] = {
-	"Intel(R) Ethernet Connection XL710/X722 Driver"
+	"Intel(R) Ethernet Connection 700 Series PF Driver"
 };
 
 
@@ -169,6 +175,10 @@ TUNABLE_INT("hw.ixl.max_queues", &ixl_max_queues);
 SYSCTL_INT(_hw_ixl, OID_AUTO, max_queues, CTLFLAG_RDTUN,
     &ixl_max_queues, 0, "Number of Queues");
 
+/*
+ * Leave this on unless you need to send flow control
+ * frames (or other control frames) from software
+ */
 static int ixl_enable_tx_fc_filter = 1;
 TUNABLE_INT("hw.ixl.enable_tx_fc_filter",
     &ixl_enable_tx_fc_filter);
@@ -218,6 +228,8 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, tx_itr, CTLFLAG_RDTUN,
 #ifdef IXL_IW
 int ixl_enable_iwarp = 0;
 TUNABLE_INT("hw.ixl.enable_iwarp", &ixl_enable_iwarp);
+SYSCTL_INT(_hw_ixl, OID_AUTO, enable_iwarp, CTLFLAG_RDTUN,
+    &ixl_enable_iwarp, 0, "iWARP enabled");
 #endif
 
 #ifdef DEV_NETMAP
@@ -427,12 +439,6 @@ ixl_attach(device_t dev)
 		goto err_out;
 	}
 
-	/*
-	 * Allocate interrupts and figure out number of queues to use
-	 * for PF interface
-	 */
-	pf->msix = ixl_init_msix(pf);
-
 	/* Set up the admin queue */
 	hw->aq.num_arq_entries = IXL_AQ_LEN;
 	hw->aq.num_asq_entries = IXL_AQ_LEN;
@@ -450,23 +456,24 @@ ixl_attach(device_t dev)
 
 	if (status == I40E_ERR_FIRMWARE_API_VERSION) {
 		device_printf(dev, "The driver for the device stopped "
-		    "because the NVM image is newer than expected.\n"
-		    "You must install the most recent version of "
+		    "because the NVM image is newer than expected.\n");
+		device_printf(dev, "You must install the most recent version of "
 		    "the network driver.\n");
 		error = EIO;
 		goto err_out;
 	}
 
         if (hw->aq.api_maj_ver == I40E_FW_API_VERSION_MAJOR &&
-	    hw->aq.api_min_ver > I40E_FW_API_VERSION_MINOR)
+	    hw->aq.api_min_ver > I40E_FW_MINOR_VERSION(hw)) {
 		device_printf(dev, "The driver for the device detected "
-		    "a newer version of the NVM image than expected.\n"
-		    "Please install the most recent version of the network driver.\n");
-	else if (hw->aq.api_maj_ver < I40E_FW_API_VERSION_MAJOR ||
-	    hw->aq.api_min_ver < (I40E_FW_API_VERSION_MINOR - 1))
+		    "a newer version of the NVM image than expected.\n");
+		device_printf(dev, "Please install the most recent version "
+		    "of the network driver.\n");
+	} else if (hw->aq.api_maj_ver == 1 && hw->aq.api_min_ver < 4) {
 		device_printf(dev, "The driver for the device detected "
-		    "an older version of the NVM image than expected.\n"
-		    "Please update the NVM image.\n");
+		    "an older version of the NVM image than expected.\n");
+		device_printf(dev, "Please update the NVM image.\n");
+	}
 
 	/* Clear PXE mode */
 	i40e_clear_pxe_mode(hw);
@@ -477,6 +484,12 @@ ixl_attach(device_t dev)
 		device_printf(dev, "HW capabilities failure!\n");
 		goto err_get_cap;
 	}
+
+	/*
+	 * Allocate interrupts and figure out number of queues to use
+	 * for PF interface
+	 */
+	pf->msix = ixl_init_msix(pf);
 
 	/* Set up host memory cache */
 	status = i40e_init_lan_hmc(hw, hw->func_caps.num_tx_qp,
@@ -652,7 +665,8 @@ ixl_attach(device_t dev)
 				    "interfacing to iwarp driver failed: %d\n",
 				    error);
 				goto err_late;
-			}
+			} else
+				device_printf(dev, "iWARP ready\n");
 		} else
 			device_printf(dev,
 			    "iwarp disabled on this device (no msix vectors)\n");

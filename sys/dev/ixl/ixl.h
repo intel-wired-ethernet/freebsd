@@ -689,4 +689,6 @@ void	ixl_qflush(struct ifnet *);
 uint64_t ixl_get_counter(if_t ifp, ift_counter cnt);
 #endif
 void	ixl_get_default_rss_key(u32 *);
+const char *	i40e_vc_stat_str(struct i40e_hw *hw,
+    enum virtchnl_status_code stat_err);
 #endif /* _IXL_H_ */
