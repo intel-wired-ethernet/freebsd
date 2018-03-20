@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation 
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without 
@@ -414,16 +414,18 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 		rxr = &que->rxr;
 		vqpi->txq.vsi_id = vqci->vsi_id;
 		vqpi->txq.queue_id = i;
-		vqpi->txq.ring_len = que->num_desc;
+		vqpi->txq.ring_len = que->num_tx_desc;
 		vqpi->txq.dma_ring_addr = txr->dma.pa;
 		/* Enable Head writeback */
-		vqpi->txq.headwb_enabled = 1;
-		vqpi->txq.dma_headwb_addr = txr->dma.pa +
-		    (que->num_desc * sizeof(struct i40e_tx_desc));
+		if (vsi->enable_head_writeback) {
+			vqpi->txq.headwb_enabled = 1;
+			vqpi->txq.dma_headwb_addr = txr->dma.pa +
+			    (que->num_tx_desc * sizeof(struct i40e_tx_desc));
+		}
 
 		vqpi->rxq.vsi_id = vqci->vsi_id;
 		vqpi->rxq.queue_id = i;
-		vqpi->rxq.ring_len = que->num_desc;
+		vqpi->rxq.ring_len = que->num_rx_desc;
 		vqpi->rxq.dma_ring_addr = rxr->dma.pa;
 		vqpi->rxq.max_pkt_size = vsi->max_frame_size;
 		vqpi->rxq.databuffer_size = rxr->mbuf_sz;

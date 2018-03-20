@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation 
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without 
@@ -211,6 +211,7 @@ enum i40e_admin_queue_opc {
 	/* DCB commands */
 	i40e_aqc_opc_dcb_ignore_pfc	= 0x0301,
 	i40e_aqc_opc_dcb_updated	= 0x0302,
+	i40e_aqc_opc_set_dcb_parameters = 0x0303,
 
 	/* TX scheduler */
 	i40e_aqc_opc_configure_vsi_bw_limit		= 0x0400,
@@ -259,6 +260,7 @@ enum i40e_admin_queue_opc {
 	i40e_aqc_opc_nvm_update			= 0x0703,
 	i40e_aqc_opc_nvm_config_read		= 0x0704,
 	i40e_aqc_opc_nvm_config_write		= 0x0705,
+	i40e_aqc_opc_nvm_progress		= 0x0706,
 	i40e_aqc_opc_oem_post_update		= 0x0720,
 	i40e_aqc_opc_thermal_sensor		= 0x0721,
 
@@ -799,7 +801,35 @@ struct i40e_aqc_set_switch_config {
 	 */
 	__le16	first_tag;
 	__le16	second_tag;
-	u8	reserved[6];
+	/* Next byte is split into following:
+	 * Bit 7    : 0 : No action, 1: Switch to mode defined by bits 6:0
+	 * Bit 6    : 0 : Destination Port, 1: source port
+	 * Bit 5..4 : L4 type
+	 * 0: rsvd
+	 * 1: TCP
+	 * 2: UDP
+	 * 3: Both TCP and UDP
+	 * Bits 3:0 Mode
+	 * 0: default mode
+	 * 1: L4 port only mode
+	 * 2: non-tunneled mode
+	 * 3: tunneled mode
+	 */
+#define I40E_AQ_SET_SWITCH_BIT7_VALID		0x80
+
+#define I40E_AQ_SET_SWITCH_L4_SRC_PORT		0x40
+
+#define I40E_AQ_SET_SWITCH_L4_TYPE_RSVD		0x00
+#define I40E_AQ_SET_SWITCH_L4_TYPE_TCP		0x10
+#define I40E_AQ_SET_SWITCH_L4_TYPE_UDP		0x20
+#define I40E_AQ_SET_SWITCH_L4_TYPE_BOTH		0x30
+
+#define I40E_AQ_SET_SWITCH_MODE_DEFAULT		0x00
+#define I40E_AQ_SET_SWITCH_MODE_L4_PORT		0x01
+#define I40E_AQ_SET_SWITCH_MODE_NON_TUNNEL	0x02
+#define I40E_AQ_SET_SWITCH_MODE_TUNNEL		0x03
+	u8	mode;
+	u8	rsvd5[5];
 };
 
 I40E_CHECK_CMD_LENGTH(i40e_aqc_set_switch_config);
@@ -1753,9 +1783,47 @@ enum i40e_aq_phy_type {
 	I40E_PHY_TYPE_25GBASE_AOC		= 0x23,
 	I40E_PHY_TYPE_25GBASE_ACC		= 0x24,
 	I40E_PHY_TYPE_MAX,
+	I40E_PHY_TYPE_NOT_SUPPORTED_HIGH_TEMP	= 0xFD,
 	I40E_PHY_TYPE_EMPTY			= 0xFE,
 	I40E_PHY_TYPE_DEFAULT			= 0xFF,
 };
+
+#define I40E_PHY_TYPES_BITMASK (BIT_ULL(I40E_PHY_TYPE_SGMII) | \
+				BIT_ULL(I40E_PHY_TYPE_1000BASE_KX) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_KX4) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_KR) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_KR4) | \
+				BIT_ULL(I40E_PHY_TYPE_XAUI) | \
+				BIT_ULL(I40E_PHY_TYPE_XFI) | \
+				BIT_ULL(I40E_PHY_TYPE_SFI) | \
+				BIT_ULL(I40E_PHY_TYPE_XLAUI) | \
+				BIT_ULL(I40E_PHY_TYPE_XLPPI) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_CR4_CU) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_CR1_CU) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_AOC) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_AOC) | \
+				BIT_ULL(I40E_PHY_TYPE_UNRECOGNIZED) | \
+				BIT_ULL(I40E_PHY_TYPE_UNSUPPORTED) | \
+				BIT_ULL(I40E_PHY_TYPE_100BASE_TX) | \
+				BIT_ULL(I40E_PHY_TYPE_1000BASE_T) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_T) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_SR) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_LR) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_SFPP_CU) | \
+				BIT_ULL(I40E_PHY_TYPE_10GBASE_CR1) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_CR4) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_SR4) | \
+				BIT_ULL(I40E_PHY_TYPE_40GBASE_LR4) | \
+				BIT_ULL(I40E_PHY_TYPE_1000BASE_SX) | \
+				BIT_ULL(I40E_PHY_TYPE_1000BASE_LX) | \
+				BIT_ULL(I40E_PHY_TYPE_1000BASE_T_OPTICAL) | \
+				BIT_ULL(I40E_PHY_TYPE_20GBASE_KR2) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_KR) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_CR) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_SR) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_LR) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_AOC) | \
+				BIT_ULL(I40E_PHY_TYPE_25GBASE_ACC))
 
 #define I40E_LINK_SPEED_100MB_SHIFT	0x1
 #define I40E_LINK_SPEED_1000MB_SHIFT	0x2
@@ -2003,11 +2071,28 @@ I40E_CHECK_CMD_LENGTH(i40e_aqc_an_advt_reg);
 
 /* Set Loopback mode (0x0618) */
 struct i40e_aqc_set_lb_mode {
-	__le16	lb_mode;
+	u8	lb_level;
+#define I40E_AQ_LB_NONE	0
+#define I40E_AQ_LB_MAC	1
+#define I40E_AQ_LB_SERDES	2
+#define I40E_AQ_LB_PHY_INT	3
+#define I40E_AQ_LB_PHY_EXT	4
+#define I40E_AQ_LB_CPVL_PCS	5
+#define I40E_AQ_LB_CPVL_EXT	6
 #define I40E_AQ_LB_PHY_LOCAL	0x01
 #define I40E_AQ_LB_PHY_REMOTE	0x02
 #define I40E_AQ_LB_MAC_LOCAL	0x04
-	u8	reserved[14];
+	u8	lb_type;
+#define I40E_AQ_LB_LOCAL	0
+#define I40E_AQ_LB_FAR	0x01
+	u8	speed;
+#define I40E_AQ_LB_SPEED_NONE	0
+#define I40E_AQ_LB_SPEED_1G	1
+#define I40E_AQ_LB_SPEED_10G	2
+#define I40E_AQ_LB_SPEED_40G	3
+#define I40E_AQ_LB_SPEED_20G	4
+	u8	force_speed;
+	u8	reserved[12];
 };
 
 I40E_CHECK_CMD_LENGTH(i40e_aqc_set_lb_mode);
@@ -2058,8 +2143,8 @@ struct i40e_aqc_phy_register_access {
 #define I40E_AQ_PHY_REG_ACCESS_EXTERNAL_MODULE	2
 	u8	dev_addres;
 	u8	reserved1[2];
-	u32	reg_address;
-	u32	reg_value;
+	__le32	reg_address;
+	__le32	reg_value;
 	u8	reserved2[4];
 };
 
@@ -2071,8 +2156,12 @@ I40E_CHECK_CMD_LENGTH(i40e_aqc_phy_register_access);
  */
 struct i40e_aqc_nvm_update {
 	u8	command_flags;
-#define I40E_AQ_NVM_LAST_CMD	0x01
-#define I40E_AQ_NVM_FLASH_ONLY	0x80
+#define I40E_AQ_NVM_LAST_CMD			0x01
+#define I40E_AQ_NVM_FLASH_ONLY			0x80
+#define I40E_AQ_NVM_PRESERVATION_FLAGS_SHIFT	1
+#define I40E_AQ_NVM_PRESERVATION_FLAGS_MASK	0x03
+#define I40E_AQ_NVM_PRESERVATION_FLAGS_SELECTED	0x03
+#define I40E_AQ_NVM_PRESERVATION_FLAGS_ALL	0x01
 	u8	module_pointer;
 	__le16	length;
 	__le32	offset;
@@ -2331,6 +2420,17 @@ struct i40e_aqc_lldp_start {
 };
 
 I40E_CHECK_CMD_LENGTH(i40e_aqc_lldp_start);
+
+/* Set DCB (direct 0x0303) */
+struct i40e_aqc_set_dcb_parameters {
+	u8 command;
+#define I40E_AQ_DCB_SET_AGENT	0x1
+#define I40E_DCB_VALID		0x1
+	u8 valid_flags;
+	u8 reserved[14];
+};
+
+I40E_CHECK_CMD_LENGTH(i40e_aqc_set_dcb_parameters);
 
 /* Get CEE DCBX Oper Config (0x0A07)
  * uses the generic descriptor struct

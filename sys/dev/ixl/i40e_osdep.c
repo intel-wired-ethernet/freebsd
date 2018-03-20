@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation 
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without 
@@ -59,6 +59,8 @@ i40e_status
 i40e_free_virt_mem(struct i40e_hw *hw, struct i40e_virt_mem *mem)
 {
 	free(mem->va, M_DEVBUF);
+	mem->va = NULL;
+
 	return(0);
 }
 

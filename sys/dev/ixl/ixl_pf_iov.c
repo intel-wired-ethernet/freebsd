@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation 
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without 
@@ -522,12 +522,12 @@ ixl_vf_get_resources_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 	bzero(&reply, sizeof(reply));
 
 	if (vf->version == VIRTCHNL_VERSION_MINOR_NO_VF_CAPS)
-		reply.vf_offload_flags = VIRTCHNL_VF_OFFLOAD_L2 |
+		reply.vf_cap_flags = VIRTCHNL_VF_OFFLOAD_L2 |
 					 VIRTCHNL_VF_OFFLOAD_RSS_REG |
 					 VIRTCHNL_VF_OFFLOAD_VLAN;
 	else
 		/* Force VF RSS setup by PF in 1.1+ VFs */
-		reply.vf_offload_flags = *(u32 *)msg & (
+		reply.vf_cap_flags = *(u32 *)msg & (
 					 VIRTCHNL_VF_OFFLOAD_L2 |
 					 VIRTCHNL_VF_OFFLOAD_RSS_PF |
 					 VIRTCHNL_VF_OFFLOAD_VLAN);
@@ -1406,7 +1406,7 @@ ixl_vf_config_rss_key_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 		}
 	} else {
 		for (int i = 0; i < (key->key_len / 4); i++)
-			i40e_write_rx_ctl(hw, I40E_VFQF_HKEY1(i, IXL_GLOBAL_VF_NUM(hw, vf)), ((u32 *)key->key)[i]);
+			i40e_write_rx_ctl(hw, I40E_VFQF_HKEY1(i, vf->vf_num), ((u32 *)key->key)[i]);
 	}
 
 	DDPRINTF(pf->dev, "VF %d: Programmed key starting with 0x%x ok!",
@@ -1461,7 +1461,7 @@ ixl_vf_config_rss_lut_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 		}
 	} else {
 		for (int i = 0; i < (lut->lut_entries / 4); i++)
-			i40e_write_rx_ctl(hw, I40E_VFQF_HLUT1(i, IXL_GLOBAL_VF_NUM(hw, vf)), ((u32 *)lut->lut)[i]);
+			i40e_write_rx_ctl(hw, I40E_VFQF_HLUT1(i, vf->vf_num), ((u32 *)lut->lut)[i]);
 	}
 
 	DDPRINTF(pf->dev, "VF %d: Programmed LUT starting with 0x%x and length %d ok!",
@@ -1488,13 +1488,39 @@ ixl_vf_set_rss_hena_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 	hena = msg;
 
 	/* Set HENA */
-	i40e_write_rx_ctl(hw, I40E_VFQF_HENA1(0, IXL_GLOBAL_VF_NUM(hw, vf)), (u32)hena->hena);
-	i40e_write_rx_ctl(hw, I40E_VFQF_HENA1(1, IXL_GLOBAL_VF_NUM(hw, vf)), (u32)(hena->hena >> 32));
+	i40e_write_rx_ctl(hw, I40E_VFQF_HENA1(0, vf->vf_num), (u32)hena->hena);
+	i40e_write_rx_ctl(hw, I40E_VFQF_HENA1(1, vf->vf_num), (u32)(hena->hena >> 32));
 
 	DDPRINTF(pf->dev, "VF %d: Programmed HENA with 0x%016lx",
 	    vf->vf_num, hena->hena);
 
 	ixl_send_vf_ack(pf, vf, VIRTCHNL_OP_SET_RSS_HENA);
+}
+
+static void
+ixl_notify_vf_link_state(struct ixl_pf *pf, struct ixl_vf *vf)
+{
+	struct virtchnl_pf_event event;
+	struct i40e_hw *hw;
+
+	hw = &pf->hw;
+	event.event = VIRTCHNL_EVENT_LINK_CHANGE;
+	event.severity = PF_EVENT_SEVERITY_INFO;
+	event.event_data.link_event.link_status = pf->vsi.link_active;
+	event.event_data.link_event.link_speed =
+		(enum virtchnl_link_speed)hw->phy.link_info.link_speed;
+
+	ixl_send_vf_msg(pf, vf, VIRTCHNL_OP_EVENT, I40E_SUCCESS, &event,
+			sizeof(event));
+}
+
+void
+ixl_broadcast_link_state(struct ixl_pf *pf)
+{
+	int i;
+
+	for (i = 0; i < pf->num_vfs; i++)
+		ixl_notify_vf_link_state(pf, &pf->vfs[i]);
 }
 
 void
@@ -1536,6 +1562,10 @@ ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 		break;
 	case VIRTCHNL_OP_GET_VF_RESOURCES:
 		ixl_vf_get_resources_msg(pf, vf, msg, msg_size);
+		/* Notify VF of link state after it obtains queues, as this is
+		 * the last thing it will do as part of initialization
+		 */
+		ixl_notify_vf_link_state(pf, vf);
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
 		ixl_vf_config_vsi_msg(pf, vf, msg, msg_size);
@@ -1545,6 +1575,10 @@ ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 		break;
 	case VIRTCHNL_OP_ENABLE_QUEUES:
 		ixl_vf_enable_queues_msg(pf, vf, msg, msg_size);
+		/* Notify VF of link state after it obtains queues, as this is
+		 * the last thing it will do as part of initialization
+		 */
+		ixl_notify_vf_link_state(pf, vf);
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
 		ixl_vf_disable_queues_msg(pf, vf, msg, msg_size);
@@ -1746,6 +1780,7 @@ ixl_iov_uninit(device_t dev)
 		if (pf->vfs[i].vsi.seid != 0)
 			i40e_aq_delete_element(hw, pf->vfs[i].vsi.seid, NULL);
 		ixl_pf_qmgr_release(&pf->qmgr, &pf->vfs[i].qtag);
+		ixl_free_mac_filters(&pf->vfs[i].vsi);
 		DDPRINTF(dev, "VF %d: %d released\n",
 		    i, pf->vfs[i].qtag.num_allocated);
 		DDPRINTF(dev, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));

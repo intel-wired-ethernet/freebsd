@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation 
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
   
   Redistribution and use in source and binary forms, with or without 
@@ -136,8 +136,8 @@ struct ixlv_sc {
 	int			pf_version;
 	int			if_flags;
 
-	bool			link_up;
-	u32			link_speed;
+	bool				link_up;
+	enum virtchnl_link_speed	link_speed;
 
 	struct mtx		mtx;
 

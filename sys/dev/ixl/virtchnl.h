@@ -1,6 +1,6 @@
 /******************************************************************************
 
-  Copyright (c) 2013-2015, Intel Corporation
+  Copyright (c) 2013-2017, Intel Corporation
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -236,7 +236,7 @@ struct virtchnl_vsi_resource {
 
 VIRTCHNL_CHECK_STRUCT_LEN(16, virtchnl_vsi_resource);
 
-/* VF offload flags
+/* VF capability flags
  * VIRTCHNL_VF_OFFLOAD_L2 flag is inclusive of base mode L2 offloads including
  * TX/RX Checksum offloading and TSO for non-tunnelled packets.
  */
@@ -265,7 +265,7 @@ struct virtchnl_vf_resource {
 	u16 max_vectors;
 	u16 max_mtu;
 
-	u32 vf_offload_flags;
+	u32 vf_cap_flags;
 	u32 rss_key_size;
 	u32 rss_lut_size;
 
@@ -488,7 +488,7 @@ VIRTCHNL_CHECK_STRUCT_LEN(6, virtchnl_rss_key);
 struct virtchnl_rss_lut {
 	u16 vsi_id;
 	u16 lut_entries;
-	u8 lut[1];        /* RSS lookup table*/
+	u8 lut[1];        /* RSS lookup table */
 };
 
 VIRTCHNL_CHECK_STRUCT_LEN(6, virtchnl_rss_lut);
@@ -739,7 +739,7 @@ virtchnl_vc_validate_vf_msg(struct virtchnl_version_info *ver, u32 v_opcode,
 		return VIRTCHNL_ERR_PARAM;
 	}
 	/* few more checks */
-	if ((valid_len != msglen) || (err_msg_format))
+	if (err_msg_format || valid_len != msglen)
 		return VIRTCHNL_STATUS_ERR_OPCODE_MISMATCH;
 
 	return 0;
