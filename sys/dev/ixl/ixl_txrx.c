@@ -284,14 +284,11 @@ ixl_tso_setup(struct tx_ring *txr, if_pkt_info_t pi)
 
 	type = I40E_TX_DESC_DTYPE_CONTEXT;
 	cmd = I40E_TX_CTX_DESC_TSO;
-#if 0
 	/* TSO MSS must not be less than 64 */
-	if (mp->m_pkthdr.tso_segsz < IXL_MIN_TSO_MSS) {
-		que->mss_too_small++;
-		mp->m_pkthdr.tso_segsz = IXL_MIN_TSO_MSS;
+	if (pi->ipi_tso_segsz < IXL_MIN_TSO_MSS) {
+		// que->mss_too_small++;
+		pi->ipi_tso_segsz = IXL_MIN_TSO_MSS;
 	}
-	mss = mp->m_pkthdr.tso_segsz;
-#endif
 	mss = pi->ipi_tso_segsz;
 
 	type_cmd_tso_mss = ((u64)type << I40E_TXD_CTX_QW1_DTYPE_SHIFT) |
