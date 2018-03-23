@@ -48,13 +48,40 @@
 #define IXL_PF_STATE_EMPR_RESETTING	(1 << 0)
 #define IXL_PF_STATE_FW_LLDP_DISABLED	(1 << 1)
 
+#define IXL_ICR0_CRIT_ERR_MASK 			\
+    (I40E_PFINT_ICR0_PCI_EXCEPTION_MASK | 	\
+     I40E_PFINT_ICR0_ECC_ERR_MASK | 		\
+     I40E_PFINT_ICR0_PE_CRITERR_MASK)
+
+/* VF Interrupts */
+#define IXL_VPINT_LNKLSTN_REG(hw, vector, vf_num) \
+	I40E_VPINT_LNKLSTN(((vector) - 1) + \
+	    (((hw)->func_caps.num_msix_vectors_vf - 1) * (vf_num)))
+
+#define IXL_VFINT_DYN_CTLN_REG(hw, vector, vf_num) \
+	I40E_VFINT_DYN_CTLN(((vector) - 1) + \
+	    (((hw)->func_caps.num_msix_vectors_vf - 1) * (vf_num)))
+
+/* Used in struct ixl_pf's state field */
+enum ixl_pf_state {
+	IXL_PF_STATE_ADAPTER_RESETTING	= (1 << 0),
+	IXL_PF_STATE_MDD_PENDING	= (1 << 1),
+	IXL_PF_STATE_PF_RESET_REQ	= (1 << 2),
+	IXL_PF_STATE_VF_RESET_REQ	= (1 << 3),
+	IXL_PF_STATE_PF_CRIT_ERR	= (1 << 4),
+	IXL_PF_STATE_CORE_RESET_REQ	= (1 << 5),
+	IXL_PF_STATE_GLOB_RESET_REQ	= (1 << 6),
+	IXL_PF_STATE_EMP_RESET_REQ	= (1 << 7),
+};
+
 struct ixl_vf {
 	struct ixl_vsi		vsi;
-	uint32_t		vf_flags;
+	u32			vf_flags;
+	u32			num_mdd_events;
 
-	uint8_t			mac[ETHER_ADDR_LEN];
-	uint16_t		vf_num;
-	uint32_t		version;
+	u8			mac[ETHER_ADDR_LEN];
+	u16			vf_num;
+	u32			version;
 
 	struct ixl_pf_qtag	qtag;
 	struct sysctl_ctx_list	ctx;
@@ -62,31 +89,20 @@ struct ixl_vf {
 
 /* Physical controller structure */
 struct ixl_pf {
+	struct ixl_vsi		vsi;
+
 	struct i40e_hw		hw;
 	struct i40e_osdep	osdep;
 	device_t		dev;
-	struct ixl_vsi		vsi;
 
 	struct resource		*pci_mem;
-	struct resource		*msix_mem;
 
-	/*
-	 * Interrupt resources: this set is
-	 * either used for legacy, or for Link
-	 * when doing MSIX
-	 */
-	void			*tag;
-	struct resource 	*res;
-
-	struct callout		timer;
-	int			msix;
 #ifdef IXL_IW
 	int			iw_msix;
 	bool			iw_enabled;
 #endif
 	int			if_flags;
-	int			state;
-	bool			init_in_progress;
+	u32			state;
 	u8			supported_speeds;
 
 	struct ixl_pf_qmgr	qmgr;
@@ -101,12 +117,8 @@ struct ixl_pf {
 	int			tx_itr;
 	int			rx_itr;
 
-	struct mtx		pf_mtx;
-
 	u32			qbase;
 	u32 			admvec;
-	struct task     	adminq;
-	struct taskqueue	*tq;
 
 	bool			link_up;
 	u32			link_speed;
@@ -199,13 +211,6 @@ MALLOC_DECLARE(M_IXL);
 #define	i40e_send_vf_nack(pf, vf, op, st) \
 	ixl_send_vf_nack_msg((pf), (vf), (op), (st), __FILE__, __LINE__)
 
-#define IXL_PF_LOCK_INIT(_sc, _name) \
-        mtx_init(&(_sc)->pf_mtx, _name, "IXL PF Lock", MTX_DEF)
-#define IXL_PF_LOCK(_sc)              mtx_lock(&(_sc)->pf_mtx)
-#define IXL_PF_UNLOCK(_sc)            mtx_unlock(&(_sc)->pf_mtx)
-#define IXL_PF_LOCK_DESTROY(_sc)      mtx_destroy(&(_sc)->pf_mtx)
-#define IXL_PF_LOCK_ASSERT(_sc)       mtx_assert(&(_sc)->pf_mtx, MA_OWNED)
-
 /* Debug printing */
 #define ixl_dbg(p, m, s, ...)	ixl_debug_core(p, m, s, ##__VA_ARGS__)
 void	ixl_debug_core(struct ixl_pf *, enum ixl_dbg_mask, char *, ...);
@@ -216,10 +221,7 @@ void	ixl_debug_core(struct ixl_pf *, enum ixl_dbg_mask, char *, ...);
 /* For netmap(4) compatibility */
 #define ixl_disable_intr(vsi)	ixl_disable_rings_intr(vsi)
 
-/*
- * PF-only function declarations
- */
-
+/* PF-only function declarations */
 int	ixl_setup_interface(device_t, struct ixl_vsi *);
 void	ixl_print_nvm_cmd(device_t, struct i40e_nvm_access *);
 char *	ixl_aq_speed_to_str(enum i40e_aq_link_speed);
@@ -230,9 +232,9 @@ void	ixl_init(void *);
 void	ixl_local_timer(void *);
 void	ixl_register_vlan(void *, struct ifnet *, u16);
 void	ixl_unregister_vlan(void *, struct ifnet *, u16);
-void	ixl_intr(void *);
-void	ixl_msix_que(void *);
-void	ixl_msix_adminq(void *);
+int	ixl_intr(void *);
+int	ixl_msix_que(void *);
+int	ixl_msix_adminq(void *);
 void	ixl_do_adminq(void *, int);
 
 int	ixl_res_alloc_cmp(const void *, const void *);
@@ -263,7 +265,7 @@ void	ixl_stop(struct ixl_pf *);
 void	ixl_add_vsi_sysctls(struct ixl_pf *pf, struct ixl_vsi *vsi, struct sysctl_ctx_list *ctx, const char *sysctl_name);
 int	ixl_get_hw_capabilities(struct ixl_pf *);
 void	ixl_link_up_msg(struct ixl_pf *);
-void    ixl_update_link_status(struct ixl_pf *);
+void    ixl_update_link_status(if_ctx_t ctx);
 int     ixl_allocate_pci_resources(struct ixl_pf *);
 int	ixl_setup_stations(struct ixl_pf *);
 int	ixl_switch_config(struct ixl_pf *);
@@ -304,8 +306,8 @@ void	ixl_handle_empr_reset(struct ixl_pf *);
 int	ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up);
 int	ixl_rebuild_hw_structs_after_reset(struct ixl_pf *, bool is_up);
 
-void	ixl_set_queue_rx_itr(struct ixl_queue *);
-void	ixl_set_queue_tx_itr(struct ixl_queue *);
+void	ixl_set_queue_rx_itr(struct ixl_rx_queue *);
+void	ixl_set_queue_tx_itr(struct ixl_tx_queue *);
 
 void	ixl_add_filter(struct ixl_vsi *, const u8 *, s16 vlan);
 void	ixl_del_filter(struct ixl_vsi *, const u8 *, s16 vlan);
@@ -348,6 +350,9 @@ void	ixl_vsi_reset_stats(struct ixl_vsi *);
 int	ixl_vsi_setup_queues(struct ixl_vsi *vsi);
 void	ixl_vsi_free_queues(struct ixl_vsi *vsi);
 
+void	 ixl_if_init(if_ctx_t ctx);
+void	 ixl_if_stop(if_ctx_t ctx);
+
 /*
  * I2C Function prototypes
  */
@@ -359,5 +364,7 @@ s32	ixl_write_i2c_byte(struct ixl_pf *pf, u8 byte_offset,
 
 int	ixl_get_fw_lldp_status(struct ixl_pf *pf);
 int	ixl_attach_get_link_status(struct ixl_pf *);
+u64	ixl_max_aq_speed_to_value(u8);
+void	ixl_handle_vflr(void *, int);
 
 #endif /* _IXL_PF_H_ */
