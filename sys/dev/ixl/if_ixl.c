@@ -240,17 +240,6 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, enable_tx_fc_filter, CTLFLAG_RDTUN,
     &ixl_enable_tx_fc_filter, 0,
     "Filter out packets with Ethertype 0x8808 from being sent out by non-HW sources");
 
-/*
- * Different method for processing TX descriptor
- * completion.
- */
-static int ixl_enable_head_writeback = 1;
-TUNABLE_INT("hw.ixl.enable_head_writeback",
-    &ixl_enable_head_writeback);
-SYSCTL_INT(_hw_ixl, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
-    &ixl_enable_head_writeback, 0,
-    "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
-
 static int ixl_core_debug_mask = 0;
 TUNABLE_INT("hw.ixl.core_debug_mask",
     &ixl_core_debug_mask);
@@ -1727,7 +1716,6 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
-	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
 
 	// ixl_vsi_setup_rings_size(&pf->vsi, ixl_tx_ring_size, ixl_rx_ring_size);
 
