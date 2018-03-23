@@ -2758,6 +2758,7 @@ print_pkt(if_pkt_info_t pi)
 #endif
 
 #define IS_TSO4(pi) ((pi)->ipi_csum_flags & CSUM_IP_TSO)
+#define IS_IP4_TCP(pi) ((pi)->ipi_csum_flags & CSUM_IP_TCP)
 #define IS_TSO6(pi) ((pi)->ipi_csum_flags & CSUM_IP6_TSO)
 
 static int
@@ -2844,8 +2845,10 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 		if ((sctx->isc_flags & IFLIB_NEED_ZERO_CSUM) && (pi->ipi_csum_flags & CSUM_IP))
                        ip->ip_sum = 0;
 
-		if (IS_TSO4(pi)) {
-			if (pi->ipi_ipproto == IPPROTO_TCP) {
+		/* TCP checksum offload in ixl(4) requires TCP header length */
+		if (IS_IP4_TCP(pi) || IS_TSO4(pi)) {
+			/* Can this just be assumed? It's possible non-TCP TSO could be supported */
+			if (__predict_true(pi->ipi_ipproto == IPPROTO_TCP)) {
 				if (__predict_false(th == NULL)) {
 					txq->ift_pullups++;
 					if (__predict_false((m = m_pullup(m, (ip->ip_hl << 2) + sizeof(*th))) == NULL))
@@ -2856,6 +2859,9 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 				pi->ipi_tcp_hlen = th->th_off << 2;
 				pi->ipi_tcp_seq = th->th_seq;
 			}
+		}
+
+		if (IS_TSO4(pi)) {
 			if (__predict_false(ip->ip_p != IPPROTO_TCP))
 				return (ENXIO);
 			th->th_sum = in_pseudo(ip->ip_src.s_addr,
