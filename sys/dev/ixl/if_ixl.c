@@ -314,7 +314,7 @@ static struct if_shared_ctx ixl_sctx_init = {
 	// TODO: Review the rx_maxsize and rx_maxsegsize params
 	// Where are they used in iflib?
 	.isc_rx_maxsize = 16384,
-	.isc_rx_nsegments = 1, // XXX: This is probably 5
+	.isc_rx_nsegments = 5, // XXX: This is probably 5
 	.isc_rx_maxsegsize = 16384,
 	// TODO: What is isc_nfl for?
 	.isc_nfl = 1,
@@ -440,10 +440,6 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
 	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
 	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
-#if 0
-	/* XXX: No idea what this does */
-	scctx->isc_max_txqsets = scctx->isc_max_rxqsets = 32;
-#endif
 
 	/* Do PCI setup - map BAR0, etc */
 	if (ixl_allocate_pci_resources(pf)) {
@@ -470,6 +466,17 @@ ixl_if_attach_pre(if_ctx_t ctx)
 		error = EIO;
 		goto err_out;
 	}
+
+	/*
+	 * XXX: No idea what this does
+	 * Current working assumption is that this max amount of queues
+	 * that this interface can have
+	 */
+	if (hw->mac.type == I40E_MAC_X722)
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 128;
+	else
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
+
 
 	/* Set up the admin queue */
 	hw->aq.num_arq_entries = IXL_AQ_LEN;
@@ -630,7 +637,6 @@ ixl_if_attach_post(if_ctx_t ctx)
 	}
 
 	/* Init queue allocation manager */
-	/* XXX: This init can go in pre or post; allocation must be in post */
 	error = ixl_pf_qmgr_init(&pf->qmgr, hw->func_caps.num_tx_qp);
 	if (error) {
 		device_printf(dev, "Failed to init queue manager for PF queues, error %d\n",
@@ -638,7 +644,8 @@ ixl_if_attach_post(if_ctx_t ctx)
 		goto err_mac_hmc;
 	}
 	/* reserve a contiguous allocation for the PF's VSI */
-	error = ixl_pf_qmgr_alloc_contiguous(&pf->qmgr, max(vsi->num_rx_queues, vsi->num_tx_queues), &pf->qtag);
+	error = ixl_pf_qmgr_alloc_contiguous(&pf->qmgr,
+	    max(vsi->num_rx_queues, vsi->num_tx_queues), &pf->qtag);
 	if (error) {
 		device_printf(dev, "Failed to reserve queues for PF LAN VSI, error %d\n",
 		    error);
@@ -965,7 +972,8 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 	    ixl_msix_adminq, pf, 0, "aq");
 	if (err) {
 		iflib_irq_free(ctx, &vsi->irq);
-		device_printf(iflib_get_dev(ctx), "Failed to register Admin que handler");
+		device_printf(iflib_get_dev(ctx),
+		    "Failed to register Admin que handler");
 		return (err);
 	}
 	pf->admvec = vector;
@@ -977,12 +985,13 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 		rid = vector + 1;
 
 		snprintf(buf, sizeof(buf), "rxq%d", i);
-		err = iflib_irq_alloc_generic(ctx, &rx_que->que_irq, rid, IFLIB_INTR_RXTX,
-		    ixl_msix_que, rx_que, rx_que->rxr.me, buf);
+		err = iflib_irq_alloc_generic(ctx, &rx_que->que_irq, rid,
+		    IFLIB_INTR_RXTX, ixl_msix_que, rx_que, rx_que->rxr.me, buf);
 		/* XXX: Does the driver work as expected if there are fewer num_rx_queues than
 		 * what's expected in the iflib context? */
 		if (err) {
-			device_printf(iflib_get_dev(ctx), "Failed to allocate q int %d err: %d", i, err);
+			device_printf(iflib_get_dev(ctx),
+			    "Failed to allocate q int %d err: %d", i, err);
 			vsi->num_rx_queues = i + 1;
 			goto fail;
 		}
@@ -994,7 +1003,9 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 
 		snprintf(buf, sizeof(buf), "txq%d", i);
 		// TODO: Fix in later patch
-		iflib_softirq_alloc_generic(ctx, (if_irq_t)&rid, IFLIB_INTR_TX, tx_que, tx_que->txr.me, buf);
+		iflib_softirq_alloc_generic(ctx,
+		    &vsi->rx_queues[i % vsi->num_rx_queues].que_irq,
+		    IFLIB_INTR_TX, tx_que, tx_que->txr.me, buf);
 
 		/* TODO: Maybe call a strategy function for this to figure out which
 		* interrupts to map Tx queues to. I don't know if there's an immediately
@@ -1344,8 +1355,10 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 		//iflib_init_locked(ctx);
 	}
 
+#ifdef PCI_IOV
 	if (pf->state & IXL_PF_STATE_VF_RESET_REQ)
 		ixl_handle_vflr(pf, 0);
+#endif
 
 	ixl_process_adminq(pf, &pending);
 	ixl_update_link_status(ctx);
