@@ -278,10 +278,12 @@
 	BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_TCP_SYN_NO_ACK))
 
 #define IXL_CAPS \
-	(IFCAP_TSO4 | IFCAP_TSO6 | IFCAP_TXCSUM | IFCAP_TXCSUM_IPV6 | IFCAP_RXCSUM | IFCAP_RXCSUM_IPV6 | \
-	IFCAP_VLAN_HWFILTER | IFCAP_VLAN_HWTSO | IFCAP_HWCSUM | \
-	IFCAP_VLAN_HWTAGGING | IFCAP_VLAN_HWCSUM | IFCAP_VLAN_HWTSO | \
-	IFCAP_VLAN_MTU | IFCAP_HWCSUM_IPV6 | IFCAP_JUMBO_MTU | IFCAP_LRO)
+	(IFCAP_TSO4 | IFCAP_TSO6 | \
+	 IFCAP_TXCSUM | IFCAP_TXCSUM_IPV6 | \
+	 IFCAP_RXCSUM | IFCAP_RXCSUM_IPV6 | \
+	 IFCAP_VLAN_HWFILTER | IFCAP_VLAN_HWTSO | \
+	 IFCAP_VLAN_HWTAGGING | IFCAP_VLAN_HWCSUM | IFCAP_VLAN_HWTSO | \
+	 IFCAP_VLAN_MTU | IFCAP_JUMBO_MTU | IFCAP_LRO)
 
 /* Pre-11 counter(9) compatibility */
 #if __FreeBSD_version >= 1100036
@@ -311,6 +313,9 @@
 #define IXL_SET_OQDROPS(vsi, odrops)	(vsi)->ifp->if_snd.ifq_drops = (odrops)
 #define IXL_SET_NOPROTO(vsi, count)	(vsi)->noproto = (count)
 #endif
+
+#define IXL_DEV_ERR(_dev, _format, ...) \
+	device_printf(_dev, "%s: " _format " (%s:%d)\n", __func__, ##__VA_ARGS__, __FILE__, __LINE__)
 
 /*
  *****************************************************************************

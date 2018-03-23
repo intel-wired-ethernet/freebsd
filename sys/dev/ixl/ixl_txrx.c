@@ -646,21 +646,6 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 		else
 			vtag = 0;
 
-// TODO: Ensure that this is done in iflib
-#if 0
-		/* Remove device access to the rx buffers. */
-		if (rbuf->m_head != NULL) {
-			bus_dmamap_sync(rxr->htag, rbuf->hmap,
-			    BUS_DMASYNC_POSTREAD);
-			bus_dmamap_unload(rxr->htag, rbuf->hmap);
-		}
-		if (rbuf->m_pack != NULL) {
-			bus_dmamap_sync(rxr->ptag, rbuf->pmap,
-			    BUS_DMASYNC_POSTREAD);
-			bus_dmamap_unload(rxr->ptag, rbuf->pmap);
-		}
-#endif
-
 		/*
 		** Make sure bad packets are discarded,
 		** note that only EOP descriptor has valid
