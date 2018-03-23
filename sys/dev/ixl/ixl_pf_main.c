@@ -82,6 +82,7 @@ static int	ixl_sysctl_do_pf_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_do_core_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_do_global_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_do_emp_reset(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS);
 #ifdef IXL_DEBUG
 static int	ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
@@ -3525,6 +3526,9 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    OID_AUTO, "do_emp_reset", CTLTYPE_INT | CTLFLAG_WR,
 	    pf, 0, ixl_sysctl_do_emp_reset, "I", "Tell HW to initiate a EMP (entire firmware) reset");
 
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
 
 	if (pf->has_i2c) {
 		SYSCTL_ADD_PROC(ctx, debug_list,
@@ -5332,6 +5336,46 @@ ixl_sysctl_do_emp_reset(SYSCTL_HANDLER_ARGS)
 
 	/* Initiate the EMP reset later in the admin task */
 	atomic_set_32(&pf->state, IXL_PF_STATE_EMP_RESET_REQ);
+
+	return (error);
+}
+
+/*
+ * Print out mapping of TX queue indexes and Rx queue indexes
+ * to MSI-X vectors.
+ */
+static int
+ixl_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS)
+{
+	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct ixl_vsi *vsi = &pf->vsi;
+	device_t dev = pf->dev;
+	struct sbuf *buf;
+	int error = 0;
+
+	struct ixl_rx_queue *rx_que = vsi->rx_queues;
+	struct ixl_tx_queue *tx_que = vsi->tx_queues;
+
+	buf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+	if (!buf) {
+		device_printf(dev, "Could not allocate sbuf for output.\n");
+		return (ENOMEM);
+	}
+
+	sbuf_cat(buf, "\n");
+	for (int i = 0; i < vsi->num_rx_queues; i++) {
+		rx_que = &vsi->rx_queues[i];
+		sbuf_printf(buf, "(rxq %3d): %d\n", i, rx_que->msix);
+	}
+	for (int i = 0; i < vsi->num_tx_queues; i++) {
+		tx_que = &vsi->tx_queues[i];
+		sbuf_printf(buf, "(txq %3d): %d\n", i, tx_que->msix);
+	}
+
+	error = sbuf_finish(buf);
+	if (error)
+		device_printf(dev, "Error finishing sbuf: %d\n", error);
+	sbuf_delete(buf);
 
 	return (error);
 }
