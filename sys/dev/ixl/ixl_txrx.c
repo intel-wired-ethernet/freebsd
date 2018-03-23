@@ -345,7 +345,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	if (pi->ipi_mflags & M_VLANTAG)
 		cmd |= I40E_TX_DESC_CMD_IL2TAG1;
 
-	cmd |= (I40E_TX_DESC_CMD_ICRC | I40E_TX_DESC_CMD_RS);
+	cmd |= I40E_TX_DESC_CMD_ICRC;
 	mask = scctx->isc_ntxd[0] - 1;
 	for (j = 0; j < nsegs; j++) {
 		bus_size_t seglen;
