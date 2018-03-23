@@ -536,9 +536,6 @@ ixl_msix_adminq(void *arg)
 
 	++pf->admin_irq;
 
-	// TODO: This shouldn't be necessary...?
-	ixl_disable_intr0(hw);
-
 	reg = rd32(hw, I40E_PFINT_ICR0);
 	// For masking off interrupt causes that need to be handled before
 	// they can be re-enabled
