@@ -1247,13 +1247,14 @@ ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 	enum i40e_status_code status = I40E_SUCCESS;
 	struct i40e_arq_event_info event;
 	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
 	u16 opcode;
 	u32 loop = 0, reg;
 
 	event.buf_len = IXL_AQ_BUF_SZ;
 	event.msg_buf = malloc(event.buf_len, M_IXL, M_NOWAIT | M_ZERO);
 	if (!event.msg_buf) {
-		device_printf(pf->dev, "%s: Unable to allocate memory for Admin"
+		device_printf(dev, "%s: Unable to allocate memory for Admin"
 		    " Queue event!\n", __func__);
 		return (ENOMEM);
 	}
@@ -1275,10 +1276,15 @@ ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 			ixl_handle_vf_msg(pf, &event);
 #endif
 			break;
+		/*
+		 * This should only occur on no-drop queues, which
+		 * aren't currently configured.
+		 */
 		case i40e_aqc_opc_event_lan_overflow:
+			device_printf(dev, "LAN overflow event\n");
 			break;
 		default:
-			printf("AdminQ unknown event %x\n", opcode);
+			device_printf(dev, "AdminQ unknown event %x\n", opcode);
 			break;
 		}
 	} while (*pending && (loop++ < IXL_ADM_LIMIT));
