@@ -238,21 +238,21 @@ ixl_tx_setup_offload(struct ixl_tx_queue *que,
 
 	switch (pi->ipi_ipproto) {
 		case IPPROTO_TCP:
-			if (pi->ipi_csum_flags & (CSUM_IP_TCP|CSUM_IP_TSO|CSUM_IP6_TSO|CSUM_IP6_TCP)) {
+			if (pi->ipi_csum_flags & IXL_CSUM_TCP) {
 				*cmd |= I40E_TX_DESC_CMD_L4T_EOFT_TCP;
 				*off |= (pi->ipi_tcp_hlen >> 2) <<
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 			}
 			break;
 		case IPPROTO_UDP:
-			if (pi->ipi_csum_flags & (CSUM_IP_UDP|CSUM_IP6_UDP)) {
+			if (pi->ipi_csum_flags & IXL_CSUM_UDP) {
 				*cmd |= I40E_TX_DESC_CMD_L4T_EOFT_UDP;
 				*off |= (sizeof(struct udphdr) >> 2) <<
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
 			}
 			break;
 		case IPPROTO_SCTP:
-			if (pi->ipi_csum_flags & (CSUM_IP_SCTP|CSUM_IP6_SCTP)) {
+			if (pi->ipi_csum_flags & IXL_CSUM_SCTP) {
 				*cmd |= I40E_TX_DESC_CMD_L4T_EOFT_SCTP;
 				*off |= (sizeof(struct sctphdr) >> 2) <<
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
