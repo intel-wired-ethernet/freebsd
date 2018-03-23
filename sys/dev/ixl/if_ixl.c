@@ -120,6 +120,7 @@ static void	 ixl_if_vflr_handle(if_ctx_t ctx);
 /*** Other ***/
 static int	 ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int);
 static int	 ixl_save_pf_tunables(struct ixl_pf *);
+static int	 ixl_allocate_pci_resources(struct ixl_pf *);
 
 /*********************************************************************
  *  FreeBSD Device Interface Entry Points
@@ -332,7 +333,7 @@ ixl_register(device_t dev)
 	return (ixl_sctx);
 }
 
-int
+static int
 ixl_allocate_pci_resources(struct ixl_pf *pf)
 {
 	int             rid;

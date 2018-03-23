@@ -266,7 +266,6 @@ void	ixl_add_vsi_sysctls(struct ixl_pf *pf, struct ixl_vsi *vsi, struct sysctl_c
 int	ixl_get_hw_capabilities(struct ixl_pf *);
 void	ixl_link_up_msg(struct ixl_pf *);
 void    ixl_update_link_status(if_ctx_t ctx);
-int     ixl_allocate_pci_resources(struct ixl_pf *);
 int	ixl_setup_stations(struct ixl_pf *);
 int	ixl_switch_config(struct ixl_pf *);
 void	ixl_stop_locked(struct ixl_pf *);
