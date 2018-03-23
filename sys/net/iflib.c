@@ -2760,6 +2760,7 @@ print_pkt(if_pkt_info_t pi)
 #define IS_TSO4(pi) ((pi)->ipi_csum_flags & CSUM_IP_TSO)
 #define IS_IP4_TCP(pi) ((pi)->ipi_csum_flags & CSUM_IP_TCP)
 #define IS_TSO6(pi) ((pi)->ipi_csum_flags & CSUM_IP6_TSO)
+#define IS_IP6_TCP(pi) ((pi)->ipi_csum_flags & CSUM_IP6_TCP)
 
 static int
 iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
@@ -2845,7 +2846,7 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 		if ((sctx->isc_flags & IFLIB_NEED_ZERO_CSUM) && (pi->ipi_csum_flags & CSUM_IP))
                        ip->ip_sum = 0;
 
-		/* TCP checksum offload in ixl(4) requires TCP header length */
+		/* TCP checksum offload may require TCP header length */
 		if (IS_IP4_TCP(pi) || IS_TSO4(pi)) {
 			/* Can this just be assumed? It's possible non-TCP TSO could be supported */
 			if (__predict_true(pi->ipi_ipproto == IPPROTO_TCP)) {
@@ -2860,7 +2861,6 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 				pi->ipi_tcp_seq = th->th_seq;
 			}
 		}
-
 		if (IS_TSO4(pi)) {
 			if (__predict_false(ip->ip_p != IPPROTO_TCP))
 				return (ENXIO);
@@ -2892,16 +2892,20 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 		pi->ipi_ipproto = ip6->ip6_nxt;
 		pi->ipi_flags |= IPI_TX_IPV6;
 
-		if (IS_TSO6(pi)) {
+		/* TCP checksum offload may require TCP header length */
+		if (IS_IP6_TCP(pi) || IS_TSO6(pi)) {
 			if (pi->ipi_ipproto == IPPROTO_TCP) {
 				if (__predict_false(m->m_len < pi->ipi_ehdrlen + sizeof(struct ip6_hdr) + sizeof(struct tcphdr))) {
 					if (__predict_false((m = m_pullup(m, pi->ipi_ehdrlen + sizeof(struct ip6_hdr) + sizeof(struct tcphdr))) == NULL))
 						return (ENOMEM);
+					txq->ift_pullups++;
 				}
 				pi->ipi_tcp_hflags = th->th_flags;
 				pi->ipi_tcp_hlen = th->th_off << 2;
+				pi->ipi_tcp_seq = th->th_seq;
 			}
-
+		}
+		if (IS_TSO6(pi)) {
 			if (__predict_false(ip6->ip6_nxt != IPPROTO_TCP))
 				return (ENXIO);
 			/*
@@ -2909,7 +2913,7 @@ iflib_parse_header(iflib_txq_t txq, if_pkt_info_t pi, struct mbuf **mp)
 			 * TSO case, but not in IPv6 (at least in FreeBSD 10.2).
 			 * So, set it here because the rest of the flow requires it.
 			 */
-			pi->ipi_csum_flags |= CSUM_TCP_IPV6;
+			pi->ipi_csum_flags |= CSUM_IP6_TSO;
 			th->th_sum = in6_cksum_pseudo(ip6, 0, IPPROTO_TCP, 0);
 			pi->ipi_tso_segsz = m->m_pkthdr.tso_segsz;
 		}
