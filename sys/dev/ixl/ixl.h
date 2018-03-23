@@ -285,6 +285,13 @@
 	 IFCAP_VLAN_HWTAGGING | IFCAP_VLAN_HWCSUM | IFCAP_VLAN_HWTSO | \
 	 IFCAP_VLAN_MTU | IFCAP_JUMBO_MTU | IFCAP_LRO)
 
+#define IXL_CSUM_TCP \
+	(CSUM_IP_TCP|CSUM_IP_TSO|CSUM_IP6_TSO|CSUM_IP6_TCP)
+#define IXL_CSUM_UDP \
+	(CSUM_IP_UDP|CSUM_IP6_UDP)
+#define IXL_CSUM_SCTP \
+	(CSUM_IP_SCTP|CSUM_IP6_SCTP)
+
 /* Pre-11 counter(9) compatibility */
 #if __FreeBSD_version >= 1100036
 #define IXL_SET_IPACKETS(vsi, count)	(vsi)->ipackets = (count)
