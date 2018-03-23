@@ -325,7 +325,6 @@ ixl_teardown_hw_structs(struct ixl_pf *pf)
 		}
 	}
 
-#if 0
 	/* Shutdown admin queue */
 	ixl_disable_intr0(hw);
 	status = i40e_shutdown_adminq(hw);
@@ -333,7 +332,6 @@ ixl_teardown_hw_structs(struct ixl_pf *pf)
 		device_printf(dev,
 		    "init: Admin Queue shutdown failure; status %s\n",
 		    i40e_stat_str(hw, status));
-#endif
 
 err_out:
 	return (status);
@@ -356,8 +354,6 @@ ixl_reset(struct ixl_pf *pf)
 		goto err_out;
 	}
 
-#if 0
-	u8 set_fc_err_mask;
 	error = i40e_init_adminq(hw);
 	if (error) {
 		device_printf(dev, "init: Admin queue init failure;"
@@ -368,6 +364,7 @@ ixl_reset(struct ixl_pf *pf)
 
 	i40e_clear_pxe_mode(hw);
 
+#if 0
 	error = ixl_get_hw_capabilities(pf);
 	if (error) {
 		device_printf(dev, "init: Error retrieving HW capabilities;"
