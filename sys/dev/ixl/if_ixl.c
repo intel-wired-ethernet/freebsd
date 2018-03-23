@@ -301,15 +301,11 @@ static struct if_shared_ctx ixl_sctx_init = {
 	.isc_magic = IFLIB_MAGIC,
 	.isc_q_align = PAGE_SIZE,/* max(DBA_ALIGN, PAGE_SIZE) */
 	.isc_tx_maxsize = IXL_TSO_SIZE,
+	.isc_tx_maxsegsize = 16383,
 
-	.isc_tx_maxsegsize = PAGE_SIZE,
-
-	// TODO: Review the rx_maxsize and rx_maxsegsize params
-	// Where are they used in iflib?
 	.isc_rx_maxsize = 16384,
-	.isc_rx_nsegments = 5, // XXX: This is probably 5
-	.isc_rx_maxsegsize = 16384,
-	// TODO: What is isc_nfl for?
+	.isc_rx_nsegments = 5,
+	.isc_rx_maxsegsize = 16383,
 	.isc_nfl = 1,
 	.isc_ntxqs = 1,
 	.isc_nrxqs = 1,
