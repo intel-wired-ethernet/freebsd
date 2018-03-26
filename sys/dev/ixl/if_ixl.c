@@ -395,7 +395,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 
 	/* Allocate, clear, and link in our primary soft structure */
 	dev = iflib_get_dev(ctx);
-	pf = device_get_softc(dev);
+	pf = iflib_get_softc(ctx);
 	pf->dev = dev;
 	hw = &pf->hw;
 
