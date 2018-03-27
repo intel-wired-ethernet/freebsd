@@ -746,8 +746,6 @@ ixl_if_detach(if_ctx_t ctx)
 	/* Remove all previously allocated media types */
 	ifmedia_removeall(vsi->media);
 
-	ether_ifdetach(vsi->ifp);
-
 // TODO: Is this necessary?
 #if 0
 	if (vsi->ifp->if_drv_flags & IFF_DRV_RUNNING)
