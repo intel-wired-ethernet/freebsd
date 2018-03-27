@@ -902,13 +902,11 @@ ixl_if_init(if_ctx_t ctx)
 
 	/* Set up MSI/X routing and the ITR settings */
 	// TODO: Replace with iflib intr check, or remove?
-#if 0
-	if (pf->msix > 1) {
+	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
 		ixl_configure_queue_intr_msix(pf);
 		ixl_configure_itr(pf);
 	} else
 		ixl_configure_legacy(pf);
-#endif
 
 	ixl_init_tx_rsqs(vsi);
 
@@ -917,13 +915,6 @@ ixl_if_init(if_ctx_t ctx)
 	i40e_aq_set_default_vsi(hw, vsi->seid, NULL);
 
 	ixl_reconfigure_filters(vsi);
-
-#if 0
-	/* Get link info */
-	hw->phy.get_link_info = TRUE;
-	i40e_get_link_status(hw, &pf->link_up);
-	ixl_update_link_status(pf);
-#endif
 
 #ifdef IXL_IW
 	if (ixl_enable_iwarp && pf->iw_enabled) {
