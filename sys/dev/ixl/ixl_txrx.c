@@ -333,7 +333,9 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	i = pi->ipi_pidx;
  
 	tx_intr = (pi->ipi_flags & IPI_TX_INTR);
-	//device_printf(iflib_get_dev(vsi->ctx), "%s: tx_intr %d\n", __func__, tx_intr);
+#if 0
+	device_printf(iflib_get_dev(vsi->ctx), "%s: tx_intr %d\n", __func__, tx_intr);
+#endif
  
 	/* Set up the TSO/CSUM offload */
 	if (pi->ipi_csum_flags & CSUM_OFFLOAD) {
@@ -371,6 +373,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	txd->cmd_type_offset_bsz |=
 	    htole64(((u64)IXL_TXD_CMD << I40E_TXD_QW1_CMD_SHIFT));
 	/* Add to report status array (if using TX interrupts) */
+	// TODO: Only set RS bit when tx_intr is set
 	if (tx_intr) {
 		txr->tx_rsq[txr->tx_rs_pidx] = pidx_last;
 		txr->tx_rs_pidx = (txr->tx_rs_pidx+1) & mask;
@@ -438,10 +441,10 @@ ixl_isc_txd_credits_update_dd(void *arg, uint16_t txqid, bool clear)
 	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	rs_cidx = txr->tx_rs_cidx;
-	/*
+#if 0
 	device_printf(iflib_get_dev(vsi->ctx), "%s: rs_cidx %d, txr->tx_rs_pidx %d\n", __func__,
 	    rs_cidx, txr->tx_rs_pidx);
-	*/
+#endif
 	if (rs_cidx == txr->tx_rs_pidx)
 		return (0);
 	cur = txr->tx_rsq[rs_cidx];
@@ -458,15 +461,15 @@ ixl_isc_txd_credits_update_dd(void *arg, uint16_t txqid, bool clear)
 		MPASS(prev == 0 || delta != 0);
 		if (delta < 0)
 			delta += ntxd;
- 		/*
+#if 0
 		device_printf(iflib_get_dev(vsi->ctx),
 			      "%s: cidx_processed=%u cur=%u clear=%d delta=%d\n",
 			      __FUNCTION__, prev, cur, clear, delta);
-		*/
+#endif
 		processed += delta;
-		prev  = cur;
+		prev = cur;
 		rs_cidx = (rs_cidx + 1) & (ntxd-1);
-		if (rs_cidx  == txr->tx_rs_pidx)
+		if (rs_cidx == txr->tx_rs_pidx)
 			break;
 		cur = txr->tx_rsq[rs_cidx];
 		MPASS(cur != QIDX_INVALID);
@@ -476,7 +479,9 @@ ixl_isc_txd_credits_update_dd(void *arg, uint16_t txqid, bool clear)
 	txr->tx_rs_cidx = rs_cidx;
 	txr->tx_cidx_processed = prev;
 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: processed %d\n", __func__, processed);
+#if 0
+	device_printf(iflib_get_dev(vsi->ctx), "%s: processed %d\n", __func__, processed);
+#endif
 	return (processed);
 }
  
@@ -727,47 +732,3 @@ ixl_rx_checksum(if_rxd_info_t ri, u32 status, u32 error, u8 ptype)
 	ri->iri_csum_flags |= CSUM_L4_VALID;
 	ri->iri_csum_data |= htons(0xffff);
 }
-
-// TODO: See if this functionality is already done in iflib
-#if 0
-/*
- * Set TX and RX ring size adjusting value to supported range
- */
-void
-ixl_vsi_setup_rings_size(struct ixl_vsi * vsi, int tx_ring_size, int rx_ring_size)
-{
-	device_t dev = vsi->dev;
-
-	if (tx_ring_size < IXL_MIN_RING
-	     || tx_ring_size > IXL_MAX_RING
-	     || tx_ring_size % IXL_RING_INCREMENT != 0) {
-		device_printf(dev, "Invalid tx_ring_size value of %d set!\n",
-		    tx_ring_size);
-		device_printf(dev, "tx_ring_size must be between %d and %d, "
-		    "inclusive, and must be a multiple of %d\n",
-		    IXL_MIN_RING, IXL_MAX_RING, IXL_RING_INCREMENT);
-		device_printf(dev, "Using default value of %d instead\n",
-		    IXL_DEFAULT_RING);
-		vsi->num_tx_desc = IXL_DEFAULT_RING;
-	} else
-		vsi->num_tx_desc = tx_ring_size;
-
-	if (rx_ring_size < IXL_MIN_RING
-	     || rx_ring_size > IXL_MAX_RING
-	     || rx_ring_size % IXL_RING_INCREMENT != 0) {
-		device_printf(dev, "Invalid rx_ring_size value of %d set!\n",
-		    rx_ring_size);
-		device_printf(dev, "rx_ring_size must be between %d and %d, "
-		    "inclusive, and must be a multiple of %d\n",
-		    IXL_MIN_RING, IXL_MAX_RING, IXL_RING_INCREMENT);
-		device_printf(dev, "Using default value of %d instead\n",
-		    IXL_DEFAULT_RING);
-		vsi->num_rx_desc = IXL_DEFAULT_RING;
-	} else
-		vsi->num_rx_desc = rx_ring_size;
-
-	device_printf(dev, "using %d tx descriptors and %d rx descriptors\n",
-		vsi->num_tx_desc, vsi->num_rx_desc);
-
-}
-#endif
