@@ -413,25 +413,10 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	vsi->media = iflib_get_media(ctx);
 	vsi->shared = scctx = iflib_get_softc_ctx(ctx);
 
-	/*
-	 * These are the same across all current ixl models
-	 */
-	vsi->shared->isc_tx_nsegments = IXL_MAX_TX_SEGS;
-	vsi->shared->isc_msix_bar = PCIR_BAR(IXL_MSIX_BAR);
-
-	vsi->shared->isc_tx_tso_segments_max = IXL_MAX_TSO_SEGS;
-	vsi->shared->isc_tx_tso_size_max = IXL_TSO_SIZE;
-	vsi->shared->isc_tx_tso_segsize_max = PAGE_SIZE;
-
 	/* Save tunable values */
 	error = ixl_save_pf_tunables(pf);
 	if (error)
 		return (error);
-
-	scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
-	    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
-	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
-	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
 
 	/* Do PCI setup - map BAR0, etc */
 	if (ixl_allocate_pci_resources(pf)) {
@@ -458,17 +443,6 @@ ixl_if_attach_pre(if_ctx_t ctx)
 		error = EIO;
 		goto err_out;
 	}
-
-	/*
-	 * XXX: No idea what this does
-	 * Current working assumption is that this max amount of queues
-	 * that this interface can have
-	 */
-	if (hw->mac.type == I40E_MAC_X722)
-		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 128;
-	else
-		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
-
 
 	/* Set up the admin queue */
 	hw->aq.num_arq_entries = IXL_AQ_LEN;
@@ -570,9 +544,22 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	/* Initialize mac filter list for VSI */
 	SLIST_INIT(&vsi->ftl);
 
-	/* Fill out more iflib parameters */
+	/* Fill out iflib parameters */
+	if (hw->mac.type == I40E_MAC_X722)
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 128;
+	else
+		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
+	scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
+	    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
+	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
+	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
+	scctx->isc_msix_bar = PCIR_BAR(IXL_MSIX_BAR);
+	scctx->isc_tx_nsegments = IXL_MAX_TX_SEGS;
+	scctx->isc_tx_tso_segments_max = IXL_MAX_TSO_SEGS;
+	scctx->isc_tx_tso_size_max = IXL_TSO_SIZE;
+	scctx->isc_tx_tso_segsize_max = PAGE_SIZE;
 	scctx->isc_txrx = &ixl_txrx;
-	vsi->shared->isc_rss_table_size = pf->hw.func_caps.rss_table_size;
+	scctx->isc_rss_table_size = pf->hw.func_caps.rss_table_size;
 	scctx->isc_tx_csum_flags = CSUM_OFFLOAD;
 	scctx->isc_capenable = IXL_CAPS;
 
