@@ -888,7 +888,6 @@ ixl_if_init(if_ctx_t ctx)
 	ixl_setup_vlan_filters(vsi);
 
 	/* Set up MSI/X routing and the ITR settings */
-	// TODO: Replace with iflib intr check, or remove?
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
 		ixl_configure_queue_intr_msix(pf);
 		ixl_configure_itr(pf);
@@ -970,7 +969,6 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 
 	for (i = 0; i < vsi->num_tx_queues; i++, tx_que++) {
 		snprintf(buf, sizeof(buf), "txq%d", i);
-		// TODO: Fix in later patch
 		iflib_softirq_alloc_generic(ctx,
 		    &vsi->rx_queues[i % vsi->num_rx_queues].que_irq,
 		    IFLIB_INTR_TX, tx_que, tx_que->txr.me, buf);
