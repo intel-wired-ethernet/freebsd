@@ -55,7 +55,7 @@ static void	ixl_rx_checksum(if_rxd_info_t ri, u32 status, u32 error, u8 ptype);
 
 static int	ixl_isc_txd_encap(void *arg, if_pkt_info_t pi);
 static void	ixl_isc_txd_flush(void *arg, uint16_t txqid, qidx_t pidx);
-static int	ixl_isc_txd_credits_update_dd(void *arg, uint16_t txqid, bool clear);
+static int	ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear);
 
 static void	ixl_isc_rxd_refill(void *arg, if_rxd_update_t iru);
 static void	ixl_isc_rxd_flush(void *arg, uint16_t rxqid, uint8_t flid __unused,
@@ -69,7 +69,7 @@ extern int	ixl_intr(void *arg);
 struct if_txrx ixl_txrx  = {
 	ixl_isc_txd_encap,
 	ixl_isc_txd_flush,
-	ixl_isc_txd_credits_update_dd,
+	ixl_isc_txd_credits_update,
 	ixl_isc_rxd_available,
 	ixl_isc_rxd_pkt_get,
 	ixl_isc_rxd_refill,
@@ -426,7 +426,7 @@ ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 }
  
 static int
-ixl_isc_txd_credits_update_dd(void *arg, uint16_t txqid, bool clear)
+ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear)
 {
 	struct ixl_vsi *vsi = arg;
 	struct ixl_tx_queue *tx_que = &vsi->tx_queues[txqid];
