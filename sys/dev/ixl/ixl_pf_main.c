@@ -1686,14 +1686,14 @@ ixl_add_vsi_sysctls(struct ixl_pf *pf, struct ixl_vsi *vsi,
 int
 ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS)
 {
-	struct ixl_queue *que;
+	struct ixl_tx_queue *tx_que;
 	int error;
 	u32 val;
 
-	que = ((struct ixl_queue *)oidp->oid_arg1);
-	if (!que) return 0;
+	tx_que = ((struct ixl_tx_queue *)oidp->oid_arg1);
+	if (!tx_que) return 0;
 
-	val = rd32(que->vsi->hw, que->txr.tail);
+	val = rd32(tx_que->vsi->hw, tx_que->txr.tail);
 	error = sysctl_handle_int(oidp, &val, 0, req);
 	if (error || !req->newptr)
 		return error;
@@ -1708,14 +1708,14 @@ ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS)
 int
 ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS)
 {
-	struct ixl_queue *que;
+	struct ixl_rx_queue *rx_que;
 	int error;
 	u32 val;
 
-	que = ((struct ixl_queue *)oidp->oid_arg1);
-	if (!que) return 0;
+	rx_que = ((struct ixl_rx_queue *)oidp->oid_arg1);
+	if (!rx_que) return 0;
 
-	val = rd32(que->vsi->hw, que->rxr.tail);
+	val = rd32(rx_que->vsi->hw, rx_que->rxr.tail);
 	error = sysctl_handle_int(oidp, &val, 0, req);
 	if (error || !req->newptr)
 		return error;
@@ -1836,7 +1836,6 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				CTLFLAG_RD, &(rx_que->irqs),
 				"irqs on this queue (both Tx and Rx)");
 
-		// TODO: put these in a separate loop
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "packets",
 				CTLFLAG_RD, &(rxr->rx_packets),
 				"Queue Packets Received");
@@ -1849,14 +1848,12 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "itr",
 				CTLFLAG_RD, &(rxr->itr), 0,
 				"Queue Rx ITR Interval");
-#if 0
 #ifdef IXL_DEBUG
 		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qrx_tail",
-				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
-				sizeof(struct ixl_queue),
+				CTLTYPE_UINT | CTLFLAG_RD, rx_que,
+				sizeof(struct ixl_rx_queue),
 				ixl_sysctl_qrx_tail_handler, "IU",
 				"Queue Receive Descriptor Tail");
-#endif
 #endif
 	}
 	for (int q = 0; q < vsi->num_tx_queues; q++) {
@@ -1883,10 +1880,10 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "itr",
 				CTLFLAG_RD, &(txr->itr), 0,
 				"Queue Tx ITR Interval");
-#if 0
+#ifdef IXL_DEBUG
 		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qtx_tail", 
-				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
-				sizeof(struct ixl_queue),
+				CTLTYPE_UINT | CTLFLAG_RD, tx_que,
+				sizeof(struct ixl_tx_queue),
 				ixl_sysctl_qtx_tail_handler, "IU",
 				"Queue Transmit Descriptor Tail");
 #endif
