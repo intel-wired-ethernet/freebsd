@@ -375,7 +375,7 @@ struct tx_ring {
 
 	/* Soft Stats */
 	u64			tx_bytes;
-	u64			total_packets;
+	u64			tx_packets;
 };
 
 
@@ -409,7 +409,7 @@ struct rx_ring {
 struct ixl_tx_queue {
 	struct ixl_vsi		*vsi;
 	struct tx_ring		txr;
-	struct if_irq		que_irq; // TODO: Add comment
+	struct if_irq		que_irq;
 	u32			msix;
 	/* Stats */
 	u64			irqs;
@@ -420,7 +420,7 @@ struct ixl_tx_queue {
 struct ixl_rx_queue {
 	struct ixl_vsi		*vsi;
 	struct rx_ring		rxr;
-	struct if_irq		que_irq; // TODO: Add comment
+	struct if_irq		que_irq;
 	u32			msix;           /* This queue's MSIX vector */
 	/* Stats */
 	u64			irqs;

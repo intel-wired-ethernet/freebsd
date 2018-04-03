@@ -366,6 +366,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 		    | ((u64)seglen  << I40E_TXD_QW1_TX_BUF_SZ_SHIFT)
 	            | ((u64)htole16(pi->ipi_vtag) << I40E_TXD_QW1_L2TAG1_SHIFT));
  
+		txr->tx_bytes += seglen;
 		pidx_last = i;
 		i = (i+1) & mask;
 	}
@@ -382,7 +383,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
  	}
 	pi->ipi_new_pidx = i;
 
-	++txr->total_packets;
+	++txr->tx_packets;
 	return (0);
 }
 

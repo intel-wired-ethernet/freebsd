@@ -1801,7 +1801,14 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 	struct sysctl_ctx_list *ctx = device_get_sysctl_ctx(dev);
 	struct sysctl_oid *tree = device_get_sysctl_tree(dev);
 	struct sysctl_oid_list *child = SYSCTL_CHILDREN(tree);
-	struct sysctl_oid_list *vsi_list;
+	struct sysctl_oid_list *vsi_list, *queue_list;
+	struct sysctl_oid *queue_node;
+	char queue_namebuf[32];
+
+	struct ixl_rx_queue *rx_que;
+	struct ixl_tx_queue *tx_que;
+	struct tx_ring *txr;
+	struct rx_ring *rxr;
 
 	/* Driver statistics */
 	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "watchdog_events",
@@ -1814,81 +1821,69 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 	ixl_add_vsi_sysctls(pf, &pf->vsi, ctx, "pf");
 	vsi_list = SYSCTL_CHILDREN(pf->vsi.vsi_node);
 
-// TODO: Determine which of these sysctls to keep
-#if 0
 	/* Queue statistics */
-	for (int q = 0; q < vsi->num_queues; q++) {
-		snprintf(queue_namebuf, QUEUE_NAME_LEN, "que%d", q);
+	for (int q = 0; q < vsi->num_rx_queues; q++) {
+		snprintf(queue_namebuf, QUEUE_NAME_LEN, "rxq%02d", q);
 		queue_node = SYSCTL_ADD_NODE(ctx, vsi_list,
-		    OID_AUTO, queue_namebuf, CTLFLAG_RD, NULL, "Queue #");
+		    OID_AUTO, queue_namebuf, CTLFLAG_RD, NULL, "RX Queue #");
 		queue_list = SYSCTL_CHILDREN(queue_node);
 
-		txr = &(queues[q].txr);
-		rxr = &(queues[q].rxr);
+		rx_que = &(vsi->rx_queues[q]);
+		rxr = &(rx_que->rxr);
 
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "mbuf_defrag_failed",
-				CTLFLAG_RD, &(queues[q].mbuf_defrag_failed),
-				"m_defrag() failed");
+
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "irqs",
-				CTLFLAG_RD, &(queues[q].irqs),
-				"irqs on this queue");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "tso_tx",
-				CTLFLAG_RD, &(queues[q].tso),
-				"TSO");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "tx_dmamap_failed",
-				CTLFLAG_RD, &(queues[q].tx_dmamap_failed),
-				"Driver tx dma failure in xmit");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "mss_too_small",
-				CTLFLAG_RD, &(queues[q].mss_too_small),
-				"TSO sends with an MSS less than 64");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "no_desc_avail",
-				CTLFLAG_RD, &(txr->no_desc),
-				"Queue No Descriptor Available");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "tx_packets",
-				CTLFLAG_RD, &(txr->total_packets),
-				"Queue Packets Transmitted");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "tx_bytes",
-				CTLFLAG_RD, &(txr->tx_bytes),
-				"Queue Bytes Transmitted");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_packets",
+				CTLFLAG_RD, &(rx_que->irqs),
+				"irqs on this queue (both Tx and Rx)");
+
+		// TODO: put these in a separate loop
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "packets",
 				CTLFLAG_RD, &(rxr->rx_packets),
 				"Queue Packets Received");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_bytes",
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "bytes",
 				CTLFLAG_RD, &(rxr->rx_bytes),
 				"Queue Bytes Received");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_desc_err",
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "desc_err",
 				CTLFLAG_RD, &(rxr->desc_errs),
 				"Queue Rx Descriptor Errors");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "rx_itr",
+		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "itr",
 				CTLFLAG_RD, &(rxr->itr), 0,
 				"Queue Rx ITR Interval");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "tx_itr",
-				CTLFLAG_RD, &(txr->itr), 0,
-				"Queue Tx ITR Interval");
+#if 0
 #ifdef IXL_DEBUG
-		SYSCTL_ADD_INT(ctx, queue_list, OID_AUTO, "txr_watchdog",
-				CTLFLAG_RD, &(txr->watchdog_timer), 0,
-				"Ticks before watchdog timer causes interface reinit");
-		SYSCTL_ADD_U16(ctx, queue_list, OID_AUTO, "tx_next_avail",
-				CTLFLAG_RD, &(txr->next_avail), 0,
-				"Next TX descriptor to be used");
-		SYSCTL_ADD_U16(ctx, queue_list, OID_AUTO, "tx_next_to_clean",
-				CTLFLAG_RD, &(txr->next_to_clean), 0,
-				"Next TX descriptor to be cleaned");
-		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "rx_not_done",
-				CTLFLAG_RD, &(rxr->not_done),
-				"Queue Rx Descriptors not Done");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "rx_next_refresh",
-				CTLFLAG_RD, &(rxr->next_refresh), 0,
-				"Queue Rx Descriptors not Done");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "rx_next_check",
-				CTLFLAG_RD, &(rxr->next_check), 0,
-				"Queue Rx Descriptors not Done");
 		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qrx_tail",
 				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
 				sizeof(struct ixl_queue),
 				ixl_sysctl_qrx_tail_handler, "IU",
 				"Queue Receive Descriptor Tail");
+#endif
+#endif
+	}
+	for (int q = 0; q < vsi->num_tx_queues; q++) {
+		snprintf(queue_namebuf, QUEUE_NAME_LEN, "txq%02d", q);
+		queue_node = SYSCTL_ADD_NODE(ctx, vsi_list,
+		    OID_AUTO, queue_namebuf, CTLFLAG_RD, NULL, "TX Queue #");
+		queue_list = SYSCTL_CHILDREN(queue_node);
+
+		tx_que = &(vsi->tx_queues[q]);
+		txr = &(tx_que->txr);
+
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "tso",
+				CTLFLAG_RD, &(tx_que->tso),
+				"TSO");
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "mss_too_small",
+				CTLFLAG_RD, &(tx_que->mss_too_small),
+				"TSO sends with an MSS less than 64");
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "packets",
+				CTLFLAG_RD, &(txr->tx_packets),
+				"Queue Packets Transmitted");
+		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "bytes",
+				CTLFLAG_RD, &(txr->tx_bytes),
+				"Queue Bytes Transmitted");
+		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "itr",
+				CTLFLAG_RD, &(txr->itr), 0,
+				"Queue Tx ITR Interval");
+#if 0
 		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qtx_tail", 
 				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
 				sizeof(struct ixl_queue),
@@ -1896,7 +1891,6 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				"Queue Transmit Descriptor Tail");
 #endif
 	}
-#endif
 
 	/* MAC stats */
 	ixl_add_sysctls_mac_stats(ctx, child, pf_stats);
@@ -3652,7 +3646,7 @@ ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 	struct i40e_hw *hw = &pf->hw;
 	int error = 0;
 
-	// ixl_update_link_status(pf);
+	ixl_update_link_status(pf);
 
 	error = sysctl_handle_string(oidp,
 	    ixl_aq_speed_to_str(hw->phy.link_info.link_speed),
@@ -3803,7 +3797,7 @@ ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS)
 		return (error);
 
 	pf->advertised_speed = requested_ls;
-	// ixl_update_link_status(pf);
+	ixl_update_link_status(pf);
 	return (0);
 }
 
@@ -3994,155 +3988,6 @@ ixl_handle_nvmupd_cmd(struct ixl_pf *pf, struct ifdrv *ifd)
 	else
 		return (perrno);
 }
-
-#if 0
-void
-ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
-{
-	struct ixl_vsi	*vsi = ifp->if_softc;
-	struct ixl_pf	*pf = vsi->back;
-	struct i40e_hw  *hw = &pf->hw;
-
-	INIT_DEBUGOUT("ixl_media_status: begin");
-
-	/* Don't touch PF during reset */
-	if (atomic_load_acq_int(&pf->state) & IXL_PF_STATE_EMPR_RESETTING)
-		return;
-
-	IXL_PF_LOCK(pf);
-
-	i40e_get_link_status(hw, &pf->link_up);
-	ixl_update_link_status(pf);
-
-	ifmr->ifm_status = IFM_AVALID;
-	ifmr->ifm_active = IFM_ETHER;
-
-	if (!pf->link_up) {
-		IXL_PF_UNLOCK(pf);
-		return;
-	}
-
-	ifmr->ifm_status |= IFM_ACTIVE;
-
-	/* Hardware always does full-duplex */
-	ifmr->ifm_active |= IFM_FDX;
-
-	switch (hw->phy.link_info.phy_type) {
-		/* 100 M */
-		case I40E_PHY_TYPE_100BASE_TX:
-			ifmr->ifm_active |= IFM_100_TX;
-			break;
-		/* 1 G */
-		case I40E_PHY_TYPE_1000BASE_T:
-			ifmr->ifm_active |= IFM_1000_T;
-			break;
-		case I40E_PHY_TYPE_1000BASE_SX:
-			ifmr->ifm_active |= IFM_1000_SX;
-			break;
-		case I40E_PHY_TYPE_1000BASE_LX:
-			ifmr->ifm_active |= IFM_1000_LX;
-			break;
-		case I40E_PHY_TYPE_1000BASE_T_OPTICAL:
-			ifmr->ifm_active |= IFM_1000_T;
-			break;
-		/* 10 G */
-		case I40E_PHY_TYPE_10GBASE_SFPP_CU:
-			ifmr->ifm_active |= IFM_10G_TWINAX;
-			break;
-		case I40E_PHY_TYPE_10GBASE_SR:
-			ifmr->ifm_active |= IFM_10G_SR;
-			break;
-		case I40E_PHY_TYPE_10GBASE_LR:
-			ifmr->ifm_active |= IFM_10G_LR;
-			break;
-		case I40E_PHY_TYPE_10GBASE_T:
-			ifmr->ifm_active |= IFM_10G_T;
-			break;
-		case I40E_PHY_TYPE_XAUI:
-		case I40E_PHY_TYPE_XFI:
-			ifmr->ifm_active |= IFM_10G_TWINAX;
-			break;
-		case I40E_PHY_TYPE_10GBASE_AOC:
-			ifmr->ifm_active |= IFM_10G_AOC;
-			break;
-		/* 25 G */
-		case I40E_PHY_TYPE_25GBASE_KR:
-			ifmr->ifm_active |= IFM_25G_KR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_CR:
-			ifmr->ifm_active |= IFM_25G_CR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_SR:
-			ifmr->ifm_active |= IFM_25G_SR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_LR:
-			ifmr->ifm_active |= IFM_25G_LR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_AOC:
-			ifmr->ifm_active |= IFM_25G_AOC;
-			break;
-		case I40E_PHY_TYPE_25GBASE_ACC:
-			ifmr->ifm_active |= IFM_25G_ACC;
-			break;
-		/* 40 G */
-		case I40E_PHY_TYPE_40GBASE_CR4:
-		case I40E_PHY_TYPE_40GBASE_CR4_CU:
-			ifmr->ifm_active |= IFM_40G_CR4;
-			break;
-		case I40E_PHY_TYPE_40GBASE_SR4:
-			ifmr->ifm_active |= IFM_40G_SR4;
-			break;
-		case I40E_PHY_TYPE_40GBASE_LR4:
-			ifmr->ifm_active |= IFM_40G_LR4;
-			break;
-		case I40E_PHY_TYPE_XLAUI:
-			ifmr->ifm_active |= IFM_OTHER;
-			break;
-		case I40E_PHY_TYPE_1000BASE_KX:
-			ifmr->ifm_active |= IFM_1000_KX;
-			break;
-		case I40E_PHY_TYPE_SGMII:
-			ifmr->ifm_active |= IFM_1000_SGMII;
-			break;
-		/* ERJ: What's the difference between these? */
-		case I40E_PHY_TYPE_10GBASE_CR1_CU:
-		case I40E_PHY_TYPE_10GBASE_CR1:
-			ifmr->ifm_active |= IFM_10G_CR1;
-			break;
-		case I40E_PHY_TYPE_10GBASE_KX4:
-			ifmr->ifm_active |= IFM_10G_KX4;
-			break;
-		case I40E_PHY_TYPE_10GBASE_KR:
-			ifmr->ifm_active |= IFM_10G_KR;
-			break;
-		case I40E_PHY_TYPE_SFI:
-			ifmr->ifm_active |= IFM_10G_SFI;
-			break;
-		/* Our single 20G media type */
-		case I40E_PHY_TYPE_20GBASE_KR2:
-			ifmr->ifm_active |= IFM_20G_KR2;
-			break;
-		case I40E_PHY_TYPE_40GBASE_KR4:
-			ifmr->ifm_active |= IFM_40G_KR4;
-			break;
-		case I40E_PHY_TYPE_XLPPI:
-		case I40E_PHY_TYPE_40GBASE_AOC:
-			ifmr->ifm_active |= IFM_40G_XLPPI;
-			break;
-		/* Unknown to driver */
-		default:
-			ifmr->ifm_active |= IFM_UNKNOWN;
-			break;
-	}
-	/* Report flow control status as well */
-	if (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_TX)
-		ifmr->ifm_active |= IFM_ETH_TXPAUSE;
-	if (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_RX)
-		ifmr->ifm_active |= IFM_ETH_RXPAUSE;
-
-	IXL_PF_UNLOCK(pf);
-}
-#endif
 
 int
 ixl_find_i2c_interface(struct ixl_pf *pf)

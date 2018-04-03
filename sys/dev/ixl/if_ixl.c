@@ -661,6 +661,10 @@ ixl_if_attach_post(if_ctx_t ctx)
 	ixl_update_stats_counters(pf);
 	ixl_add_hw_stats(pf);
 
+	hw->phy.get_link_info = true;
+	i40e_get_link_status(hw, &pf->link_up);
+	ixl_update_link_status(pf);
+
 #ifdef PCI_IOV
 	ixl_initialize_sriov(pf);
 #endif
@@ -1178,17 +1182,16 @@ ixl_if_queues_free(if_ctx_t ctx)
 }
 
 void
-ixl_update_link_status(if_ctx_t ctx)
+ixl_update_link_status(struct ixl_pf *pf)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	struct ixl_pf *pf = vsi->back; 
+	struct ixl_vsi *vsi = &pf->vsi;
 	u64 baudrate;
 
 	if (pf->link_up) { 
 		if (vsi->link_active == FALSE) {
 			vsi->link_active = TRUE;
 			baudrate = ixl_max_aq_speed_to_value(pf->link_speed);
-			iflib_link_state_change(ctx, LINK_STATE_UP, baudrate);
+			iflib_link_state_change(vsi->ctx, LINK_STATE_UP, baudrate);
 			ixl_link_up_msg(pf);
 			// ixl_ping_all_vfs(adapter);
       
@@ -1196,13 +1199,12 @@ ixl_update_link_status(if_ctx_t ctx)
 	} else { /* Link down */
 		if (vsi->link_active == TRUE) {
 			vsi->link_active = FALSE;
-			iflib_link_state_change(ctx, LINK_STATE_DOWN, 0);
+			iflib_link_state_change(vsi->ctx, LINK_STATE_DOWN, 0);
 			// ixl_ping_all_vfs(adapter);
 		}
 	}
 }
 
-/* TODO: Temporary name? */
 static int
 ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 {
@@ -1333,7 +1335,7 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 #endif
 
 	ixl_process_adminq(pf, &pending);
-	ixl_update_link_status(ctx);
+	ixl_update_link_status(pf);
 	
 	/*
 	 * If there are still messages to process, reschedule ourselves.
@@ -1401,6 +1403,7 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 
 	hw->phy.get_link_info = TRUE;
 	i40e_get_link_status(hw, &pf->link_up);
+	ixl_update_link_status(pf);
 
 	ifmr->ifm_status = IFM_AVALID;
 	ifmr->ifm_active = IFM_ETHER;
@@ -1429,7 +1432,7 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 			ifmr->ifm_active |= IFM_1000_LX;
 			break;
 		case I40E_PHY_TYPE_1000BASE_T_OPTICAL:
-			ifmr->ifm_active |= IFM_OTHER;
+			ifmr->ifm_active |= IFM_1000_T;
 			break;
 		/* 10 G */
 		case I40E_PHY_TYPE_10GBASE_SFPP_CU:
@@ -1446,8 +1449,10 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 			break;
 		case I40E_PHY_TYPE_XAUI:
 		case I40E_PHY_TYPE_XFI:
+			ifmr->ifm_active |= IFM_10G_TWINAX;
+			break;
 		case I40E_PHY_TYPE_10GBASE_AOC:
-			ifmr->ifm_active |= IFM_OTHER;
+			ifmr->ifm_active |= IFM_10G_AOC;
 			break;
 		/* 25 G */
 		case I40E_PHY_TYPE_25GBASE_KR:
@@ -1460,7 +1465,13 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 			ifmr->ifm_active |= IFM_25G_SR;
 			break;
 		case I40E_PHY_TYPE_25GBASE_LR:
-			ifmr->ifm_active |= IFM_UNKNOWN;
+			ifmr->ifm_active |= IFM_25G_LR;
+			break;
+		case I40E_PHY_TYPE_25GBASE_AOC:
+			ifmr->ifm_active |= IFM_25G_AOC;
+			break;
+		case I40E_PHY_TYPE_25GBASE_ACC:
+			ifmr->ifm_active |= IFM_25G_ACC;
 			break;
 		/* 40 G */
 		case I40E_PHY_TYPE_40GBASE_CR4:
