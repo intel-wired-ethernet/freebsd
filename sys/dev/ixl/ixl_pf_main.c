@@ -3646,7 +3646,7 @@ ixl_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 	struct i40e_hw *hw = &pf->hw;
 	int error = 0;
 
-	// ixl_update_link_status(pf);
+	ixl_update_link_status(pf);
 
 	error = sysctl_handle_string(oidp,
 	    ixl_aq_speed_to_str(hw->phy.link_info.link_speed),
@@ -3797,7 +3797,7 @@ ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS)
 		return (error);
 
 	pf->advertised_speed = requested_ls;
-	// ixl_update_link_status(pf);
+	ixl_update_link_status(pf);
 	return (0);
 }
 
@@ -3988,155 +3988,6 @@ ixl_handle_nvmupd_cmd(struct ixl_pf *pf, struct ifdrv *ifd)
 	else
 		return (perrno);
 }
-
-#if 0
-void
-ixl_media_status(struct ifnet * ifp, struct ifmediareq * ifmr)
-{
-	struct ixl_vsi	*vsi = ifp->if_softc;
-	struct ixl_pf	*pf = vsi->back;
-	struct i40e_hw  *hw = &pf->hw;
-
-	INIT_DEBUGOUT("ixl_media_status: begin");
-
-	/* Don't touch PF during reset */
-	if (atomic_load_acq_int(&pf->state) & IXL_PF_STATE_EMPR_RESETTING)
-		return;
-
-	IXL_PF_LOCK(pf);
-
-	i40e_get_link_status(hw, &pf->link_up);
-	ixl_update_link_status(pf);
-
-	ifmr->ifm_status = IFM_AVALID;
-	ifmr->ifm_active = IFM_ETHER;
-
-	if (!pf->link_up) {
-		IXL_PF_UNLOCK(pf);
-		return;
-	}
-
-	ifmr->ifm_status |= IFM_ACTIVE;
-
-	/* Hardware always does full-duplex */
-	ifmr->ifm_active |= IFM_FDX;
-
-	switch (hw->phy.link_info.phy_type) {
-		/* 100 M */
-		case I40E_PHY_TYPE_100BASE_TX:
-			ifmr->ifm_active |= IFM_100_TX;
-			break;
-		/* 1 G */
-		case I40E_PHY_TYPE_1000BASE_T:
-			ifmr->ifm_active |= IFM_1000_T;
-			break;
-		case I40E_PHY_TYPE_1000BASE_SX:
-			ifmr->ifm_active |= IFM_1000_SX;
-			break;
-		case I40E_PHY_TYPE_1000BASE_LX:
-			ifmr->ifm_active |= IFM_1000_LX;
-			break;
-		case I40E_PHY_TYPE_1000BASE_T_OPTICAL:
-			ifmr->ifm_active |= IFM_1000_T;
-			break;
-		/* 10 G */
-		case I40E_PHY_TYPE_10GBASE_SFPP_CU:
-			ifmr->ifm_active |= IFM_10G_TWINAX;
-			break;
-		case I40E_PHY_TYPE_10GBASE_SR:
-			ifmr->ifm_active |= IFM_10G_SR;
-			break;
-		case I40E_PHY_TYPE_10GBASE_LR:
-			ifmr->ifm_active |= IFM_10G_LR;
-			break;
-		case I40E_PHY_TYPE_10GBASE_T:
-			ifmr->ifm_active |= IFM_10G_T;
-			break;
-		case I40E_PHY_TYPE_XAUI:
-		case I40E_PHY_TYPE_XFI:
-			ifmr->ifm_active |= IFM_10G_TWINAX;
-			break;
-		case I40E_PHY_TYPE_10GBASE_AOC:
-			ifmr->ifm_active |= IFM_10G_AOC;
-			break;
-		/* 25 G */
-		case I40E_PHY_TYPE_25GBASE_KR:
-			ifmr->ifm_active |= IFM_25G_KR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_CR:
-			ifmr->ifm_active |= IFM_25G_CR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_SR:
-			ifmr->ifm_active |= IFM_25G_SR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_LR:
-			ifmr->ifm_active |= IFM_25G_LR;
-			break;
-		case I40E_PHY_TYPE_25GBASE_AOC:
-			ifmr->ifm_active |= IFM_25G_AOC;
-			break;
-		case I40E_PHY_TYPE_25GBASE_ACC:
-			ifmr->ifm_active |= IFM_25G_ACC;
-			break;
-		/* 40 G */
-		case I40E_PHY_TYPE_40GBASE_CR4:
-		case I40E_PHY_TYPE_40GBASE_CR4_CU:
-			ifmr->ifm_active |= IFM_40G_CR4;
-			break;
-		case I40E_PHY_TYPE_40GBASE_SR4:
-			ifmr->ifm_active |= IFM_40G_SR4;
-			break;
-		case I40E_PHY_TYPE_40GBASE_LR4:
-			ifmr->ifm_active |= IFM_40G_LR4;
-			break;
-		case I40E_PHY_TYPE_XLAUI:
-			ifmr->ifm_active |= IFM_OTHER;
-			break;
-		case I40E_PHY_TYPE_1000BASE_KX:
-			ifmr->ifm_active |= IFM_1000_KX;
-			break;
-		case I40E_PHY_TYPE_SGMII:
-			ifmr->ifm_active |= IFM_1000_SGMII;
-			break;
-		/* ERJ: What's the difference between these? */
-		case I40E_PHY_TYPE_10GBASE_CR1_CU:
-		case I40E_PHY_TYPE_10GBASE_CR1:
-			ifmr->ifm_active |= IFM_10G_CR1;
-			break;
-		case I40E_PHY_TYPE_10GBASE_KX4:
-			ifmr->ifm_active |= IFM_10G_KX4;
-			break;
-		case I40E_PHY_TYPE_10GBASE_KR:
-			ifmr->ifm_active |= IFM_10G_KR;
-			break;
-		case I40E_PHY_TYPE_SFI:
-			ifmr->ifm_active |= IFM_10G_SFI;
-			break;
-		/* Our single 20G media type */
-		case I40E_PHY_TYPE_20GBASE_KR2:
-			ifmr->ifm_active |= IFM_20G_KR2;
-			break;
-		case I40E_PHY_TYPE_40GBASE_KR4:
-			ifmr->ifm_active |= IFM_40G_KR4;
-			break;
-		case I40E_PHY_TYPE_XLPPI:
-		case I40E_PHY_TYPE_40GBASE_AOC:
-			ifmr->ifm_active |= IFM_40G_XLPPI;
-			break;
-		/* Unknown to driver */
-		default:
-			ifmr->ifm_active |= IFM_UNKNOWN;
-			break;
-	}
-	/* Report flow control status as well */
-	if (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_TX)
-		ifmr->ifm_active |= IFM_ETH_TXPAUSE;
-	if (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_RX)
-		ifmr->ifm_active |= IFM_ETH_RXPAUSE;
-
-	IXL_PF_UNLOCK(pf);
-}
-#endif
 
 int
 ixl_find_i2c_interface(struct ixl_pf *pf)
