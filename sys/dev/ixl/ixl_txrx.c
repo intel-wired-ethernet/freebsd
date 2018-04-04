@@ -66,7 +66,7 @@ static int	ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri);
 
 extern int	ixl_intr(void *arg);
 
-struct if_txrx ixl_txrx  = {
+struct if_txrx ixl_txrx = {
 	ixl_isc_txd_encap,
 	ixl_isc_txd_flush,
 	ixl_isc_txd_credits_update,
