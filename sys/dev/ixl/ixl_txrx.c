@@ -373,14 +373,6 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	/* Set the last descriptor for report */
 	txd->cmd_type_offset_bsz |=
 	    htole64(((u64)IXL_TXD_CMD << I40E_TXD_QW1_CMD_SHIFT));
-	/* Add to report status array (if using TX interrupts) */
-	// TODO: Only set RS bit when tx_intr is set
-	if (tx_intr) {
-		txr->tx_rsq[txr->tx_rs_pidx] = pidx_last;
-		txr->tx_rs_pidx = (txr->tx_rs_pidx+1) & mask;
-		// TODO: Should this assert be kept?
-		MPASS(txr->tx_rs_pidx != txr->tx_rs_cidx);
- 	}
 	pi->ipi_new_pidx = i;
 
 	++txr->tx_packets;
@@ -426,66 +418,41 @@ ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 	wr32(vsi->hw, I40E_QTX_HEAD(txr->me), 0);
 }
  
-static int
-ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear)
+/*
+ * ixl_get_tx_head - Retrieve the value from the
+ *    location the HW records its HEAD index
+ */
+static inline u32
+ixl_get_tx_head(struct ixl_tx_queue *que)
 {
-	struct ixl_vsi *vsi = arg;
-	struct ixl_tx_queue *tx_que = &vsi->tx_queues[txqid];
-	if_softc_ctx_t scctx = vsi->shared;
-	struct tx_ring *txr = &tx_que->txr;
- 
-	qidx_t processed = 0;
-	qidx_t cur, prev, ntxd, rs_cidx;
-	int32_t delta;
-	bool is_done;
- 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
+	if_softc_ctx_t          scctx = que->vsi->shared;
+	struct tx_ring  *txr = &que->txr;
+	void *head = &txr->tx_base[scctx->isc_ntxd[0]];
 
-	rs_cidx = txr->tx_rs_cidx;
-#if 0
-	device_printf(iflib_get_dev(vsi->ctx), "%s: (q%d) rs_cidx %d, txr->tx_rs_pidx %d\n", __func__,
-	    txr->me, rs_cidx, txr->tx_rs_pidx);
-#endif
-	if (rs_cidx == txr->tx_rs_pidx)
-		return (0);
-	cur = txr->tx_rsq[rs_cidx];
-	MPASS(cur != QIDX_INVALID);
-	is_done = ixl_is_tx_desc_done(txr, cur);
-
-	if (clear == false || !is_done)
-		return (0);
-
-	prev = txr->tx_cidx_processed;
-	ntxd = scctx->isc_ntxd[0];
-	do {
-		delta = (int32_t)cur - (int32_t)prev;
-		MPASS(prev == 0 || delta != 0);
-		if (delta < 0)
-			delta += ntxd;
-#if 0
-		device_printf(iflib_get_dev(vsi->ctx),
-			      "%s: (q%d) cidx_processed=%u cur=%u clear=%d delta=%d\n",
-			      __func__, txr->me, prev, cur, clear, delta);
-#endif
-		processed += delta;
-		prev = cur;
-		rs_cidx = (rs_cidx + 1) & (ntxd-1);
-		if (rs_cidx == txr->tx_rs_pidx)
-			break;
-		cur = txr->tx_rsq[rs_cidx];
-		MPASS(cur != QIDX_INVALID);
-		is_done = ixl_is_tx_desc_done(txr, cur);
-	} while (is_done);
- 
-	txr->tx_rs_cidx = rs_cidx;
-	txr->tx_cidx_processed = prev;
-
-#if 0
-	device_printf(iflib_get_dev(vsi->ctx), "%s: (q%d) processed %d\n", __func__, txr->me, processed);
-#endif
-	return (processed);
+	return LE32_TO_CPU(*(volatile __le32 *)head);
 }
- 
+
+static int
+ixl_isc_txd_credits_update(void *arg, uint16_t qid, bool clear)
+{
+	struct ixl_vsi          *vsi = arg;
+	if_softc_ctx_t          scctx = vsi->shared;
+	struct ixl_tx_queue     *que = &vsi->tx_queues[qid];
+	struct tx_ring		*txr = &que->txr;
+	int			 head, credits;
+
+	/* Get the Head WB value */
+	head = ixl_get_tx_head(que);
+
+	credits = head - txr->tx_cidx_processed;
+	if (credits < 0)
+		credits += scctx->isc_ntxd[0];
+	if (clear)
+		txr->tx_cidx_processed = head;
+
+	return (credits);
+}
+
 static void
 ixl_isc_rxd_refill(void *arg, if_rxd_update_t iru) 
 {
