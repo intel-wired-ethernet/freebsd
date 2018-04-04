@@ -376,6 +376,7 @@ struct tx_ring {
 	/* Soft Stats */
 	u64			tx_bytes;
 	u64			tx_packets;
+	u64			mss_too_small;
 };
 
 
@@ -414,7 +415,6 @@ struct ixl_tx_queue {
 	/* Stats */
 	u64			irqs;
 	u64			tso;
-	u64			mss_too_small;
 };
 
 struct ixl_rx_queue {
