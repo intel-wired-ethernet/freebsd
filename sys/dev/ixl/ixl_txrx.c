@@ -443,8 +443,8 @@ ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear)
 
 	rs_cidx = txr->tx_rs_cidx;
 #if 0
-	device_printf(iflib_get_dev(vsi->ctx), "%s: rs_cidx %d, txr->tx_rs_pidx %d\n", __func__,
-	    rs_cidx, txr->tx_rs_pidx);
+	device_printf(iflib_get_dev(vsi->ctx), "%s: (q%d) rs_cidx %d, txr->tx_rs_pidx %d\n", __func__,
+	    txr->me, rs_cidx, txr->tx_rs_pidx);
 #endif
 	if (rs_cidx == txr->tx_rs_pidx)
 		return (0);
@@ -464,8 +464,8 @@ ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear)
 			delta += ntxd;
 #if 0
 		device_printf(iflib_get_dev(vsi->ctx),
-			      "%s: cidx_processed=%u cur=%u clear=%d delta=%d\n",
-			      __FUNCTION__, prev, cur, clear, delta);
+			      "%s: (q%d) cidx_processed=%u cur=%u clear=%d delta=%d\n",
+			      __func__, txr->me, prev, cur, clear, delta);
 #endif
 		processed += delta;
 		prev = cur;
@@ -481,7 +481,7 @@ ixl_isc_txd_credits_update(void *arg, uint16_t txqid, bool clear)
 	txr->tx_cidx_processed = prev;
 
 #if 0
-	device_printf(iflib_get_dev(vsi->ctx), "%s: processed %d\n", __func__, processed);
+	device_printf(iflib_get_dev(vsi->ctx), "%s: (q%d) processed %d\n", __func__, txr->me, processed);
 #endif
 	return (processed);
 }
