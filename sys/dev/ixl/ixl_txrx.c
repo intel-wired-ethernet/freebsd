@@ -289,7 +289,7 @@ ixl_tso_setup(struct tx_ring *txr, if_pkt_info_t pi)
 	cmd = I40E_TX_CTX_DESC_TSO;
 	/* TSO MSS must not be less than 64 */
 	if (pi->ipi_tso_segsz < IXL_MIN_TSO_MSS) {
-		// que->mss_too_small++;
+		txr->mss_too_small++;
 		pi->ipi_tso_segsz = IXL_MIN_TSO_MSS;
 	}
 	mss = pi->ipi_tso_segsz;

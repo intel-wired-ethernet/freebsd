@@ -1869,7 +1869,7 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 				CTLFLAG_RD, &(tx_que->tso),
 				"TSO");
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "mss_too_small",
-				CTLFLAG_RD, &(tx_que->mss_too_small),
+				CTLFLAG_RD, &(txr->mss_too_small),
 				"TSO sends with an MSS less than 64");
 		SYSCTL_ADD_UQUAD(ctx, queue_list, OID_AUTO, "packets",
 				CTLFLAG_RD, &(txr->tx_packets),
