@@ -1043,13 +1043,7 @@ ixl_if_rx_queue_intr_enable(if_ctx_t ctx, uint16_t rxqid)
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*rx_que = &vsi->rx_queues[rxqid];
 
-	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
-		ixl_enable_queue(hw, rx_que->msix - 1);
-	} else {
-		// Set PFINT_LNKLST0 FIRSTQ_INDX to 0
-		// connect interrupt to queue linked list
-		wr32(hw, I40E_PFINT_LNKLST0, 0);
-	}
+	ixl_enable_queue(hw, rx_que->msix - 1);
 	return (0);
 }
 
@@ -1060,13 +1054,8 @@ ixl_if_tx_queue_intr_enable(if_ctx_t ctx, uint16_t txqid)
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_tx_queue	*tx_que = &vsi->tx_queues[txqid];
 
-	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
-		ixl_enable_queue(hw, tx_que->msix - 1);
-	} else {
-		// Set PFINT_LNKLST0 FIRSTQ_INDX to 0
-		// connect interrupt to queue linked list
-		wr32(hw, I40E_PFINT_LNKLST0, 0);
-	}
+	ixl_enable_queue(hw, tx_que->msix - 1);
+
 	return (0);
 }
 
