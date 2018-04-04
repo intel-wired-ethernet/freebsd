@@ -2211,7 +2211,7 @@ iflib_init_locked(if_ctx_t ctx)
 			}
 		}
 	}
-	done:
+done:
 	if_setdrvflagbits(ctx->ifc_ifp, IFF_DRV_RUNNING, IFF_DRV_OACTIVE);
 	IFDI_INTR_ENABLE(ctx);
 	txq = ctx->ifc_txqs;
@@ -4757,7 +4757,7 @@ iflib_queues_alloc(if_ctx_t ctx)
 	txq = NULL;
 	rxq = NULL;
 
-/* Allocate the TX ring struct memory */
+	/* Allocate the TX ring struct memory */
 	if (!(txq =
 	    (iflib_txq_t) malloc(sizeof(struct iflib_txq) *
 	    ntxqsets, M_IFLIB, M_NOWAIT | M_ZERO))) {
@@ -5274,7 +5274,7 @@ iflib_irq_alloc_generic(if_ctx_t ctx, if_irq_t irq, int rid,
 }
 
 void
-iflib_softirq_alloc_generic(if_ctx_t ctx, if_irq_t irq, iflib_intr_type_t type,  void *arg, int qid, char *name)
+iflib_softirq_alloc_generic(if_ctx_t ctx, if_irq_t irq, iflib_intr_type_t type, void *arg, int qid, char *name)
 {
 	struct grouptask *gtask;
 	struct taskqgroup *tqg;
