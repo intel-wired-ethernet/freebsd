@@ -550,7 +550,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	else
 		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
 	scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
-	    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
+	    * sizeof(struct i40e_tx_desc) + sizeof(u32), DBA_ALIGN);
 	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
 	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
 	scctx->isc_msix_bar = PCIR_BAR(IXL_MSIX_BAR);
@@ -812,21 +812,16 @@ ixl_if_resume(if_ctx_t ctx)
 	return (0);
 }
 
-/* Set Report Status queue fields to 0 */
 static void
-ixl_init_tx_rsqs(struct ixl_vsi *vsi)
+ixl_init_tx_cidx(struct ixl_vsi *vsi)
 {
-	if_softc_ctx_t scctx = vsi->shared;
 	struct ixl_tx_queue *tx_que;
-	int i, j;
-
+	int i;
+	
 	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
 		struct tx_ring *txr = &tx_que->txr;
 
-		txr->tx_rs_cidx = txr->tx_rs_pidx = txr->tx_cidx_processed = 0;
-
-		for (j = 0; j < scctx->isc_ntxd[0]; j++)
-			txr->tx_rsq[j] = QIDX_INVALID;
+		txr->tx_cidx_processed = 0;
 	}
 }
 
@@ -898,7 +893,7 @@ ixl_if_init(if_ctx_t ctx)
 	} else
 		ixl_configure_legacy(pf);
 
-	ixl_init_tx_rsqs(vsi);
+	ixl_init_tx_cidx(vsi);
 
 	ixl_enable_rings(vsi);
 
@@ -957,7 +952,7 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 
 		snprintf(buf, sizeof(buf), "rxq%d", i);
 		err = iflib_irq_alloc_generic(ctx, &rx_que->que_irq, rid,
-		    IFLIB_INTR_RXTX, ixl_msix_que, rx_que, rx_que->rxr.me, buf);
+		    IFLIB_INTR_RX, ixl_msix_que, rx_que, rx_que->rxr.me, buf);
 		/* XXX: Does the driver work as expected if there are fewer num_rx_queues than
 		 * what's expected in the iflib context? */
 		if (err) {
@@ -1063,9 +1058,8 @@ static int
 ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxqs, int ntxqsets)
 {
 	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	if_softc_ctx_t scctx = vsi->shared;
 	struct ixl_tx_queue *que;
-	int i, j, error = 0;
+	int i;
 
 	MPASS(vsi->num_tx_queues > 0);
 	MPASS(ntxqs == 1);
@@ -1084,15 +1078,6 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 		txr->me = i;
 		que->vsi = vsi;
 
-		/* Allocate report status array */
-		if (!(txr->tx_rsq = malloc(sizeof(qidx_t) * scctx->isc_ntxd[0], M_IXL, M_NOWAIT))) {
-			device_printf(iflib_get_dev(ctx), "failed to allocate tx_rsq memory\n");
-			error = ENOMEM;
-			goto fail;
-		}
-		/* Init report status array */
-		for (j = 0; j < scctx->isc_ntxd[0]; j++)
-			txr->tx_rsq[j] = QIDX_INVALID;
 		/* get the virtual and physical address of the hardware queues */
 		txr->tail = I40E_QTX_TAIL(txr->me);
 		txr->tx_base = (struct i40e_tx_desc *)vaddrs[i * ntxqs];
@@ -1101,9 +1086,6 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 	}
 	
 	return (0);
-fail:
-	ixl_if_queues_free(ctx);
-	return (error);
 }
 
 static int
@@ -1149,16 +1131,6 @@ static void
 ixl_if_queues_free(if_ctx_t ctx)
 {
 	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	struct ixl_tx_queue *que;
-	int i;
-
-	for (i = 0, que = vsi->tx_queues; i < vsi->num_tx_queues; i++, que++) {
-		struct tx_ring *txr = &que->txr;
-		if (txr->tx_rsq != NULL) {
-			free(txr->tx_rsq, M_IXL);
-			txr->tx_rsq = NULL;
-		}
-	}
 
 	if (vsi->tx_queues != NULL) {
 		free(vsi->tx_queues, M_IXL);
