@@ -45,9 +45,6 @@
 #define	VF_FLAG_PROMISC_CAP		0x08
 #define	VF_FLAG_MAC_ANTI_SPOOF		0x10
 
-#define IXL_PF_STATE_EMPR_RESETTING	(1 << 0)
-#define IXL_PF_STATE_FW_LLDP_DISABLED	(1 << 1)
-
 #define IXL_ICR0_CRIT_ERR_MASK 			\
     (I40E_PFINT_ICR0_PCI_EXCEPTION_MASK | 	\
      I40E_PFINT_ICR0_ECC_ERR_MASK | 		\
@@ -72,6 +69,7 @@ enum ixl_pf_state {
 	IXL_PF_STATE_CORE_RESET_REQ	= (1 << 5),
 	IXL_PF_STATE_GLOB_RESET_REQ	= (1 << 6),
 	IXL_PF_STATE_EMP_RESET_REQ	= (1 << 7),
+	IXL_PF_STATE_FW_LLDP_DISABLED	= (1 << 8),
 };
 
 struct ixl_vf {
