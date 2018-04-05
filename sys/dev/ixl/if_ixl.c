@@ -1515,14 +1515,14 @@ ixl_if_promisc_set(if_ctx_t ctx, int flags)
 	int		err;
 	bool		uni = FALSE, multi = FALSE;
 
-	if (flags & IFF_ALLMULTI ||
+	if (flags & IFF_PROMISC)
+		uni = multi = TRUE;
+	else if (flags & IFF_ALLMULTI ||
 		if_multiaddr_count(ifp, MAX_MULTICAST_ADDR) == MAX_MULTICAST_ADDR)
 		multi = TRUE;
-	if (flags & IFF_PROMISC)
-		uni = TRUE;
 
 	err = i40e_aq_set_vsi_unicast_promiscuous(hw,
-	    vsi->seid, uni, NULL, false);
+	    vsi->seid, uni, NULL, true);
 	if (err)
 		return (err);
 	err = i40e_aq_set_vsi_multicast_promiscuous(hw,
