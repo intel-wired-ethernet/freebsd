@@ -737,12 +737,6 @@ ixl_if_detach(if_ctx_t ctx)
 	/* Remove all previously allocated media types */
 	ifmedia_removeall(vsi->media);
 
-// TODO: Is this necessary?
-#if 0
-	if (vsi->ifp->if_drv_flags & IFF_DRV_RUNNING)
-		ixl_if_stop(pf);
-#endif
-
 	/* Shutdown LAN HMC */
 	if (hw->hmc.hmc_obj) {
 		status = i40e_shutdown_lan_hmc(hw);
@@ -917,6 +911,13 @@ ixl_if_stop(if_ctx_t ctx)
 	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
 
 	INIT_DEBUGOUT("ixl_if_stop: begin\n");
+
+	// TODO: This may need to be reworked
+#ifdef IXL_IW
+	/* Stop iWARP device */
+	if (ixl_enable_iwarp && pf->iw_enabled)
+		ixl_iw_pf_stop(pf);
+#endif
 
 	ixl_disable_rings_intr(vsi);
 	ixl_disable_rings(vsi);
@@ -1154,14 +1155,18 @@ ixl_update_link_status(struct ixl_pf *pf)
 			baudrate = ixl_max_aq_speed_to_value(pf->link_speed);
 			iflib_link_state_change(vsi->ctx, LINK_STATE_UP, baudrate);
 			ixl_link_up_msg(pf);
-			// ixl_ping_all_vfs(adapter);
+#ifdef PCI_IOV
+			ixl_broadcast_link_state(pf);
+#endif
       
 		}
 	} else { /* Link down */
 		if (vsi->link_active == TRUE) {
 			vsi->link_active = FALSE;
 			iflib_link_state_change(vsi->ctx, LINK_STATE_DOWN, 0);
-			// ixl_ping_all_vfs(adapter);
+#ifdef PCI_IOV
+			ixl_broadcast_link_state(pf);
+#endif
 		}
 	}
 }
