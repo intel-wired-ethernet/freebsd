@@ -629,43 +629,6 @@ ixl_msix_adminq(void *arg)
 		return (FILTER_HANDLED);
 }
 
-#if 0
-// TODO: This might need to be moved somewhere
-void
-ixl_set_promisc(struct ixl_vsi *vsi)
-{
-	struct ifnet	*ifp = vsi->ifp;
-	struct i40e_hw	*hw = vsi->hw;
-	int		err, mcnt = 0;
-	bool		uni = FALSE, multi = FALSE;
-
-        if (ifp->if_flags & IFF_PROMISC)
-		uni = multi = TRUE;
-	else if (ifp->if_flags & IFF_ALLMULTI)
-			multi = TRUE;
-	else { /* Need to count the multicast addresses */
-		struct  ifmultiaddr *ifma;
-		if_maddr_rlock(ifp);
-		CK_STAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
-			if (ifma->ifma_addr->sa_family != AF_LINK)
-				continue;
-			if (mcnt == MAX_MULTICAST_ADDR) {
-				multi = TRUE;
-				break;
-			}
-			mcnt++;
-		}
-		if_maddr_runlock(ifp);
-	}
-
-	err = i40e_aq_set_vsi_unicast_promiscuous(hw,
-	    vsi->seid, uni, NULL, TRUE);
-	err = i40e_aq_set_vsi_multicast_promiscuous(hw,
-	    vsi->seid, multi, NULL);
-	return;
-}
-#endif
-
 /*********************************************************************
  * 	Filter Routines
  *
@@ -772,42 +735,6 @@ ixl_queue_sw_irq(struct ixl_pf *pf, int qidx)
 		wr32(hw, I40E_PFINT_DYN_CTLN(qidx), mask);
 	else
 		wr32(hw, I40E_PFINT_DYN_CTL0, mask);
-}
-
-static int
-ixl_queue_hang_check(struct ixl_pf *pf)
-{
-	struct ixl_vsi *vsi = &pf->vsi;
-	struct ixl_queue *que = vsi->queues;
-	device_t dev = pf->dev;
-	struct tx_ring *txr;
-	s32 timer, new_timer;
-	int hung = 0;
-
-	for (int i = 0; i < vsi->num_queues; i++, que++) {
-		txr = &que->txr;
-		timer = atomic_load_acq_32(&txr->watchdog_timer);
-		if (timer > 0) {
-			new_timer = timer - hz;
-			if (new_timer <= 0) {
-				atomic_store_rel_32(&txr->watchdog_timer, -1);
-				device_printf(dev, "WARNING: queue %d "
-				    "appears to be hung!\n", que->me);
-				++hung;
-			} else {
-				/*
-				 * If this fails, that means something in the TX path has updated
-				 * the watchdog, so it means the TX path is still working and
-				 * the watchdog doesn't need to countdown.
-				 */
-				atomic_cmpset_rel_32(&txr->watchdog_timer, timer, new_timer);
-				/* Any queues with outstanding work get a sw irq */
-				ixl_queue_sw_irq(pf, i);
-			}
-		}
-	}
-
-	return (hung);
 }
 #endif
 
