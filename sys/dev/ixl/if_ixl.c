@@ -396,6 +396,8 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	/* Allocate, clear, and link in our primary soft structure */
 	dev = iflib_get_dev(ctx);
 	pf = iflib_get_softc(ctx);
+	vsi = &pf->vsi;
+	vsi->back = pf;
 	pf->dev = dev;
 	hw = &pf->hw;
 
@@ -403,9 +405,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	** Note this assumes we have a single embedded VSI,
 	** this could be enhanced later to allocate multiple
 	*/
-	vsi = &pf->vsi;
 	//vsi->dev = pf->dev;
-	vsi->back = pf;
 	vsi->hw = &pf->hw;
 	vsi->id = 0;
 	vsi->num_vlans = 0;
@@ -590,13 +590,13 @@ ixl_if_attach_post(if_ctx_t ctx)
 	INIT_DEBUGOUT("ixl_if_attach_post: begin");
 
 	dev = iflib_get_dev(ctx);
-	vsi = iflib_get_softc(ctx);
+	pf = iflib_get_softc(ctx);
+	vsi = &pf->vsi;
 	vsi->ifp = iflib_get_ifp(ctx);
-	pf = (struct ixl_pf *)vsi->back;
 	hw = &pf->hw;
 
 	/* Setup OS network interface / ifnet */
-	if (ixl_setup_interface(dev, vsi)) {
+	if (ixl_setup_interface(dev,  pf)) {
 		device_printf(dev, "interface setup failed!\n");
 		error = EIO;
 		goto err_late;
@@ -707,8 +707,8 @@ err_mac_hmc:
 static int
 ixl_if_detach(if_ctx_t ctx)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	struct ixl_pf *pf = vsi->back;
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw *hw = &pf->hw;
 	device_t dev = pf->dev;
 	enum i40e_status_code	status;
@@ -822,8 +822,8 @@ ixl_init_tx_cidx(struct ixl_vsi *vsi)
 void
 ixl_if_init(if_ctx_t ctx)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
-	struct ixl_pf *pf = vsi->back;
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw	*hw = &pf->hw;
 	device_t 	dev = iflib_get_dev(ctx);
 	u8		tmpaddr[ETHER_ADDR_LEN];
@@ -908,7 +908,8 @@ ixl_if_init(if_ctx_t ctx)
 void
 ixl_if_stop(if_ctx_t ctx)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 
 	INIT_DEBUGOUT("ixl_if_stop: begin\n");
 
@@ -926,8 +927,8 @@ ixl_if_stop(if_ctx_t ctx)
 static int
 ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	struct ixl_pf *pf = vsi->back;
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct ixl_rx_queue *rx_que = vsi->rx_queues;
 	struct ixl_tx_queue *tx_que = vsi->tx_queues;
 	int err, i, rid, vector = 0;
@@ -998,7 +999,8 @@ fail:
 static void
 ixl_if_enable_intr(if_ctx_t ctx)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*que = vsi->rx_queues;
 
@@ -1018,7 +1020,8 @@ ixl_if_enable_intr(if_ctx_t ctx)
 static void
 ixl_if_disable_intr(if_ctx_t ctx)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
 
@@ -1035,7 +1038,8 @@ ixl_if_disable_intr(if_ctx_t ctx)
 static int
 ixl_if_rx_queue_intr_enable(if_ctx_t ctx, uint16_t rxqid)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*rx_que = &vsi->rx_queues[rxqid];
 
@@ -1046,7 +1050,8 @@ ixl_if_rx_queue_intr_enable(if_ctx_t ctx, uint16_t rxqid)
 static int
 ixl_if_tx_queue_intr_enable(if_ctx_t ctx, uint16_t txqid)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_tx_queue	*tx_que = &vsi->tx_queues[txqid];
 
@@ -1058,7 +1063,8 @@ ixl_if_tx_queue_intr_enable(if_ctx_t ctx, uint16_t txqid)
 static int
 ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxqs, int ntxqsets)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct ixl_tx_queue *que;
 	int i;
 
@@ -1092,7 +1098,8 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 static int
 ixl_if_rx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int nrxqs, int nrxqsets)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct ixl_rx_queue *que;
 	int i, error = 0;
 
@@ -1131,7 +1138,8 @@ fail:
 static void
 ixl_if_queues_free(if_ctx_t ctx)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 
 	if (vsi->tx_queues != NULL) {
 		free(vsi->tx_queues, M_IXL);
@@ -1232,8 +1240,7 @@ ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 static void
 ixl_if_update_admin_status(if_ctx_t ctx)
 {
-	struct ixl_vsi			*vsi = iflib_get_softc(ctx);
-	struct ixl_pf			*pf = vsi->back; 
+	struct ixl_pf			*pf = iflib_get_softc(ctx);
 	struct i40e_hw			*hw = &pf->hw;
 	u16				pending;
 
@@ -1316,7 +1323,8 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 static void
 ixl_if_multi_set(if_ctx_t ctx)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw		*hw = vsi->hw;
 	int			mcnt = 0, flags;
 
@@ -1345,7 +1353,8 @@ ixl_if_multi_set(if_ctx_t ctx)
 static int
 ixl_if_mtu_set(if_ctx_t ctx, uint32_t mtu)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 
 	IOCTL_DEBUGOUT("ioctl: SIOCSIFMTU (Set Interface MTU)");
 	if (mtu > IXL_MAX_FRAME - ETHER_HDR_LEN - ETHER_CRC_LEN -
@@ -1361,8 +1370,7 @@ ixl_if_mtu_set(if_ctx_t ctx, uint32_t mtu)
 static void
 ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
-	struct ixl_pf	*pf = (struct ixl_pf *)vsi->back;
+	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct i40e_hw  *hw = &pf->hw;
 
 	INIT_DEBUGOUT("ixl_media_status: begin");
@@ -1514,7 +1522,8 @@ ixl_if_media_change(if_ctx_t ctx)
 static int
 ixl_if_promisc_set(if_ctx_t ctx, int flags)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct ifnet	*ifp = iflib_get_ifp(ctx);
 	struct i40e_hw	*hw = vsi->hw;
 	int		err;
@@ -1538,8 +1547,7 @@ ixl_if_promisc_set(if_ctx_t ctx, int flags)
 static void
 ixl_if_timer(if_ctx_t ctx, uint16_t qid)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
-	struct ixl_pf		*pf = vsi->back;
+	struct ixl_pf			*pf = iflib_get_softc(ctx);
 	//struct i40e_hw		*hw = &pf->hw;
 	//struct ixl_tx_queue	*que = &vsi->tx_queues[qid];
  #if 0
@@ -1570,7 +1578,8 @@ ixl_if_timer(if_ctx_t ctx, uint16_t qid)
 static void
 ixl_if_vlan_register(if_ctx_t ctx, u16 vtag)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw	*hw = vsi->hw;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
@@ -1583,7 +1592,8 @@ ixl_if_vlan_register(if_ctx_t ctx, u16 vtag)
 static void
 ixl_if_vlan_unregister(if_ctx_t ctx, u16 vtag)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw	*hw = vsi->hw;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
@@ -1596,7 +1606,8 @@ ixl_if_vlan_unregister(if_ctx_t ctx, u16 vtag)
 static uint64_t
 ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &pf->vsi;
 	if_t ifp = iflib_get_ifp(ctx);
 
 	switch (cnt) {
@@ -1641,8 +1652,7 @@ ixl_if_vflr_handle(if_ctx_t ctx)
 static int
 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
-	struct ixl_pf		*pf = vsi->back;
+	struct ixl_pf		*pf = iflib_get_softc(ctx);
 
 	for (int i = 0; i < req->len; i++)
 		if (ixl_read_i2c_byte(pf, req->offset + i,
