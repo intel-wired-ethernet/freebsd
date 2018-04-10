@@ -1270,9 +1270,14 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		 * - Address is last entry in TX ring (reserved for HWB index)
 		 * Leave these as 0 for Descriptor Writeback
 		 */
-		tctx.head_wb_ena = 1;
-		tctx.head_wb_addr = txr->tx_paddr +
-		    (scctx->isc_ntxd[0] * sizeof(struct i40e_tx_desc));
+		if (vsi->enable_head_writeback) {
+			tctx.head_wb_ena = 1;
+			tctx.head_wb_addr = txr->tx_paddr +
+			    (scctx->isc_ntxd[0] * sizeof(struct i40e_tx_desc));
+		} else {
+			tctx.head_wb_ena = 0;
+			tctx.head_wb_addr = 0; 
+		}
 		tctx.rdylist_act = 0;
 		err = i40e_clear_lan_tx_queue_context(hw, i);
 		if (err) {
