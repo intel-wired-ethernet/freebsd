@@ -148,6 +148,7 @@ static driver_t ixl_driver = {
 
 devclass_t ixl_devclass;
 DRIVER_MODULE(ixl, pci, ixl_driver, ixl_devclass, 0, 0);
+MODULE_VERSION(ixl, 3);
 
 MODULE_DEPEND(ixl, pci, 1, 1, 1);
 MODULE_DEPEND(ixl, ether, 1, 1, 1);
@@ -243,6 +244,17 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, enable_tx_fc_filter, CTLFLAG_RDTUN,
     &ixl_enable_tx_fc_filter, 0,
     "Filter out packets with Ethertype 0x8808 from being sent out by non-HW sources");
 
+/*
+ * Different method for processing TX descriptor
+ * completion.
+ */
+static int ixl_enable_head_writeback = 1;
+TUNABLE_INT("hw.ixl.enable_head_writeback",
+    &ixl_enable_head_writeback);
+SYSCTL_INT(_hw_ixl, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
+    &ixl_enable_head_writeback, 0,
+    "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
+
 static int ixl_core_debug_mask = 0;
 TUNABLE_INT("hw.ixl.core_debug_mask",
     &ixl_core_debug_mask);
@@ -298,7 +310,8 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, limit_iwarp_msix, CTLFLAG_RDTUN,
     &ixl_limit_iwarp_msix, 0, "Limit MSIX vectors assigned to iWARP");
 #endif
 
-extern struct if_txrx ixl_txrx;
+extern struct if_txrx ixl_txrx_hwb;
+extern struct if_txrx ixl_txrx_dwb;
 
 static struct if_shared_ctx ixl_sctx_init = {
 	.isc_magic = IFLIB_MAGIC,
@@ -549,8 +562,15 @@ ixl_if_attach_pre(if_ctx_t ctx)
 		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 128;
 	else
 		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 64;
-	scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
-	    * sizeof(struct i40e_tx_desc) + sizeof(u32), DBA_ALIGN);
+	if (vsi->enable_head_writeback) {
+		scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
+		    * sizeof(struct i40e_tx_desc) + sizeof(u32), DBA_ALIGN);
+		scctx->isc_txrx = &ixl_txrx_hwb;
+	} else {
+		scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
+		    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
+		scctx->isc_txrx = &ixl_txrx_dwb;
+	}
 	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
 	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
 	scctx->isc_msix_bar = PCIR_BAR(IXL_MSIX_BAR);
@@ -558,7 +578,6 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	scctx->isc_tx_tso_segments_max = IXL_MAX_TSO_SEGS;
 	scctx->isc_tx_tso_size_max = IXL_TSO_SIZE;
 	scctx->isc_tx_tso_segsize_max = PAGE_SIZE;
-	scctx->isc_txrx = &ixl_txrx;
 	scctx->isc_rss_table_size = pf->hw.func_caps.rss_table_size;
 	scctx->isc_tx_csum_flags = CSUM_OFFLOAD;
 	scctx->isc_capenable = IXL_CAPS;
@@ -596,7 +615,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 	hw = &pf->hw;
 
 	/* Setup OS network interface / ifnet */
-	if (ixl_setup_interface(dev,  pf)) {
+	if (ixl_setup_interface(dev, pf)) {
 		device_printf(dev, "interface setup failed!\n");
 		error = EIO;
 		goto err_late;
@@ -806,6 +825,24 @@ ixl_if_resume(if_ctx_t ctx)
 	return (0);
 }
 
+/* Set Report Status queue fields to 0 */
+static void
+ixl_init_tx_rsqs(struct ixl_vsi *vsi)
+{
+	if_softc_ctx_t scctx = vsi->shared;
+	struct ixl_tx_queue *tx_que;
+	int i, j;
+
+	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
+		struct tx_ring *txr = &tx_que->txr;
+
+		txr->tx_rs_cidx = txr->tx_rs_pidx = txr->tx_cidx_processed = 0;
+
+		for (j = 0; j < scctx->isc_ntxd[0]; j++)
+			txr->tx_rsq[j] = QIDX_INVALID;
+	}
+}
+
 static void
 ixl_init_tx_cidx(struct ixl_vsi *vsi)
 {
@@ -887,7 +924,10 @@ ixl_if_init(if_ctx_t ctx)
 	} else
 		ixl_configure_legacy(pf);
 
-	ixl_init_tx_cidx(vsi);
+	if (vsi->enable_head_writeback)
+		ixl_init_tx_cidx(vsi);
+	else
+		ixl_init_tx_rsqs(vsi);
 
 	ixl_enable_rings(vsi);
 
@@ -1066,8 +1106,10 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &pf->vsi;
+	if_softc_ctx_t scctx = vsi->shared;
 	struct ixl_tx_queue *que;
-	int i;
+	// int i;
+	int i, j, error = 0;
 
 	MPASS(vsi->num_tx_queues > 0);
 	MPASS(ntxqs == 1);
@@ -1086,6 +1128,17 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 		txr->me = i;
 		que->vsi = vsi;
 
+		if (!vsi->enable_head_writeback) {
+			/* Allocate report status array */
+			if (!(txr->tx_rsq = malloc(sizeof(qidx_t) * scctx->isc_ntxd[0], M_IXL, M_NOWAIT))) {
+				device_printf(iflib_get_dev(ctx), "failed to allocate tx_rsq memory\n");
+				error = ENOMEM;
+				goto fail;
+			}
+			/* Init report status array */
+			for (j = 0; j < scctx->isc_ntxd[0]; j++)
+				txr->tx_rsq[j] = QIDX_INVALID;
+		}
 		/* get the virtual and physical address of the hardware queues */
 		txr->tail = I40E_QTX_TAIL(txr->me);
 		txr->tx_base = (struct i40e_tx_desc *)vaddrs[i * ntxqs];
@@ -1094,6 +1147,9 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 	}
 	
 	return (0);
+fail:
+	ixl_if_queues_free(ctx);
+	return (error);
 }
 
 static int
@@ -1141,6 +1197,19 @@ ixl_if_queues_free(if_ctx_t ctx)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &pf->vsi;
+
+	if (vsi->enable_head_writeback) {
+		struct ixl_tx_queue *que;
+		int i = 0;
+
+		for (i = 0, que = vsi->tx_queues; i < vsi->num_tx_queues; i++, que++) {
+			struct tx_ring *txr = &que->txr;
+			if (txr->tx_rsq != NULL) {
+				free(txr->tx_rsq, M_IXL);
+				txr->tx_rsq = NULL;
+			}
+		}
+	}
 
 	if (vsi->tx_queues != NULL) {
 		free(vsi->tx_queues, M_IXL);
@@ -1690,8 +1759,7 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
-
-	// ixl_vsi_setup_rings_size(&pf->vsi, ixl_tx_ring_size, ixl_rx_ring_size);
+	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
 
 	if (ixl_tx_itr < 0 || ixl_tx_itr > IXL_MAX_ITR) {
 		device_printf(dev, "Invalid tx_itr value of %d set!\n",

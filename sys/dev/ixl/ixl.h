@@ -363,7 +363,13 @@ struct tx_ring {
 	u32			latency;
 	u32			packets;
 	u32			me;
-	/* For reporting completed packet status */
+	/*
+	 * For reporting completed packet status
+	 * in descriptor writeback mode
+	 */
+	qidx_t			*tx_rsq;
+	qidx_t			tx_rs_cidx;
+	qidx_t			tx_rs_pidx;
 	qidx_t			tx_cidx_processed;
 
 	/* Used for Dynamic ITR calculation */
