@@ -1015,10 +1015,10 @@ ixl_add_ifmedia(struct ixl_vsi *vsi, u64 phy_types)
  *
  **********************************************************************/
 int
-ixl_setup_interface(device_t dev, struct ixl_vsi *vsi)
+ixl_setup_interface(device_t dev, struct ixl_pf *pf)
 {
+	struct ixl_vsi *vsi = &pf->vsi;
 	if_ctx_t ctx = vsi->ctx;
-	struct ixl_pf *pf = vsi->back;
 	struct i40e_hw *hw = &pf->hw;
 	struct ifnet *ifp = iflib_get_ifp(ctx);
 	struct i40e_aq_get_phy_abilities_resp abilities;
@@ -1165,8 +1165,8 @@ ixl_switch_config(struct ixl_pf *pf)
 int
 ixl_initialize_vsi(struct ixl_vsi *vsi)
 {
+	struct ixl_pf *pf = vsi->back;
 	if_softc_ctx_t		scctx = iflib_get_softc_ctx(vsi->ctx);
-	struct ixl_pf		*pf = vsi->back;
 	struct ixl_tx_queue	*tx_que = vsi->tx_queues;
 	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
 	device_t		dev = iflib_get_dev(vsi->ctx);
@@ -4096,7 +4096,7 @@ ixl_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS)
 	}
 
 	buf_len = sizeof(char) * (entry_len + 1) * ftl_len + 2;
-	buf = buf_i = malloc(buf_len, M_DEVBUF, M_NOWAIT);
+	buf = buf_i = malloc(buf_len, M_DEVBUF, M_WAITOK);
 
 	sprintf(buf_i++, "\n");
 	SLIST_FOREACH(f, &vsi->ftl, next) {

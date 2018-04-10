@@ -224,7 +224,7 @@ void	ixl_debug_core(struct ixl_pf *, enum ixl_dbg_mask, char *, ...);
 #define ixl_disable_intr(vsi)	ixl_disable_rings_intr(vsi)
 
 /* PF-only function declarations */
-int	ixl_setup_interface(device_t, struct ixl_vsi *);
+int	ixl_setup_interface(device_t, struct ixl_pf *);
 void	ixl_print_nvm_cmd(device_t, struct i40e_nvm_access *);
 char *	ixl_aq_speed_to_str(enum i40e_aq_link_speed);
 
