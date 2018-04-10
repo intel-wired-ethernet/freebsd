@@ -1026,6 +1026,7 @@ ixl_if_disable_intr(if_ctx_t ctx)
 	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
 
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
+		ixl_disable_intr0(hw);
 		for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++)
 			ixl_disable_queue(hw, rx_que->msix - 1);
 	} else {
