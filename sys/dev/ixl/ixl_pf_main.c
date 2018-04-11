@@ -665,7 +665,7 @@ ixl_handle_que(void *context, int pending)
 		}
 	}
 
-	/* Reenable queue interrupt */
+	/* Re-enable queue interrupt */
 	if (pf->msix > 1)
 		ixl_enable_queue(hw, que->me);
 	else
