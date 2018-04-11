@@ -36,8 +36,6 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include "opt_compat.h"
-
 #include <sys/param.h>
 #include <sys/exec.h>
 #include <sys/fcntl.h>
@@ -82,6 +80,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/md_var.h>
 #include <machine/pcb.h>
 #include <machine/cpufunc.h>
+#include <machine/trap.h>
 
 #ifdef COMPAT_FREEBSD4
 static void freebsd4_ia32_sendsig(sig_t, ksiginfo_t *, sigset_t *);

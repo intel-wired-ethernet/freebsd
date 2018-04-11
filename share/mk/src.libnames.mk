@@ -44,7 +44,6 @@ _INTERNALLIBS=	\
 		parse \
 		pe \
 		pmcstat \
-		readline \
 		sl \
 		sm \
 		smdb \
@@ -112,6 +111,7 @@ _LIBRARIES=	\
 		heimsqlite \
 		hx509 \
 		ipsec \
+		ipt \
 		jail \
 		kadm5clnt \
 		kadm5srv \
@@ -135,6 +135,7 @@ _LIBRARIES=	\
 		ngatm \
 		nv \
 		nvpair \
+		opencsd \
 		opie \
 		pam \
 		panel \
@@ -147,7 +148,6 @@ _LIBRARIES=	\
 		procstat \
 		pthread \
 		radius \
-		readline \
 		regex \
 		roken \
 		rpcsec_gss \
@@ -290,7 +290,6 @@ _DP_pam+=	ssh
 .if ${MK_NIS} != "no"
 _DP_pam+=	ypclnt
 .endif
-_DP_readline=	ncursesw
 _DP_roken=	crypt
 _DP_kadm5clnt=	com_err krb5 roken
 _DP_kadm5srv=	com_err hdb krb5 roken
@@ -309,6 +308,7 @@ _DP_gssapi_krb5+=	gssapi krb5 crypto roken asn1 com_err
 _DP_lzma=	pthread
 _DP_ucl=	m
 _DP_vmmapi=	util
+_DP_opencsd=	cxxrt
 _DP_ctf=	z
 _DP_dtrace=	ctf elf proc pthread rtld_db
 _DP_xo=		util
@@ -413,9 +413,6 @@ LIBELFTC?=	${LIBELFTCDIR}/libelftc.a
 
 LIBPEDIR=	${OBJTOP}/lib/libpe
 LIBPE?=		${LIBPEDIR}/libpe.a
-
-LIBREADLINEDIR=	${OBJTOP}/gnu/lib/libreadline/readline
-LIBREADLINE?=	${LIBREADLINEDIR}/libreadline.a
 
 LIBOPENBSDDIR=	${OBJTOP}/lib/libopenbsd
 LIBOPENBSD?=	${LIBOPENBSDDIR}/libopenbsd.a

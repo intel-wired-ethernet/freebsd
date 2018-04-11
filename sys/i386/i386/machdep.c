@@ -44,7 +44,6 @@ __FBSDID("$FreeBSD$");
 
 #include "opt_apic.h"
 #include "opt_atpic.h"
-#include "opt_compat.h"
 #include "opt_cpu.h"
 #include "opt_ddb.h"
 #include "opt_inet.h"
@@ -129,6 +128,7 @@ __FBSDID("$FreeBSD$");
 #include <machine/reg.h>
 #include <machine/sigframe.h>
 #include <machine/specialreg.h>
+#include <machine/trap.h>
 #include <machine/vm86.h>
 #include <x86/init.h>
 #ifdef PERFMON
@@ -271,7 +271,7 @@ cpu_startup(dummy)
 		memsize = (uintmax_t)strtoul(sysenv, (char **)NULL, 10) << 10;
 		freeenv(sysenv);
 	}
-	if (memsize < ptoa((uintmax_t)vm_cnt.v_free_count))
+	if (memsize < ptoa((uintmax_t)vm_free_count()))
 		memsize = ptoa((uintmax_t)Maxmem);
 	printf("real memory  = %ju (%ju MB)\n", memsize, memsize >> 20);
 	realmem = atop(memsize);
@@ -298,8 +298,8 @@ cpu_startup(dummy)
 	vm_ksubmap_init(&kmi);
 
 	printf("avail memory = %ju (%ju MB)\n",
-	    ptoa((uintmax_t)vm_cnt.v_free_count),
-	    ptoa((uintmax_t)vm_cnt.v_free_count) / 1048576);
+	    ptoa((uintmax_t)vm_free_count()),
+	    ptoa((uintmax_t)vm_free_count()) / 1048576);
 
 	/*
 	 * Set up buffers, so they can be used to read disk labels.
@@ -1902,7 +1902,7 @@ physmap_done:
 
 #ifdef SMP
 	/* make hole for AP bootstrap code */
-	physmap[1] = mp_bootaddress(physmap[1]);
+	alloc_ap_trampoline(physmap, &physmap_idx);
 #endif
 
 	/*

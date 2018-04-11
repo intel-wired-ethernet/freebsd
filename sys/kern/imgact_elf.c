@@ -35,7 +35,6 @@
 __FBSDID("$FreeBSD$");
 
 #include "opt_capsicum.h"
-#include "opt_compat.h"
 
 #include <sys/param.h>
 #include <sys/capsicum.h>
@@ -96,9 +95,9 @@ static int __elfN(load_section)(struct image_params *imgp, vm_ooffset_t offset,
     caddr_t vmaddr, size_t memsz, size_t filsz, vm_prot_t prot,
     size_t pagesize);
 static int __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp);
-static boolean_t __elfN(freebsd_trans_osrel)(const Elf_Note *note,
+static bool __elfN(freebsd_trans_osrel)(const Elf_Note *note,
     int32_t *osrel);
-static boolean_t kfreebsd_trans_osrel(const Elf_Note *note, int32_t *osrel);
+static bool kfreebsd_trans_osrel(const Elf_Note *note, int32_t *osrel);
 static boolean_t __elfN(check_note)(struct image_params *imgp,
     Elf_Brandnote *checknote, int32_t *osrel);
 static vm_prot_t __elfN(trans_prot)(Elf_Word);
@@ -155,7 +154,7 @@ Elf_Brandnote __elfN(freebsd_brandnote) = {
 	.trans_osrel	= __elfN(freebsd_trans_osrel)
 };
 
-static boolean_t
+static bool
 __elfN(freebsd_trans_osrel)(const Elf_Note *note, int32_t *osrel)
 {
 	uintptr_t p;
@@ -164,7 +163,7 @@ __elfN(freebsd_trans_osrel)(const Elf_Note *note, int32_t *osrel)
 	p += roundup2(note->n_namesz, ELF_NOTE_ROUNDSIZE);
 	*osrel = *(const int32_t *)(p);
 
-	return (TRUE);
+	return (true);
 }
 
 static const char GNU_ABI_VENDOR[] = "GNU";
@@ -179,7 +178,7 @@ Elf_Brandnote __elfN(kfreebsd_brandnote) = {
 	.trans_osrel	= kfreebsd_trans_osrel
 };
 
-static boolean_t
+static bool
 kfreebsd_trans_osrel(const Elf_Note *note, int32_t *osrel)
 {
 	const Elf32_Word *desc;
@@ -190,7 +189,7 @@ kfreebsd_trans_osrel(const Elf_Note *note, int32_t *osrel)
 
 	desc = (const Elf32_Word *)p;
 	if (desc[0] != GNU_KFREEBSD_ABI_DESC)
-		return (FALSE);
+		return (false);
 
 	/*
 	 * Debian GNU/kFreeBSD embed the earliest compatible kernel version
@@ -198,7 +197,7 @@ kfreebsd_trans_osrel(const Elf_Note *note, int32_t *osrel)
 	 */
 	*osrel = desc[1] * 100000 + desc[2] * 1000 + desc[3];
 
-	return (TRUE);
+	return (true);
 }
 
 int
@@ -321,7 +320,7 @@ __elfN(get_brandinfo)(struct image_params *imgp, const char *interp,
 		    strcmp((const char *)&hdr->e_ident[OLD_EI_BRAND],
 		    bi->compat_3_brand) == 0))) {
 			/* Looks good, but give brand a chance to veto */
-			if (!bi->header_supported ||
+			if (bi->header_supported == NULL ||
 			    bi->header_supported(imgp)) {
 				/*
 				 * Again, prefer strictly matching
@@ -369,7 +368,8 @@ __elfN(get_brandinfo)(struct image_params *imgp, const char *interp,
 			    /* ELF image p_filesz includes terminating zero */
 			    strlen(bi->interp_path) + 1 == interp_name_len &&
 			    strncmp(interp, bi->interp_path, interp_name_len)
-			    == 0)
+			    == 0 && (bi->header_supported == NULL ||
+			    bi->header_supported(imgp)))
 				return (bi);
 		}
 	}
@@ -381,7 +381,9 @@ __elfN(get_brandinfo)(struct image_params *imgp, const char *interp,
 		    (interp != NULL && (bi->flags & BI_BRAND_ONLY_STATIC) != 0))
 			continue;
 		if (hdr->e_machine == bi->machine &&
-		    __elfN(fallback_brand) == bi->brand)
+		    __elfN(fallback_brand) == bi->brand &&
+		    (bi->header_supported == NULL ||
+		    bi->header_supported(imgp)))
 			return (bi);
 	}
 	return (NULL);
@@ -1464,9 +1466,7 @@ done:
  * program header entry.
  */
 static void
-cb_put_phdr(entry, closure)
-	vm_map_entry_t entry;
-	void *closure;
+cb_put_phdr(vm_map_entry_t entry, void *closure)
 {
 	struct phdr_closure *phc = (struct phdr_closure *)closure;
 	Elf_Phdr *phdr = phc->phdr;
@@ -2425,8 +2425,8 @@ __elfN(check_note)(struct image_params *imgp, Elf_Brandnote *checknote,
  * Tell kern_execve.c about it, with a little help from the linker.
  */
 static struct execsw __elfN(execsw) = {
-	__CONCAT(exec_, __elfN(imgact)),
-	__XSTRING(__CONCAT(ELF, __ELF_WORD_SIZE))
+	.ex_imgact = __CONCAT(exec_, __elfN(imgact)),
+	.ex_name = __XSTRING(__CONCAT(ELF, __ELF_WORD_SIZE))
 };
 EXEC_SET(__CONCAT(elf, __ELF_WORD_SIZE), __elfN(execsw));
 
