@@ -68,13 +68,14 @@ SUBDIR=	\
 	${_bxe} \
 	${_bios} \
 	${_bktr} \
+	${_blake2} \
 	${_bm} \
 	bnxt \
 	bridgestp \
 	bwi \
 	bwn \
-	bwn_pci \
 	${_bytgpio} \
+	${_chvgpio} \
 	cam \
 	${_cardbus} \
 	${_carp} \
@@ -86,7 +87,6 @@ SUBDIR=	\
 	cd9660_iconv \
 	${_ce} \
 	${_cfi} \
-	chacha20 \
 	${_chromebook_platform} \
 	${_ciss} \
 	cloudabi \
@@ -266,6 +266,7 @@ SUBDIR=	\
 	msdosfs_iconv \
 	${_mse} \
 	msk \
+	${_mthca} \
 	mvs \
 	mwl \
 	${_mwlfw} \
@@ -295,6 +296,7 @@ SUBDIR=	\
 	${_nvram} \
 	${_nxge} \
 	oce \
+	${_ocs_fc} \
 	otus \
 	${_otusfw} \
 	ow \
@@ -351,7 +353,6 @@ SUBDIR=	\
 	sge \
 	${_sgx} \
 	${_sgx_linux} \
-	siba_bwn \
 	siftr \
 	siis \
 	sis \
@@ -361,7 +362,7 @@ SUBDIR=	\
 	snp \
 	sound \
 	${_speaker} \
-	spigen \
+	spi \
 	${_splash} \
 	${_sppp} \
 	ste \
@@ -609,6 +610,7 @@ _lio=		lio
 .endif
 _nctgpio=	nctgpio
 _ndis=		ndis
+_ocs_fc=	ocs_fc
 _pccard=	pccard
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)
 _rdma=		rdma
@@ -636,7 +638,11 @@ _amdsmn=	amdsmn
 _amdtemp=	amdtemp
 _arcmsr=	arcmsr
 _asmc=		asmc
+.if ${MK_CRYPT} != "no" || defined(ALL_MODULES)
+_blake2=	blake2
+.endif
 _bytgpio=	bytgpio
+_chvgpio=	chvgpio
 _ciss=		ciss
 _chromebook_platform=	chromebook_platform
 _cmx=		cmx
@@ -677,6 +683,7 @@ _mlx4en=	mlx4en
 _mlx5en=	mlx5en
 .endif
 .if ${MK_OFED} != "no" || defined(ALL_MODULES)
+_mthca=		mthca
 _mlx4ib=	mlx4ib
 _mlx5ib=	mlx5ib
 .endif
@@ -811,10 +818,6 @@ _cloudabi64=	cloudabi64
 .if ${MACHINE_ARCH:Marmv[67]*} != "" || ${MACHINE_CPUARCH} == "aarch64"
 _bcm283x_clkman=  bcm283x_clkman
 _bcm283x_pwm=  bcm283x_pwm
-.endif
-
-.if ${MACHINE_ARCH:Marmv[67]*} != ""
-_ffec=		ffec
 .endif
 
 SUBDIR+=${MODULES_EXTRA}

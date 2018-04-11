@@ -1277,6 +1277,7 @@ static devclass_t npxisa_devclass;
 
 DRIVER_MODULE(npxisa, isa, npxisa_driver, npxisa_devclass, 0, 0);
 DRIVER_MODULE(npxisa, acpi, npxisa_driver, npxisa_devclass, 0, 0);
+ISA_PNP_INFO(npxisa_ids);
 #endif /* DEV_ISA */
 
 static MALLOC_DEFINE(M_FPUKERN_CTX, "fpukern_ctx",
@@ -1324,7 +1325,7 @@ fpu_kern_ctx_savefpu(struct fpu_kern_ctx *ctx)
 	return ((union savefpu *)p);
 }
 
-int
+void
 fpu_kern_enter(struct thread *td, struct fpu_kern_ctx *ctx, u_int flags)
 {
 	struct pcb *pcb;
@@ -1333,7 +1334,7 @@ fpu_kern_enter(struct thread *td, struct fpu_kern_ctx *ctx, u_int flags)
 
 	if ((flags & FPU_KERN_KTHR) != 0 && is_fpu_kern_thread(0)) {
 		ctx->flags = FPU_KERN_CTX_DUMMY | FPU_KERN_CTX_INUSE;
-		return (0);
+		return;
 	}
 	pcb = td->td_pcb;
 	KASSERT(!PCB_USER_FPU(pcb) || pcb->pcb_save ==
@@ -1346,7 +1347,7 @@ fpu_kern_enter(struct thread *td, struct fpu_kern_ctx *ctx, u_int flags)
 	pcb->pcb_save = fpu_kern_ctx_savefpu(ctx);
 	pcb->pcb_flags |= PCB_KERNNPX;
 	pcb->pcb_flags &= ~PCB_NPXINITDONE;
-	return (0);
+	return;
 }
 
 int

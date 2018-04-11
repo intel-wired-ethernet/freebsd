@@ -26,5 +26,5 @@
 
 only forth definitions
 
-\ Place holder for more functions
+s" efi-autoresizecons" evaluate
 .( EFI boot environment) cr

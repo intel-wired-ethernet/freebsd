@@ -2011,7 +2011,7 @@ vm_map_pmap_enter(vm_map_t map, vm_offset_t addr, vm_prot_t prot,
 		 * free pages allocating pv entries.
 		 */
 		if (((flags & MAP_PREFAULT_MADVISE) != 0 &&
-		    vm_cnt.v_free_count < vm_cnt.v_free_reserved) ||
+		    vm_page_count_severe()) ||
 		    ((flags & MAP_PREFAULT_PARTIAL) != 0 &&
 		    tmpidx >= threshold)) {
 			psize = tmpidx;
@@ -4313,6 +4313,27 @@ vm_map_lookup_done(vm_map_t map, vm_map_entry_t entry)
 	 * Unlock the main-level map
 	 */
 	vm_map_unlock_read(map);
+}
+
+vm_offset_t
+vm_map_max_KBI(const struct vm_map *map)
+{
+
+	return (map->max_offset);
+}
+
+vm_offset_t
+vm_map_min_KBI(const struct vm_map *map)
+{
+
+	return (map->min_offset);
+}
+
+pmap_t
+vm_map_pmap_KBI(vm_map_t map)
+{
+
+	return (map->pmap);
 }
 
 #include "opt_ddb.h"

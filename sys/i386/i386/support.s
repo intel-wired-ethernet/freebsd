@@ -34,7 +34,7 @@
 #include <machine/pmap.h>
 #include <machine/specialreg.h>
 
-#include "assym.s"
+#include "assym.inc"
 
 #define IDXSHIFT	10
 
@@ -827,3 +827,11 @@ msr_onfault:
 	movl	$0,PCB_ONFAULT(%ecx)
 	movl	$EFAULT,%eax
 	ret
+
+ENTRY(handle_ibrs_entry)
+	ret
+END(handle_ibrs_entry)
+
+ENTRY(handle_ibrs_exit)
+	ret
+END(handle_ibrs_exit)

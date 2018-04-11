@@ -238,7 +238,7 @@ struct ada_softc {
 	int	 write_cache;
 	int	 unmappedio;
 	int	 rotating;
-#ifdef ADA_TEST_FAILURE
+#ifdef CAM_TEST_FAILURE
 	int      force_read_error;
 	int      force_write_error;
 	int      periodic_read_error;
@@ -911,7 +911,7 @@ adaopen(struct disk *dp)
 	int error;
 
 	periph = (struct cam_periph *)dp->d_drv1;
-	if (cam_periph_acquire(periph) != CAM_REQ_CMP) {
+	if (cam_periph_acquire(periph) != 0) {
 		return(ENXIO);
 	}
 
@@ -1328,7 +1328,7 @@ adaasync(void *callback_arg, u_int32_t code,
 			softc->state = ADA_STATE_LOGDIR;
 		else
 		    break;
-		if (cam_periph_acquire(periph) != CAM_REQ_CMP)
+		if (cam_periph_acquire(periph) != 0)
 			softc->state = ADA_STATE_NORMAL;
 		else
 			xpt_schedule(periph, CAM_PRIORITY_DEV);
@@ -1475,7 +1475,7 @@ adasysctlinit(void *context, int pending)
 		"max_seq_zones", CTLFLAG_RD, &softc->max_seq_zones,
 		"Maximum Number of Open Sequential Write Required Zones");
 
-#ifdef ADA_TEST_FAILURE
+#ifdef CAM_TEST_FAILURE
 	/*
 	 * Add a 'door bell' sysctl which allows one to set it from userland
 	 * and cause something bad to happen.  For the moment, we only allow
@@ -1493,6 +1493,10 @@ adasysctlinit(void *context, int pending)
 		OID_AUTO, "periodic_read_error", CTLFLAG_RW | CTLFLAG_MPSAFE,
 		&softc->periodic_read_error, 0,
 		"Force a read error every N reads (don't set too low).");
+	SYSCTL_ADD_PROC(&softc->sysctl_ctx, SYSCTL_CHILDREN(softc->sysctl_tree),
+		OID_AUTO, "invalidate", CTLTYPE_U64 | CTLFLAG_RW | CTLFLAG_MPSAFE,
+		periph, 0, cam_periph_invalidate_sysctl, "I",
+		"Write 1 to invalidate the drive immediately");
 #endif
 
 #ifdef CAM_IO_STATS
@@ -1841,7 +1845,7 @@ adaregister(struct cam_periph *periph, void *arg)
 	 * We'll release this reference once GEOM calls us back (via
 	 * adadiskgonecb()) telling us that our provider has been freed.
 	 */
-	if (cam_periph_acquire(periph) != CAM_REQ_CMP) {
+	if (cam_periph_acquire(periph) != 0) {
 		xpt_print(periph->path, "%s: lost periph during "
 			  "registration!\n", __func__);
 		cam_periph_lock(periph);
@@ -1866,7 +1870,7 @@ adaregister(struct cam_periph *periph, void *arg)
 	 * Create our sysctl variables, now that we know
 	 * we have successfully attached.
 	 */
-	if (cam_periph_acquire(periph) == CAM_REQ_CMP)
+	if (cam_periph_acquire(periph) == 0)
 		taskqueue_enqueue(taskqueue_thread, &softc->sysctl_task);
 
 	/*
@@ -2293,7 +2297,7 @@ adastart(struct cam_periph *periph, union ccb *start_ccb)
 				data_ptr = bp;
 			}
 
-#ifdef ADA_TEST_FAILURE
+#ifdef CAM_TEST_FAILURE
 			int fail = 0;
 
 			/*

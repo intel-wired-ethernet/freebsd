@@ -30,7 +30,6 @@
 __FBSDID("$FreeBSD$");
 
 #include "opt_capsicum.h"
-#include "opt_compat.h"
 #include "opt_hwpmc_hooks.h"
 #include "opt_ktrace.h"
 #include "opt_vm.h"
@@ -1009,7 +1008,7 @@ exec_map_first_page(imgp)
 			if ((ma[i] = vm_page_next(ma[i - 1])) != NULL) {
 				if (ma[i]->valid)
 					break;
-				if (vm_page_tryxbusy(ma[i]))
+				if (!vm_page_tryxbusy(ma[i]))
 					break;
 			} else {
 				ma[i] = vm_page_alloc(object, i,
