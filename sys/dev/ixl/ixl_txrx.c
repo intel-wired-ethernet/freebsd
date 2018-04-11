@@ -1577,9 +1577,7 @@ ixl_rx_input(struct rx_ring *rxr, struct ifnet *ifp, struct mbuf *m, u8 ptype)
                                 return;
         }
 #endif
-	IXL_RX_UNLOCK(rxr);
         (*ifp->if_input)(ifp, m);
-	IXL_RX_LOCK(rxr);
 }
 
 
@@ -1895,7 +1893,9 @@ next_desc:
 		/* Now send to the stack or do LRO */
 		if (sendmp != NULL) {
 			rxr->next_check = i;
+			IXL_RX_UNLOCK(rxr);
 			ixl_rx_input(rxr, ifp, sendmp, ptype);
+			IXL_RX_LOCK(rxr);
 			/*
 			 * Update index used in loop in case another
 			 * ixl_rxeof() call executes when lock is released
