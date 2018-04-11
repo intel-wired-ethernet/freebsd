@@ -40,7 +40,6 @@
  */
 
 #include "opt_bootp.h"
-#include "opt_compat.h"
 #include "opt_nfsroot.h"
 #include "opt_pmap.h"
 
@@ -52,7 +51,7 @@
 #include <machine/pmap.h>
 #include <machine/specialreg.h>
 
-#include "assym.s"
+#include "assym.inc"
 
 /*
  *	XXX

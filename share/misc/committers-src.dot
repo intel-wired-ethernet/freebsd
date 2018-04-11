@@ -76,6 +76,7 @@ nate [label="Nate Willams\nnate@FreeBSD.org\n1993/06/12\n2003/12/15"]
 njl [label="Nate Lawson\nnjl@FreeBSD.org\n2002/08/07\n2008/02/16"]
 non [label="Noriaki Mitsnaga\nnon@FreeBSD.org\n2000/06/19\n2007/03/06"]
 onoe [label="Atsushi Onoe\nonoe@FreeBSD.org\n2000/07/21\n2008/11/10"]
+ram [label="Ram Kishore Vegesna\nram@FreeBSD.org\n2018/04/04\n???/??/??"]
 rafan [label="Rong-En Fan\nrafan@FreeBSD.org\n2007/01/31\n2012/07/23"]
 randi [label="Randi Harper\nrandi@FreeBSD.org\n2010/04/20\n2012/05/10"]
 rink [label="Rink Springer\nrink@FreeBSD.org\n2006/01/16\n2010/11/04"]
@@ -122,6 +123,7 @@ avg [label="Andriy Gapon\navg@FreeBSD.org\n2009/02/18"]
 avos [label="Andriy Voskoboinyk\navos@FreeBSD.org\n2015/09/24"]
 badger [label="Eric Badger\nbadger@FreeBSD.org\n2016/07/01"]
 bapt [label="Baptiste Daroussin\nbapt@FreeBSD.org\n2011/12/23"]
+bde [label="Bruce Evans\nbde@FreeBSD.org\n1994/08/20"]
 bdrewery [label="Bryan Drewery\nbdrewery@FreeBSD.org\n2013/12/14"]
 benl [label="Ben Laurie\nbenl@FreeBSD.org\n2011/05/18"]
 benno [label="Benno Rice\nbenno@FreeBSD.org\n2000/11/02"]
@@ -402,6 +404,8 @@ bapt -> araujo
 bapt -> bdrewery
 bapt -> wulf
 
+bde -> rgrimes
+
 benno -> grehan
 
 billf -> dougb
@@ -626,6 +630,7 @@ kan -> kib
 
 ken -> asomers
 ken -> chuck
+ken -> ram
 ken -> slm
 
 kib -> ae
@@ -668,6 +673,7 @@ markm -> sheldonh
 
 mav -> ae
 mav -> eugen
+mav -> ram
 
 mdf -> gleb
 
@@ -720,6 +726,7 @@ philip -> kp
 
 phk -> jkoshy
 phk -> mux
+phk -> rgrimes
 
 pjd -> def
 pjd -> kib

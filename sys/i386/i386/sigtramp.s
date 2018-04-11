@@ -39,13 +39,11 @@
  *			and many others.
  */
 
-#include "opt_compat.h"
-
 #include <sys/syscall.h>
 #include <machine/asmacros.h>
 #include <machine/psl.h>
 
-#include "assym.s"
+#include "assym.inc"
 
 /*
  * Signal trampoline, copied to top of user stack
