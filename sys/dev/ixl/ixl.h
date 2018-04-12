@@ -126,30 +126,8 @@
 #define IXL_AQ_LEN		256
 #define IXL_AQ_LEN_MAX		1024
 
-/*
-** Default number of entries in Tx queue buf_ring.
-*/
-#define DEFAULT_TXBRSZ		4096
-
 /* Alignment for rings */
 #define DBA_ALIGN		128
-
-/*
- * This is the max watchdog interval, ie. the time that can
- * pass between any two TX clean operations, such only happening
- * when the TX hardware is functioning.
- *
- * XXX: Watchdog currently counts down in units of (hz)
- * Set this to just (hz) if you want queues to hang under a little bit of stress
- */
-#define IXL_WATCHDOG		(10 * hz)
-
-/*
- * This parameters control when the driver calls the routine to reclaim
- * transmit descriptors.
- */
-#define IXL_TX_CLEANUP_THRESHOLD	(que->num_tx_desc / 8)
-#define IXL_TX_OP_THRESHOLD		(que->num_tx_desc / 32)
 
 #define MAX_MULTICAST_ADDR	128
 
@@ -160,8 +138,6 @@
 #define IXL_TSO_SIZE		((255*1024)-1)
 #define IXL_TX_BUF_SZ		((u32) 1514)
 #define IXL_AQ_BUF_SZ		((u32) 4096)
-#define IXL_RX_HDR		128
-#define IXL_RX_LIMIT		512
 #define IXL_RX_ITR		0
 #define IXL_TX_ITR		1
 #define IXL_ITR_NONE		3
@@ -170,7 +146,6 @@
 #define IXL_MAX_TX_SEGS		8
 #define IXL_MAX_TSO_SEGS	128
 #define IXL_SPARSE_CHAIN	7
-#define IXL_QUEUE_HUNG		0x80000000
 #define IXL_MIN_TSO_MSS		64
 #define IXL_MAX_DMA_SEG_SIZE	((16 * 1024) - 1)
 
@@ -186,7 +161,6 @@
 
 /* ERJ: hardware can support ~2k (SW5+) filters between all functions */
 #define IXL_MAX_FILTERS		256
-#define IXL_MAX_TX_BUSY		10
 
 #define IXL_NVM_VERSION_LO_SHIFT	0
 #define IXL_NVM_VERSION_LO_MASK		(0xff << IXL_NVM_VERSION_LO_SHIFT)
@@ -429,8 +403,6 @@ struct ixl_rx_queue {
 	u64			irqs;
 };
 
-#define DOWNCAST(sctx)		((struct ixl_vsi *)(sctx)) // TODO: Check if ixgbe has something similar
-
 /*
 ** Virtual Station Interface
 */
@@ -442,19 +414,14 @@ struct ixl_vsi {
 	//device_t		dev;
 	struct i40e_hw		*hw;
 	struct ifmedia		*media;
-// TODO: I don't like these defines
 #define num_rx_queues	shared->isc_nrxqsets
 #define num_tx_queues	shared->isc_ntxqsets
-// This conflicts with a shared code struct definition
-// #define max_frame_size	shared->isc_max_frame_size
 
 	void 			*back;
 	enum i40e_vsi_type	type;
 	// TODO: Remove?
 	u64			que_mask;
 	int			id;
-	//int			num_tx_desc;
-	//int			num_rx_desc;
 	u32			rx_itr_setting;
 	u32			tx_itr_setting;
 	bool			enable_head_writeback;
