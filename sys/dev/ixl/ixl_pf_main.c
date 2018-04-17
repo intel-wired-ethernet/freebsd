@@ -3305,7 +3305,7 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 
 	SYSCTL_ADD_UINT(ctx, debug_list,
 	    OID_AUTO, "core_debug_mask", CTLFLAG_RW,
-	    &pf->dbg_mask, 0, "Non-hared code debug message level");
+	    &pf->dbg_mask, 0, "Non-shared code debug message level");
 
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "link_status", CTLTYPE_STRING | CTLFLAG_RD,
