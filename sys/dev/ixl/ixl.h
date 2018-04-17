@@ -533,24 +533,10 @@ struct ixl_sysctl_info {
 
 extern const uint8_t ixl_bcast_addr[ETHER_ADDR_LEN];
 
-/*********************************************************************
- *  TXRX Function prototypes
- *********************************************************************/
-int	ixl_mq_start(struct ifnet *, struct mbuf *);
-int	ixl_mq_start_locked(struct ifnet *, struct tx_ring *);
-void	ixl_deferred_mq_start(void *, int);
-
-void	ixl_vsi_setup_rings_size(struct ixl_vsi *, int, int);
-int	ixl_queue_hang_check(struct ixl_vsi *);
-void	ixl_free_vsi(struct ixl_vsi *);
-void	ixl_qflush(struct ifnet *);
-
 /* Common function prototypes between PF/VF driver */
 void		 ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que);
 void		 ixl_set_queue_rx_itr(struct ixl_rx_queue *que);
 void		 ixl_get_default_rss_key(u32 *);
 const char *	i40e_vc_stat_str(struct i40e_hw *hw,
     enum virtchnl_status_code stat_err);
-void	ixl_set_busmaster(device_t);
-void	ixl_set_msix_enable(device_t);
 #endif /* _IXL_H_ */

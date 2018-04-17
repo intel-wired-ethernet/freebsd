@@ -133,34 +133,6 @@ i40e_vc_stat_str(struct i40e_hw *hw, enum virtchnl_status_code stat_err)
 	return hw->err_str;
 }
 
-/*
- * PCI BUSMASTER needs to be set for proper operation.
- */
-void
-ixl_set_busmaster(device_t dev)
-{
-	u16 pci_cmd_word;
-
-	pci_cmd_word = pci_read_config(dev, PCIR_COMMAND, 2);
-	pci_cmd_word |= PCIM_CMD_BUSMASTEREN;
-	pci_write_config(dev, PCIR_COMMAND, pci_cmd_word, 2);
-}
-
-/*
- * Rewrite the ENABLE bit in the MSIX control register
- */
-void
-ixl_set_msix_enable(device_t dev)
-{
-	int msix_ctrl, rid;
-
-	pci_find_cap(dev, PCIY_MSIX, &rid);
-	rid += PCIR_MSIX_CTRL;
-	msix_ctrl = pci_read_config(dev, rid, 2);
-	msix_ctrl |= PCIM_MSIXCTRL_MSIX_ENABLE;
-	pci_write_config(dev, rid, msix_ctrl, 2);
-}
-
 static bool
 ixl_is_tx_desc_done(struct tx_ring *txr, int idx)
 {
