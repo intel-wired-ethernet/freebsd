@@ -256,18 +256,6 @@ retry:
 	/* Capture this PF's starting queue pair */
 	pf->qbase = hw->func_caps.base_queue;
 
-#ifdef IXL_DEBUG
-	device_printf(dev, "pf_id=%d, num_vfs=%d, msix_pf=%d, "
-	    "msix_vf=%d, fd_g=%d, fd_b=%d, tx_qp=%d rx_qp=%d qbase=%d\n",
-	    hw->pf_id, hw->func_caps.num_vfs,
-	    hw->func_caps.num_msix_vectors,
-	    hw->func_caps.num_msix_vectors_vf,
-	    hw->func_caps.fd_filters_guaranteed,
-	    hw->func_caps.fd_filters_best_effort,
-	    hw->func_caps.num_tx_qp,
-	    hw->func_caps.num_rx_qp,
-	    hw->func_caps.base_queue);
-#endif
 	struct i40e_osdep *osdep = (struct i40e_osdep *)hw->back;
 	osdep->i2c_intfc_num = ixl_find_i2c_interface(pf);
 	if (osdep->i2c_intfc_num != -1)
