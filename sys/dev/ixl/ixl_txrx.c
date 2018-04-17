@@ -343,12 +343,12 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 
 	cmd = off = 0;
 	i = pi->ipi_pidx;
- 
+
 	tx_intr = (pi->ipi_flags & IPI_TX_INTR);
 #if 0
 	device_printf(iflib_get_dev(vsi->ctx), "%s: tx_intr %d\n", __func__, tx_intr);
 #endif
- 
+
 	/* Set up the TSO/CSUM offload */
 	if (pi->ipi_csum_flags & CSUM_OFFLOAD) {
 		/* Set up the TSO context descriptor if required */
@@ -366,10 +366,10 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	mask = scctx->isc_ntxd[0] - 1;
 	for (j = 0; j < nsegs; j++) {
 		bus_size_t seglen;
- 
+
 		txd = &txr->tx_base[i];
 		seglen = segs[j].ds_len;
- 
+
 		txd->buffer_addr = htole64(segs[j].ds_addr);
 		txd->cmd_type_offset_bsz =
 		    htole64(I40E_TX_DESC_DTYPE_DATA
@@ -377,7 +377,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 		    | ((u64)off << I40E_TXD_QW1_OFFSET_SHIFT)
 		    | ((u64)seglen  << I40E_TXD_QW1_TX_BUF_SZ_SHIFT)
 	            | ((u64)htole16(pi->ipi_vtag) << I40E_TXD_QW1_L2TAG1_SHIFT));
- 
+
 		txr->tx_bytes += seglen;
 		pidx_last = i;
 		i = (i+1) & mask;
@@ -411,20 +411,18 @@ ixl_isc_txd_flush(void *arg, uint16_t txqid, qidx_t pidx)
  	 */
 	wr32(vsi->hw, txr->tail, pidx);
 }
- 
+
 
 /*********************************************************************
  *
- *  (Re)Initialize a queue transmit ring.
- *	- called by init, it clears the descriptor ring,
- *	  and frees any stale mbufs 
+ *  (Re)Initialize a queue transmit ring by clearing its memory.
  *
  **********************************************************************/
 void
 ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 {
 	struct tx_ring *txr = &que->txr;
- 
+
 	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	/* Clear the old ring contents */
@@ -435,7 +433,7 @@ ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 	wr32(vsi->hw, txr->tail, 0);
 	wr32(vsi->hw, I40E_QTX_HEAD(txr->me), 0);
 }
- 
+
 /*
  * ixl_get_tx_head - Retrieve the value from the
  *    location the HW records its HEAD index
@@ -478,12 +476,12 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 	struct ixl_tx_queue *tx_que = &vsi->tx_queues[txqid];
 	if_softc_ctx_t scctx = vsi->shared;
 	struct tx_ring *txr = &tx_que->txr;
- 
+
 	qidx_t processed = 0;
 	qidx_t cur, prev, ntxd, rs_cidx;
 	int32_t delta;
 	bool is_done;
- 
+
 	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	rs_cidx = txr->tx_rs_cidx;
@@ -521,7 +519,7 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 		MPASS(cur != QIDX_INVALID);
 		is_done = ixl_is_tx_desc_done(txr, cur);
 	} while (is_done);
- 
+
 	txr->tx_rs_cidx = rs_cidx;
 	txr->tx_cidx_processed = prev;
 
@@ -532,7 +530,7 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 }
 
 static void
-ixl_isc_rxd_refill(void *arg, if_rxd_update_t iru) 
+ixl_isc_rxd_refill(void *arg, if_rxd_update_t iru)
 {
 	struct ixl_vsi *vsi = arg;
 	if_softc_ctx_t scctx = vsi->shared;
@@ -561,7 +559,7 @@ ixl_isc_rxd_flush(void * arg, uint16_t rxqid, uint8_t flid __unused, qidx_t pidx
 
 	wr32(vsi->hw, rxr->tail, pidx);
 }
- 
+
 static int
 ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 {
@@ -571,7 +569,7 @@ ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 	u64 qword;
 	uint32_t status;
 	int cnt, i, nrxd;
- 
+
 	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 	nrxd = vsi->shared->isc_nrxd[0];
 
@@ -589,7 +587,7 @@ ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 		qword = le64toh(rxd->wb.qword1.status_error_len);
 		status = (qword & I40E_RXD_QW1_STATUS_MASK)
 			>> I40E_RXD_QW1_STATUS_SHIFT;
-		
+
 		if ((status & (1 << I40E_RX_DESC_STATUS_DD_SHIFT)) == 0)
 			break;
 		if (++i == nrxd)
@@ -600,7 +598,7 @@ ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 
 	return (cnt);
 }
- 
+
 /*
 ** i40e_ptype_to_hash: parse the packet type
 ** to determine the appropriate hash.
@@ -615,11 +613,11 @@ ixl_ptype_to_hash(u8 ptype)
 	if (!decoded.known)
 		return M_HASHTYPE_OPAQUE;
 
-	if (decoded.outer_ip == I40E_RX_PTYPE_OUTER_L2) 
+	if (decoded.outer_ip == I40E_RX_PTYPE_OUTER_L2)
 		return M_HASHTYPE_OPAQUE;
 
 	/* Note: anything that gets to this point is IP */
-        if (decoded.outer_ip_ver == I40E_RX_PTYPE_OUTER_IPV6) { 
+        if (decoded.outer_ip_ver == I40E_RX_PTYPE_OUTER_IPV6) {
 		switch (decoded.inner_prot) {
 		case I40E_RX_PTYPE_INNER_PROT_TCP:
 			return M_HASHTYPE_RSS_TCP_IPV6;
@@ -629,7 +627,7 @@ ixl_ptype_to_hash(u8 ptype)
 			return M_HASHTYPE_RSS_IPV6;
 		}
 	}
-        if (decoded.outer_ip_ver == I40E_RX_PTYPE_OUTER_IPV4) { 
+        if (decoded.outer_ip_ver == I40E_RX_PTYPE_OUTER_IPV4) {
 		switch (decoded.inner_prot) {
 		case I40E_RX_PTYPE_INNER_PROT_TCP:
 			return M_HASHTYPE_RSS_TCP_IPV4;
