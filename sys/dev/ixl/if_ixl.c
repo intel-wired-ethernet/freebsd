@@ -244,6 +244,13 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, enable_tx_fc_filter, CTLFLAG_RDTUN,
     &ixl_enable_tx_fc_filter, 0,
     "Filter out packets with Ethertype 0x8808 from being sent out by non-HW sources");
 
+static int ixl_i2c_access_method = 0;
+TUNABLE_INT("hw.ixl.i2c_access_method",
+    &ixl_i2c_access_method);
+SYSCTL_INT(_hw_ixl, OID_AUTO, i2c_access_method, CTLFLAG_RDTUN,
+    &ixl_i2c_access_method, 0,
+    IXL_SYSCTL_HELP_I2C_METHOD);
+
 /*
  * Different method for processing TX descriptor
  * completion.
@@ -1723,8 +1730,11 @@ ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req)
 {
 	struct ixl_pf		*pf = iflib_get_softc(ctx);
 
+	if (pf->read_i2c_byte == NULL)
+		return (EINVAL);
+
 	for (int i = 0; i < req->len; i++)
-		if (ixl_read_i2c_byte(pf, req->offset + i,
+		if (pf->read_i2c_byte(pf, req->offset + i,
 		    req->dev_addr, &req->data[i]))
 			return (EIO);
 	return (0);
@@ -1759,6 +1769,11 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
 	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
+
+	if (ixl_i2c_access_method > 3 || ixl_i2c_access_method < 0)
+		pf->i2c_access_method = 0;
+	else
+		pf->i2c_access_method = ixl_i2c_access_method;
 
 	if (ixl_tx_itr < 0 || ixl_tx_itr > IXL_MAX_ITR) {
 		device_printf(dev, "Invalid tx_itr value of %d set!\n",
