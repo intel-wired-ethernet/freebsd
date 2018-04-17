@@ -135,6 +135,13 @@ struct ixl_pf {
 	struct i40e_hw_port_stats	stats_offsets;
 	bool 				stat_offsets_loaded;
 
+	/* I2C access methods */
+	u8			i2c_access_method;
+	s32	(*read_i2c_byte)(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 *data);
+	s32	(*write_i2c_byte)(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 data);
+
 	/* SR-IOV */
 	struct ixl_vf		*vfs;
 	int			num_vfs;
@@ -194,6 +201,14 @@ struct ixl_pf {
 "\nFW LLDP engine:\n"			\
 "\t0 - disable\n"			\
 "\t1 - enable\n"
+
+#define IXL_SYSCTL_HELP_I2C_METHOD		\
+"\nI2C access method that driver will use:\n"	\
+"\t0 - best available method\n"			\
+"\t1 - bit bang via I2CPARAMS register\n"	\
+"\t2 - register read/write via I2CCMD register\n" \
+"\t3 - Use Admin Queue command (best)\n"	\
+"Using the Admin Queue is only supported on 710 devices with FW version 1.7 or higher"
 
 extern const char * const ixl_fc_string[6];
 
@@ -355,9 +370,17 @@ void	 ixl_if_stop(if_ctx_t ctx);
  * I2C Function prototypes
  */
 int	ixl_find_i2c_interface(struct ixl_pf *);
-s32	ixl_read_i2c_byte(struct ixl_pf *pf, u8 byte_offset,
+s32	ixl_read_i2c_byte_bb(struct ixl_pf *pf, u8 byte_offset,
 	    u8 dev_addr, u8 *data);
-s32	ixl_write_i2c_byte(struct ixl_pf *pf, u8 byte_offset,
+s32	ixl_write_i2c_byte_bb(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 data);
+s32	ixl_read_i2c_byte_reg(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 *data);
+s32	ixl_write_i2c_byte_reg(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 data);
+s32	ixl_read_i2c_byte_aq(struct ixl_pf *pf, u8 byte_offset,
+	    u8 dev_addr, u8 *data);
+s32	ixl_write_i2c_byte_aq(struct ixl_pf *pf, u8 byte_offset,
 	    u8 dev_addr, u8 data);
 
 int	ixl_get_fw_lldp_status(struct ixl_pf *pf);

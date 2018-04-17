@@ -225,8 +225,8 @@ ixl_get_hw_capabilities(struct ixl_pf *pf)
 	struct i40e_hw	*hw = &pf->hw;
 	device_t 	dev = pf->dev;
 	enum i40e_status_code status;
+	int len, i2c_intfc_num;
 	bool again = TRUE;
-	int len;
 	u16 needed;
 
 	len = 40 * sizeof(struct i40e_aqc_list_capabilities_element_resp);
@@ -253,10 +253,45 @@ retry:
 		return (ENODEV);
 	}
 
-	struct i40e_osdep *osdep = (struct i40e_osdep *)hw->back;
-	osdep->i2c_intfc_num = ixl_find_i2c_interface(pf);
-	if (osdep->i2c_intfc_num != -1)
+	/*
+	 * Some devices have both MDIO and I2C; since this isn't reported
+	 * by the FW, check registers to see if an I2C interface exists.
+	 */
+	i2c_intfc_num = ixl_find_i2c_interface(pf);
+	if (i2c_intfc_num != -1)
 		pf->has_i2c = true;
+
+	/* Determine functions to use for driver I2C accesses */
+	switch (pf->i2c_access_method) {
+	case 0: {
+		if (hw->mac.type == I40E_MAC_XL710 &&
+		    hw->aq.api_maj_ver == 1 &&
+		    hw->aq.api_min_ver >= 7) {
+			pf->read_i2c_byte = ixl_read_i2c_byte_aq;
+			pf->write_i2c_byte = ixl_write_i2c_byte_aq;
+		} else {
+			pf->read_i2c_byte = ixl_read_i2c_byte_reg;
+			pf->write_i2c_byte = ixl_write_i2c_byte_reg;
+		}
+		break;
+	}
+	case 3:
+		pf->read_i2c_byte = ixl_read_i2c_byte_aq;
+		pf->write_i2c_byte = ixl_write_i2c_byte_aq;
+		break;
+	case 2:
+		pf->read_i2c_byte = ixl_read_i2c_byte_reg;
+		pf->write_i2c_byte = ixl_write_i2c_byte_reg;
+		break;
+	case 1:
+		pf->read_i2c_byte = ixl_read_i2c_byte_bb;
+		pf->write_i2c_byte = ixl_write_i2c_byte_bb;
+		break;
+	default:
+		/* Should not happen */
+		device_printf(dev, "Error setting I2C access functions\n");
+		break;
+	}
 
 	/* Print a subset of the capability information. */
 	device_printf(dev, "PF-ID[%d]: VFs %d, MSIX %d, VF MSIX %d, QPs %d, %s\n",
@@ -4544,9 +4579,6 @@ ixl_sysctl_read_i2c_byte(SYSCTL_HANDLER_ARGS)
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	device_t dev = pf->dev;
 	int input = -1, error = 0;
-
-	device_printf(dev, "%s: start\n", __func__);
-
 	u8 dev_addr, offset, output;
 
 	/* Read in I2C read parameters */
@@ -4560,7 +4592,7 @@ ixl_sysctl_read_i2c_byte(SYSCTL_HANDLER_ARGS)
 	}
 	offset = (input >> 8) & 0xFF;
 
-	error = ixl_read_i2c_byte(pf, offset, dev_addr, &output);
+	error = pf->read_i2c_byte(pf, offset, dev_addr, &output);
 	if (error)
 		return (error);
 
@@ -4584,7 +4616,6 @@ ixl_sysctl_write_i2c_byte(SYSCTL_HANDLER_ARGS)
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	device_t dev = pf->dev;
 	int input = -1, error = 0;
-
 	u8 dev_addr, offset, value;
 
 	/* Read in I2C write parameters */
@@ -4599,7 +4630,7 @@ ixl_sysctl_write_i2c_byte(SYSCTL_HANDLER_ARGS)
 	offset = (input >> 8) & 0xFF;
 	value = (input >> 16) & 0xFF;
 
-	error = ixl_write_i2c_byte(pf, offset, dev_addr, value);
+	error = pf->write_i2c_byte(pf, offset, dev_addr, value);
 	if (error)
 		return (error);
 
