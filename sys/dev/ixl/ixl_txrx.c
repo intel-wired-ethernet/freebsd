@@ -285,6 +285,7 @@ ixl_tso_setup(struct tx_ring *txr, if_pkt_info_t pi)
 	TXD->type_cmd_tso_mss = htole64(type_cmd_tso_mss);
 
 	TXD->tunneling_params = htole32(0);
+	txr->que->tso++;
 
 	return ((idx + 1) & (scctx->isc_ntxd[0]-1));
 }
