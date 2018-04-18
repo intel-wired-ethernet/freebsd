@@ -630,7 +630,7 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 	struct rx_ring		*rxr = &que->rxr;
 	union i40e_rx_desc	*cur;
 	u32		status, error;
-	u16		hlen, plen, vtag;
+	u16		plen, vtag;
 	u64		qword;
 	u8		ptype;
 	bool		eop;
@@ -650,8 +650,6 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 		    >> I40E_RXD_QW1_ERROR_SHIFT;
 		plen = (qword & I40E_RXD_QW1_LENGTH_PBUF_MASK)
 		    >> I40E_RXD_QW1_LENGTH_PBUF_SHIFT;
-		hlen = (qword & I40E_RXD_QW1_LENGTH_HBUF_MASK)
-		    >> I40E_RXD_QW1_LENGTH_HBUF_SHIFT;
 		ptype = (qword & I40E_RXD_QW1_PTYPE_MASK)
 		    >> I40E_RXD_QW1_PTYPE_SHIFT;
 
