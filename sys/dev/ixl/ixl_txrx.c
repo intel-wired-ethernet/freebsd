@@ -642,6 +642,9 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 	cidx = ri->iri_cidx;
 	i = 0;
 	do {
+		/* 5 descriptor receive limit */
+		MPASS(i < IXL_MAX_RX_SEGS);
+
 		cur = &rxr->rx_base[cidx];
 		qword = le64toh(cur->wb.qword1.status_error_len);
 		status = (qword & I40E_RXD_QW1_STATUS_MASK)
@@ -678,11 +681,9 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 		ri->iri_frags[i].irf_flid = 0;
 		ri->iri_frags[i].irf_idx = cidx;
 		ri->iri_frags[i].irf_len = plen;
-		if (++cidx == vsi->shared->isc_ntxd[0])
+		if (++cidx == vsi->shared->isc_nrxd[0])
 			cidx = 0;
 		i++;
-		/* even a 16K packet shouldn't consume more than 8 clusters */
-		MPASS(i < 9);
 	} while (!eop);
 
 	/* capture data for dynamic ITR adjustment */
