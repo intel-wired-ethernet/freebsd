@@ -2180,7 +2180,8 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	struct ixl_pf		*pf;
 	struct i40e_hw		*hw;
 	device_t		dev;
-	int			err, j = 0;
+	enum i40e_status_code	status;
+	int			j = 0;
 
 	pf = vsi->back;
 	dev = iflib_get_dev(vsi->ctx);
@@ -2217,10 +2218,11 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 			break;
 	}
 	if (j > 0) {
-		err = i40e_aq_add_macvlan(hw, vsi->seid, a, j, NULL);
-		if (err) 
-			device_printf(dev, "aq_add_macvlan err %d, "
-			    "aq_error %d\n", err, hw->aq.asq_last_status);
+		status = i40e_aq_add_macvlan(hw, vsi->seid, a, j, NULL);
+		if (status)
+			device_printf(dev, "i40e_aq_add_macvlan status %s, "
+			    "error %s\n", i40e_stat_str(hw, status),
+			    i40e_aq_str(hw, hw->aq.asq_last_status));
 		else
 			vsi->hw_filters_add += j;
 	}
@@ -2241,9 +2243,8 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 	struct i40e_hw		*hw;
 	device_t		dev;
 	struct ixl_mac_filter	*f, *f_temp;
-	int			err, j = 0;
-
-	DEBUGOUT("ixl_del_hw_filters: begin\n");
+	enum i40e_status_code	status;
+	int			j = 0;
 
 	pf = vsi->back;
 	hw = &pf->hw;
@@ -2252,7 +2253,7 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 	d = malloc(sizeof(struct i40e_aqc_remove_macvlan_element_data) * cnt,
 	    M_DEVBUF, M_NOWAIT | M_ZERO);
 	if (d == NULL) {
-		printf("del hw filter failed to get memory\n");
+		device_printf(dev, "%s: failed to get memory\n", __func__);
 		return;
 	}
 
@@ -2276,21 +2277,19 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 			break;
 	}
 	if (j > 0) {
-		err = i40e_aq_remove_macvlan(hw, vsi->seid, d, j, NULL);
-		if (err && hw->aq.asq_last_status != I40E_AQ_RC_ENOENT) {
+		status = i40e_aq_remove_macvlan(hw, vsi->seid, d, j, NULL);
+		if (status) {
 			int sc = 0;
 			for (int i = 0; i < j; i++)
 				sc += (!d[i].error_code);
 			vsi->hw_filters_del += sc;
 			device_printf(dev,
-			    "Failed to remove %d/%d filters, aq error %d\n",
-			    j - sc, j, hw->aq.asq_last_status);
+			    "Failed to remove %d/%d filters, error %s\n",
+			    j - sc, j, i40e_aq_str(hw, hw->aq.asq_last_status));
 		} else
 			vsi->hw_filters_del += j;
 	}
 	free(d, M_DEVBUF);
-
-	DEBUGOUT("ixl_del_hw_filters: end\n");
 	return;
 }
 
