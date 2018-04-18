@@ -984,7 +984,6 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 		    "Failed to register Admin que handler");
 		return (err);
 	}
-	pf->admvec = vector;
 	// TODO: Re-enable this at some point
 	// iflib_softirq_alloc_generic(ctx, rid, IFLIB_INTR_IOV, pf, 0, "ixl_iov");
 

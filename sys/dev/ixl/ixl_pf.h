@@ -119,9 +119,6 @@ struct ixl_pf {
 	int			tx_itr;
 	int			rx_itr;
 
-	u32			qbase;
-	u32 			admvec;
-
 	bool			link_up;
 	u32			link_speed;
 	int			advertised_speed;
@@ -191,7 +188,7 @@ struct ixl_pf {
 
 #define IXL_SYSCTL_HELP_LINK_STATUS					\
 "\nExecutes a \"Get Link Status\" command on the Admin Queue, and displays" \
-" the response."			\
+" the response."
 
 #define IXL_SYSCTL_HELP_FW_LLDP		\
 "\nFW LLDP engine:\n"			\
