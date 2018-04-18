@@ -376,8 +376,6 @@ ixl_isc_txd_flush(void *arg, uint16_t txqid, qidx_t pidx)
 	struct ixl_vsi *vsi = arg;
 	struct tx_ring *txr = &vsi->tx_queues[txqid].txr;
 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
-
  	/*
 	 * Advance the Transmit Descriptor Tail (Tdt), this tells the
 	 * hardware that this frame is available to transmit.
@@ -395,8 +393,6 @@ void
 ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 {
 	struct tx_ring *txr = &que->txr;
-
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	/* Clear the old ring contents */
 	bzero((void *)txr->tx_base,
@@ -454,8 +450,6 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 	qidx_t cur, prev, ntxd, rs_cidx;
 	int32_t delta;
 	bool is_done;
-
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	rs_cidx = txr->tx_rs_cidx;
 #if 0
@@ -543,10 +537,8 @@ ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 	uint32_t status;
 	int cnt, i, nrxd;
 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 	nrxd = vsi->shared->isc_nrxd[0];
 
-	// Stolen from em
 	if (budget == 1) {
 		rxd = &rxr->rx_base[idx];
 		qword = le64toh(rxd->wb.qword1.status_error_len);
@@ -636,9 +628,6 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 	bool		eop;
 	int i, cidx;
 
-	/* XXX: No packet split support, so hlen is unused */
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
-
 	cidx = ri->iri_cidx;
 	i = 0;
 	do {
@@ -687,7 +676,6 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 	} while (!eop);
 
 	/* capture data for dynamic ITR adjustment */
-	// TODO: Figure out why these are repeated...
 	rxr->packets++;
 	rxr->rx_packets++;
 
