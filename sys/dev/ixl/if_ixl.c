@@ -337,6 +337,7 @@ static struct if_shared_ctx ixl_sctx_init = {
 	.isc_vendor_info = ixl_vendor_info_array,
 	.isc_driver_version = ixl_driver_version,
 	.isc_driver = &ixl_if_driver,
+	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM,
 
 	.isc_nrxd_min = {IXL_MIN_RING},
 	.isc_ntxd_min = {IXL_MIN_RING},
@@ -584,7 +585,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	scctx->isc_tx_nsegments = IXL_MAX_TX_SEGS;
 	scctx->isc_tx_tso_segments_max = IXL_MAX_TSO_SEGS;
 	scctx->isc_tx_tso_size_max = IXL_TSO_SIZE;
-	scctx->isc_tx_tso_segsize_max = PAGE_SIZE;
+	scctx->isc_tx_tso_segsize_max = IXL_MAX_DMA_SEG_SIZE;
 	scctx->isc_rss_table_size = pf->hw.func_caps.rss_table_size;
 	scctx->isc_tx_csum_flags = CSUM_OFFLOAD;
 	scctx->isc_capenable = IXL_CAPS;
