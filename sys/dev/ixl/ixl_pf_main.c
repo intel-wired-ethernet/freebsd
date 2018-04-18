@@ -253,9 +253,6 @@ retry:
 		return (ENODEV);
 	}
 
-	/* Capture this PF's starting queue pair */
-	pf->qbase = hw->func_caps.base_queue;
-
 	struct i40e_osdep *osdep = (struct i40e_osdep *)hw->back;
 	osdep->i2c_intfc_num = ixl_find_i2c_interface(pf);
 	if (osdep->i2c_intfc_num != -1)
