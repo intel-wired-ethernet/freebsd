@@ -3772,7 +3772,7 @@ ixl_print_nvm_cmd(device_t dev, struct i40e_nvm_access *nvma)
 		// device_printf(dev, "- Get Driver Status Command\n");
 	}
 	else if (nvma->command == I40E_NVM_READ) {
-	
+
 	}
 	else {
 		switch (nvma->command) {
@@ -3998,7 +3998,7 @@ ixl_sysctl_link_status(SYSCTL_HANDLER_ARGS)
 	    "Power    : 0x%02x",
 	    link_status.phy_type,
 	    ixl_phy_type_string_ls(link_status.phy_type),
-	    link_status.link_speed, 
+	    link_status.link_speed,
 	    link_status.link_info,
 	    link_status.an_info,
 	    link_status.ext_info,
@@ -4078,7 +4078,7 @@ ixl_sysctl_phy_abilities(SYSCTL_HANDLER_ARGS)
 	    "ModType E: %01x\n"
 	    "FEC Cfg  : %02x\n"
 	    "Ext CC   : %02x",
-	    abilities.link_speed, 
+	    abilities.link_speed,
 	    abilities.abilities, abilities.eee_capability,
 	    abilities.eeer_val, abilities.d3_lpan,
 	    abilities.phy_id[0], abilities.phy_id[1],
@@ -4154,7 +4154,7 @@ ixl_res_alloc_cmp(const void *a, const void *b)
 }
 
 /*
- * Longest string length: 25 
+ * Longest string length: 25
  */
 char *
 ixl_switch_res_type_string(u8 type)
