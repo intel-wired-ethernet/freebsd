@@ -557,10 +557,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	/* Query device FW LLDP status */
 	ixl_get_fw_lldp_status(pf);
 	/* Tell FW to apply DCB config on link up */
-	if ((hw->mac.type != I40E_MAC_X722)
-	    && ((pf->hw.aq.api_maj_ver > 1)
-	    || (pf->hw.aq.api_maj_ver == 1 && pf->hw.aq.api_min_ver >= 7)))
-		i40e_aq_set_dcb_parameters(hw, true, NULL);
+	i40e_aq_set_dcb_parameters(hw, true, NULL);
 
 	/* Initialize mac filter list for VSI */
 	SLIST_INIT(&vsi->ftl);
