@@ -167,7 +167,7 @@ ixl_vf_alloc_vsi(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	vsi_ctx.info.tc_mapping[0] = htole16(
 	    (0 << I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT) |
-	    (bsrl(vf->qtag.num_allocated) << I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT));
+	    ((fls(vf->qtag.num_allocated) - 1) << I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT));
 
 	code = i40e_aq_add_vsi(hw, &vsi_ctx, NULL);
 	if (code != I40E_SUCCESS)
