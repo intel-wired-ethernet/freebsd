@@ -1228,7 +1228,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 	 * queue allocation at queue 0, and assign it 2^tc_queues queues (though
 	 * the driver may not use all of them).
 	 */
-	tc_queues = bsrl(pf->qtag.num_allocated);
+	tc_queues = fls(pf->qtag.num_allocated) - 1;
 	ctxt.info.tc_mapping[0] = ((0 << I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT)
 	    & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) |
 	    ((tc_queues << I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT)
