@@ -1347,7 +1347,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 		rctx.tphwdesc_ena = 1;
 		rctx.tphdata_ena = 0;	/* Header Split related */
 		rctx.tphhead_ena = 0;	/* Header Split related */
-		rctx.lrxqthresh = 2;	/* Interrupt at <128 desc avail */
+		rctx.lrxqthresh = 1;	/* Interrupt at <64 desc avail */
 		rctx.crcstrip = 1;
 		rctx.l2tsel = 1;
 		rctx.showiv = 1;	/* Strip inner VLAN header */
@@ -1365,8 +1365,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 			device_printf(dev, "Unable to set RX context %d\n", i);
 			break;
 		}
-		// TODO: This might be important
-		// wr32(vsi->hw, I40E_QRX_TAIL(que->me), que->num_rx_desc - 1);
+		wr32(vsi->hw, I40E_QRX_TAIL(i), 0);
 	}
 	return (err);
 }
