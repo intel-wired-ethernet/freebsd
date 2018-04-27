@@ -57,6 +57,7 @@ static int      ixl_xmit(struct ixl_queue *, struct mbuf **);
 static int	ixl_tx_setup_offload(struct ixl_queue *,
 		    struct mbuf *, u32 *, u32 *);
 static bool	ixl_tso_setup(struct ixl_queue *, struct mbuf *);
+static void	ixl_queue_sw_irq(struct ixl_vsi *, int);
 
 static inline void ixl_rx_discard(struct rx_ring *, int);
 static inline void ixl_rx_input(struct rx_ring *, struct ifnet *,
@@ -2060,3 +2061,79 @@ ixl_vsi_setup_rings_size(struct ixl_vsi * vsi, int tx_ring_size, int rx_ring_siz
 		vsi->num_tx_desc, vsi->num_rx_desc);
 
 }
+
+static void
+ixl_queue_sw_irq(struct ixl_vsi *vsi, int qidx)
+{
+	struct i40e_hw *hw = vsi->hw;
+	u32	reg, mask;
+
+	if ((vsi->flags & IXL_FLAGS_IS_VF) != 0) {
+		mask = (I40E_VFINT_DYN_CTLN1_INTENA_MASK |
+			I40E_VFINT_DYN_CTLN1_SWINT_TRIG_MASK |
+			I40E_VFINT_DYN_CTLN1_ITR_INDX_MASK);
+
+		reg = I40E_VFINT_DYN_CTLN1(qidx);
+	} else {
+		mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
+				I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK |
+				I40E_PFINT_DYN_CTLN_ITR_INDX_MASK);
+
+		reg = ((vsi->flags & IXL_FLAGS_USES_MSIX) != 0) ?
+			I40E_PFINT_DYN_CTLN(qidx) : I40E_PFINT_DYN_CTL0;
+	}
+
+	wr32(hw, reg, mask);
+}
+
+int
+ixl_queue_hang_check(struct ixl_vsi *vsi)
+{
+	struct ixl_queue *que = vsi->queues;
+	device_t dev = vsi->dev;
+	struct tx_ring *txr;
+	s32 timer, new_timer;
+	int hung = 0;
+
+	for (int i = 0; i < vsi->num_queues; i++, que++) {
+		txr = &que->txr;
+		/*
+		 * If watchdog_timer is equal to defualt value set by ixl_txeof
+		 * just substract hz and move on - the queue is most probably
+		 * running. Otherwise check the value.
+		 */
+                if (atomic_cmpset_rel_32(&txr->watchdog_timer,
+					IXL_WATCHDOG, (IXL_WATCHDOG) - hz) == 0) {
+			timer = atomic_load_acq_32(&txr->watchdog_timer);
+			/*
+                         * Again - if the timer was reset to default value
+			 * then queue is running. Otherwise check if watchdog
+			 * expired and act accrdingly.
+                         */
+
+			if (timer > 0 && timer != IXL_WATCHDOG) {
+				new_timer = timer - hz;
+				if (new_timer <= 0) {
+					atomic_store_rel_32(&txr->watchdog_timer, -1);
+					device_printf(dev, "WARNING: queue %d "
+							"appears to be hung!\n", que->me);
+					++hung;
+					/* Try to unblock the queue with SW IRQ */
+					ixl_queue_sw_irq(vsi, i);
+				} else {
+					/*
+					 * If this fails, that means something in the TX path
+					 * has updated the watchdog, so it means the TX path
+					 * is still working and the watchdog doesn't need
+					 * to countdown.
+					 */
+					atomic_cmpset_rel_32(&txr->watchdog_timer,
+							timer, new_timer);
+				}
+			}
+		}
+	}
+
+	return (hung);
+}
+

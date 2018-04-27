@@ -987,74 +987,6 @@ ixl_del_multi(struct ixl_vsi *vsi)
 		ixl_del_hw_filters(vsi, mcnt);
 }
 
-static void
-ixl_queue_sw_irq(struct ixl_pf *pf, int qidx)
-{
-	struct i40e_hw *hw = &pf->hw;
-	u32 mask;
-
-	mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
-		I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK |
-		I40E_PFINT_DYN_CTLN_ITR_INDX_MASK);
-
-	if (pf->msix > 1)
-		wr32(hw, I40E_PFINT_DYN_CTLN(qidx), mask);
-	else
-		wr32(hw, I40E_PFINT_DYN_CTL0, mask);
-}
-
-static int
-ixl_queue_hang_check(struct ixl_pf *pf)
-{
-	struct ixl_vsi *vsi = &pf->vsi;
-	struct ixl_queue *que = vsi->queues;
-	device_t dev = pf->dev;
-	struct tx_ring *txr;
-	s32 timer, new_timer;
-	int hung = 0;
-
-	for (int i = 0; i < vsi->num_queues; i++, que++) {
-		txr = &que->txr;
-		/*
-		 * If watchdog_timer is equal to defualt value set by ixl_txeof
-		 * just substract hz and move on - the queue is most probably
-		 * running. Otherwise check the value.
-		 */
-                if (atomic_cmpset_rel_32(&txr->watchdog_timer,
-					IXL_WATCHDOG, (IXL_WATCHDOG) - hz) == 0) {
-			timer = atomic_load_acq_32(&txr->watchdog_timer);
-			/*
-                         * Again - if the timer was reset to default value
-			 * then queue is running. Otherwise check if watchdog
-			 * expired and act accrdingly.
-                         */
-
-			if (timer > 0 && timer != IXL_WATCHDOG) {
-				new_timer = timer - hz;
-				if (new_timer <= 0) {
-					atomic_store_rel_32(&txr->watchdog_timer, -1);
-					device_printf(dev, "WARNING: queue %d "
-							"appears to be hung!\n", que->me);
-					++hung;
-					/* Try to unblock the queue with SW IRQ */
-					ixl_queue_sw_irq(pf, i);
-				} else {
-					/*
-					 * If this fails, that means something in the TX path
-					 * has updated the watchdog, so it means the TX path
-					 * is still working and the watchdog doesn't need
-					 * to countdown.
-					 */
-					atomic_cmpset_rel_32(&txr->watchdog_timer,
-							timer, new_timer);
-				}
-			}
-		}
-	}
-
-	return (hung);
-}
-
 /*********************************************************************
  *  Timer routine
  *
@@ -1079,7 +1011,7 @@ ixl_local_timer(void *arg)
 	ixl_update_stats_counters(pf);
 
 	/* Increment stat when a queue shows hung */
-	if (ixl_queue_hang_check(pf))
+	if (ixl_queue_hang_check(&pf->vsi))
 		pf->watchdog_events++;
 
 	callout_reset(&pf->timer, hz, ixl_local_timer, pf);
@@ -2547,6 +2479,9 @@ ixl_setup_stations(struct ixl_pf *pf)
 	vsi->id = 0;
 	vsi->num_vlans = 0;
 	vsi->back = pf;
+
+	if (pf->msix > 1)
+		vsi->flags |= IXL_FLAGS_USES_MSIX;
 
 	/* Get memory for the station queues */
         if (!(vsi->queues =

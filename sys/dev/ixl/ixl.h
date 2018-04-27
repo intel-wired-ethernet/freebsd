@@ -291,6 +291,8 @@ enum ixl_dbg_mask {
 /* Misc flags for ixl_vsi.flags */
 #define IXL_FLAGS_KEEP_TSO4	(1 << 0)
 #define IXL_FLAGS_KEEP_TSO6	(1 << 1)
+#define IXL_FLAGS_USES_MSIX	(1 << 2)
+#define IXL_FLAGS_IS_VF		(1 << 3)
 
 #define IXL_VF_RESET_TIMEOUT	100
 
@@ -694,6 +696,7 @@ int	ixl_mq_start_locked(struct ifnet *, struct tx_ring *);
 void	ixl_deferred_mq_start(void *, int);
 
 void	ixl_vsi_setup_rings_size(struct ixl_vsi *, int, int);
+int	ixl_queue_hang_check(struct ixl_vsi *);
 void	ixl_free_vsi(struct ixl_vsi *);
 void	ixl_qflush(struct ifnet *);
 
