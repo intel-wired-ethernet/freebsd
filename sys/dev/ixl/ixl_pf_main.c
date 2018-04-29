@@ -45,7 +45,6 @@
 #endif
 
 //static int	ixl_vsi_setup_queue(struct ixl_vsi *, struct ixl_queue *, int);
-//static u64	ixl_max_aq_speed_to_value(u8);
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 static void	ixl_sbuf_print_bytes(struct sbuf *, u8 *, int, int, bool);
 
@@ -3664,29 +3663,6 @@ ixl_sysctl_set_advertise(SYSCTL_HANDLER_ARGS)
 	pf->advertised_speed = requested_ls;
 	ixl_update_link_status(pf);
 	return (0);
-}
-
-/*
- * Input: bitmap of enum i40e_aq_link_speed
- */
-u64
-ixl_max_aq_speed_to_value(u8 link_speeds)
-{
-	if (link_speeds & I40E_LINK_SPEED_40GB)
-		return IF_Gbps(40);
-	if (link_speeds & I40E_LINK_SPEED_25GB)
-		return IF_Gbps(25);
-	if (link_speeds & I40E_LINK_SPEED_20GB)
-		return IF_Gbps(20);
-	if (link_speeds & I40E_LINK_SPEED_10GB)
-		return IF_Gbps(10);
-	if (link_speeds & I40E_LINK_SPEED_1GB)
-		return IF_Gbps(1);
-	if (link_speeds & I40E_LINK_SPEED_100MB)
-		return IF_Mbps(100);
-	else
-		/* Minimum supported link speed */
-		return IF_Mbps(100);
 }
 
 /*
