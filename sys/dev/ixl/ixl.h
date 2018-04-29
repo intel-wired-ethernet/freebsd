@@ -539,4 +539,5 @@ void		 ixl_set_queue_rx_itr(struct ixl_rx_queue *que);
 void		 ixl_get_default_rss_key(u32 *);
 const char *	i40e_vc_stat_str(struct i40e_hw *hw,
     enum virtchnl_status_code stat_err);
+u64		ixl_max_aq_speed_to_value(u8);
 #endif /* _IXL_H_ */
