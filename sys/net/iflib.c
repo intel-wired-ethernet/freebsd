@@ -3348,8 +3348,12 @@ defrag:
 		remap = 1;
 		txq->ift_txd_encap_efbig++;
 		goto defrag;
-	} else
+	} else {
+		*m_headp = m_head = iflib_remove_mbuf(txq);
+		txq->ift_txd_encap_efbig++;
 		DBG_COUNTER_INC(encap_txd_encap_fail);
+		goto defrag_failed;
+	}
 	return (err);
 
 defrag_failed:
