@@ -1449,10 +1449,6 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 
 	INIT_DEBUGOUT("ixl_media_status: begin");
 
-	hw->phy.get_link_info = TRUE;
-	i40e_get_link_status(hw, &pf->link_up);
-	ixl_update_link_status(pf);
-
 	ifmr->ifm_status = IFM_AVALID;
 	ifmr->ifm_active = IFM_ETHER;
 
@@ -1576,7 +1572,6 @@ ixl_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 		ifmr->ifm_active |= IFM_ETH_TXPAUSE;
 	if (hw->phy.link_info.an_info & I40E_AQ_LINK_PAUSE_RX)
 		ifmr->ifm_active |= IFM_ETH_RXPAUSE;
-
 }
 
 static int
