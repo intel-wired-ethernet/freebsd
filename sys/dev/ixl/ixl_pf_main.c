@@ -44,7 +44,6 @@
 #include "ixl_iw_int.h"
 #endif
 
-//static int	ixl_vsi_setup_queue(struct ixl_vsi *, struct ixl_queue *, int);
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 static void	ixl_sbuf_print_bytes(struct sbuf *, u8 *, int, int, bool);
 
@@ -738,24 +737,6 @@ ixl_del_multi(struct ixl_vsi *vsi)
 	if (mcnt > 0)
 		ixl_del_hw_filters(vsi, mcnt);
 }
-
-#if 0
-static void
-ixl_queue_sw_irq(struct ixl_pf *pf, int qidx)
-{
-	struct i40e_hw *hw = &pf->hw;
-	u32 mask;
-
-	mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
-		I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK |
-		I40E_PFINT_DYN_CTLN_ITR_INDX_MASK);
-
-	if (pf->msix > 1)
-		wr32(hw, I40E_PFINT_DYN_CTLN(qidx), mask);
-	else
-		wr32(hw, I40E_PFINT_DYN_CTL0, mask);
-}
-#endif
 
 void
 ixl_link_up_msg(struct ixl_pf *pf)

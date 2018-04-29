@@ -360,7 +360,6 @@ void	ixl_free_mac_filters(struct ixl_vsi *vsi);
 void	ixl_update_vsi_stats(struct ixl_vsi *);
 void	ixl_vsi_reset_stats(struct ixl_vsi *);
 
-int	ixl_vsi_setup_queues(struct ixl_vsi *vsi);
 void	ixl_vsi_free_queues(struct ixl_vsi *vsi);
 
 void	 ixl_if_init(if_ctx_t ctx);
