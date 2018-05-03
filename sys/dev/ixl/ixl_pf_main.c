@@ -81,6 +81,7 @@ static int	ixl_sysctl_do_core_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_do_global_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_do_emp_reset(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS);
+static int	ixl_sysctl_read_i2c_diag_data(SYSCTL_HANDLER_ARGS);
 #ifdef IXL_DEBUG
 static int	ixl_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
 static int	ixl_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
@@ -3363,6 +3364,10 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 		SYSCTL_ADD_PROC(ctx, debug_list,
 		    OID_AUTO, "write_i2c_byte", CTLTYPE_INT | CTLFLAG_RW,
 		    pf, 0, ixl_sysctl_write_i2c_byte, "I", IXL_SYSCTL_HELP_WRITE_I2C);
+
+		SYSCTL_ADD_PROC(ctx, debug_list,
+		    OID_AUTO, "read_i2c_diag_data", CTLTYPE_STRING | CTLFLAG_RD,
+		    pf, 0, ixl_sysctl_read_i2c_diag_data, "A", "Dump selected diagnostic data from FW");
 	}
 
 #ifdef PCI_IOV
@@ -4505,6 +4510,58 @@ ixl_sysctl_fw_link_management(SYSCTL_HANDLER_ARGS)
 		    i40e_aq_str(hw, hw->aq.asq_last_status));
 		return (EIO);
 	}
+
+	return (0);
+}
+
+/*
+ * Read some diagnostic data from an SFP module
+ * Bytes 96-99, 102-105 from device address 0xA2
+ */
+static int
+ixl_sysctl_read_i2c_diag_data(SYSCTL_HANDLER_ARGS)
+{
+	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	device_t dev = pf->dev;
+	struct sbuf *sbuf;
+	int error = 0;
+	u8 output;
+
+	if (req->oldptr == NULL) {
+		error = SYSCTL_OUT(req, 0, 128);
+		return (0);
+	}
+
+	error = pf->read_i2c_byte(pf, 0, 0xA0, &output);
+	if (error) {
+		device_printf(dev, "Error reading from i2c\n");
+		return (error);
+	}
+	if (output != 0x3) {
+		device_printf(dev, "Module is not SFP/SFP+/SFP28 (%02X)\n", output);
+		return (0);
+	}
+
+	//error = SYSCTL_OUT(req, &test_output, 128);
+	pf->read_i2c_byte(pf, 92, 0xA0, &output);
+	if (!(output & 0x60)) {
+		device_printf(dev, "Module doesn't support diagnostics: %02X\n", output);
+		return (0);
+	}
+
+	sbuf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+
+	for (u8 offset = 96; offset < 100; offset++) {
+		pf->read_i2c_byte(pf, offset, 0xA2, &output);
+		sbuf_printf(sbuf, "%02X ", output);
+	}
+	for (u8 offset = 102; offset < 106; offset++) {
+		pf->read_i2c_byte(pf, offset, 0xA2, &output);
+		sbuf_printf(sbuf, "%02X ", output);
+	}
+
+	sbuf_finish(sbuf);
+	sbuf_delete(sbuf);
 
 	return (0);
 }
