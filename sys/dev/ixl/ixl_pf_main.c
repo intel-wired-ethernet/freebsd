@@ -4527,11 +4527,6 @@ ixl_sysctl_read_i2c_diag_data(SYSCTL_HANDLER_ARGS)
 	int error = 0;
 	u8 output;
 
-	if (req->oldptr == NULL) {
-		error = SYSCTL_OUT(req, 0, 128);
-		return (0);
-	}
-
 	error = pf->read_i2c_byte(pf, 0, 0xA0, &output);
 	if (error) {
 		device_printf(dev, "Error reading from i2c\n");
@@ -4542,7 +4537,6 @@ ixl_sysctl_read_i2c_diag_data(SYSCTL_HANDLER_ARGS)
 		return (0);
 	}
 
-	//error = SYSCTL_OUT(req, &test_output, 128);
 	pf->read_i2c_byte(pf, 92, 0xA0, &output);
 	if (!(output & 0x60)) {
 		device_printf(dev, "Module doesn't support diagnostics: %02X\n", output);
