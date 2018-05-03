@@ -3249,17 +3249,6 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
 	    &pf->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
 
-// TODO: Remove?
-#if 0
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "tx_ring_size", CTLFLAG_RD,
-	    &pf->vsi.num_tx_desc, 0, "TX ring size");
-
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "rx_ring_size", CTLFLAG_RD,
-	    &pf->vsi.num_rx_desc, 0, "RX ring size");
-#endif
-
 	/* Add FEC sysctls for 25G adapters */
 	if (i40e_is_25G_device(hw->device_id)) {
 		fec_node = SYSCTL_ADD_NODE(ctx, ctx_list,
@@ -3359,7 +3348,8 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "do_emp_reset", CTLTYPE_INT | CTLFLAG_WR,
-	    pf, 0, ixl_sysctl_do_emp_reset, "I", "Tell HW to initiate a EMP (entire firmware) reset");
+	    pf, 0, ixl_sysctl_do_emp_reset, "I",
+	    "(This doesn't work) Tell HW to initiate a EMP (entire firmware) reset");
 
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
@@ -3368,11 +3358,11 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 	if (pf->has_i2c) {
 		SYSCTL_ADD_PROC(ctx, debug_list,
 		    OID_AUTO, "read_i2c_byte", CTLTYPE_INT | CTLFLAG_RW,
-		    pf, 0, ixl_sysctl_read_i2c_byte, "I", "Read byte from I2C bus");
+		    pf, 0, ixl_sysctl_read_i2c_byte, "I", IXL_SYSCTL_HELP_READ_I2C);
 
 		SYSCTL_ADD_PROC(ctx, debug_list,
 		    OID_AUTO, "write_i2c_byte", CTLTYPE_INT | CTLFLAG_RW,
-		    pf, 0, ixl_sysctl_write_i2c_byte, "I", "Write byte to I2C bus");
+		    pf, 0, ixl_sysctl_write_i2c_byte, "I", IXL_SYSCTL_HELP_WRITE_I2C);
 	}
 
 #ifdef PCI_IOV

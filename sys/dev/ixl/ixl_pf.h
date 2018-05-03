@@ -202,6 +202,23 @@ struct ixl_pf {
 "\t0 - disable\n"			\
 "\t1 - enable\n"
 
+#define IXL_SYSCTL_HELP_READ_I2C		\
+"\nRead a byte from I2C bus\n"			\
+"Input: 32-bit value\n"				\
+"\tbits 0-7:   device address (0xA0 or 0xA2)\n"	\
+"\tbits 8-15:  offset (0-255)\n"		\
+"\tbits 16-31: unused\n"			\
+"Output: 8-bit value read"
+
+#define IXL_SYSCTL_HELP_WRITE_I2C		\
+"\nWrite a byte to the I2C bus\n"		\
+"Input: 32-bit value\n"				\
+"\tbits 0-7:   device address (0xA0 or 0xA2)\n"	\
+"\tbits 8-15:  offset (0-255)\n"		\
+"\tbits 16-23: value to write\n"		\
+"\tbits 24-31: unused\n"			\
+"Output: 8-bit value written"
+
 #define IXL_SYSCTL_HELP_I2C_METHOD		\
 "\nI2C access method that driver will use:\n"	\
 "\t0 - best available method\n"			\
