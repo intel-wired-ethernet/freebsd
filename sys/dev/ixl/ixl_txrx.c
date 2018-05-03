@@ -171,16 +171,28 @@ ixl_tso_detect_sparse(struct mbuf *mp)
 }
 #endif
 static int
-ixl_tso_detect_sparse(bus_dma_segment_t *segs, int nsegs, int segsz)
+ixl_tso_detect_sparse(bus_dma_segment_t *segs, int nsegs, if_pkt_info_t pi)
 {
-	int		i, count, curseg;
+	int		count, curseg, i, hlen, segsz;
 
 	if (nsegs <= IXL_MAX_TX_SEGS-2)
 		return (0);
-	for (curseg = count = i = 0; i < nsegs; i++) {
+	segsz = pi->ipi_tso_segsz;
+	curseg = count = 0;
+
+	/*
+	 * skip the 1st segment if it is just the header, since the
+	 * IXL_MAX_TX_SEGS-2 restriction applies to the payload
+	 */
+	hlen = pi->ipi_ehdrlen + pi->ipi_ip_hlen + pi->ipi_tcp_hlen;
+	if (hlen == segs[0].ds_len)
+		i = 1;
+	else
+		i = 0;
+	for (; i < nsegs; i++) {
 		curseg += segs[i].ds_len;
 		count++;
-		if (__predict_false(count == IXL_MAX_TX_SEGS-2))
+		if (__predict_false(count > IXL_MAX_TX_SEGS-2))
 			return (1);
 		if (curseg > segsz) {
 			curseg -= segsz;
@@ -326,7 +338,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	if (pi->ipi_csum_flags & CSUM_OFFLOAD) {
 		/* Set up the TSO context descriptor if required */
 		if (pi->ipi_csum_flags & CSUM_TSO) {
-			if (ixl_tso_detect_sparse(segs, nsegs, pi->ipi_tso_segsz))
+			if (ixl_tso_detect_sparse(segs, nsegs, pi))
 				return (EFBIG);
 			i = ixl_tso_setup(txr, pi);
 		}
