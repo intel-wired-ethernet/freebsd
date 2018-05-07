@@ -4534,13 +4534,13 @@ ixl_sysctl_read_i2c_diag_data(SYSCTL_HANDLER_ARGS)
 	}
 	if (output != 0x3) {
 		device_printf(dev, "Module is not SFP/SFP+/SFP28 (%02X)\n", output);
-		return (0);
+		return (EIO);
 	}
 
 	pf->read_i2c_byte(pf, 92, 0xA0, &output);
 	if (!(output & 0x60)) {
 		device_printf(dev, "Module doesn't support diagnostics: %02X\n", output);
-		return (0);
+		return (EIO);
 	}
 
 	sbuf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
