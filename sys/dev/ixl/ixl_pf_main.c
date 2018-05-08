@@ -2034,15 +2034,11 @@ ixl_add_mc_filter(struct ixl_vsi *vsi, u8 *macaddr)
 	if (f != NULL)
 		return;
 
-	f = ixl_get_filter(vsi);
-	if (f == NULL) {
+	f = ixl_new_filter(vsi, macaddr, IXL_VLAN_ANY);
+	if (f != NULL)
+		f->flags |= IXL_FILTER_MC;
+	else
 		printf("WARNING: no filter available!!\n");
-		return;
-	}
-	bcopy(macaddr, f->macaddr, ETHER_ADDR_LEN);
-	f->vlan = IXL_VLAN_ANY;
-	f->flags |= (IXL_FILTER_ADD | IXL_FILTER_USED
-	    | IXL_FILTER_MC);
 
 	return;
 }
@@ -2085,14 +2081,11 @@ ixl_add_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 		}
 	}
 
-	f = ixl_get_filter(vsi);
+	f = ixl_new_filter(vsi, macaddr, vlan);
 	if (f == NULL) {
 		device_printf(dev, "WARNING: no filter available!!\n");
 		return;
 	}
-	bcopy(macaddr, f->macaddr, ETHER_ADDR_LEN);
-	f->vlan = vlan;
-	f->flags |= (IXL_FILTER_ADD | IXL_FILTER_USED);
 	if (f->vlan != IXL_VLAN_ANY)
 		f->flags |= IXL_FILTER_VLAN;
 	else
