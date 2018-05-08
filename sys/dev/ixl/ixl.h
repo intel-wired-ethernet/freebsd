@@ -478,18 +478,22 @@ struct ixl_vsi {
 };
 
 /*
-** Find the next available unused filter
+** Creates new filter with given MAC address and VLAN ID
 */
 static inline struct ixl_mac_filter *
-ixl_get_filter(struct ixl_vsi *vsi)
+ixl_new_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 {
 	struct ixl_mac_filter  *f;
 
 	/* create a new empty filter */
 	f = malloc(sizeof(struct ixl_mac_filter),
 	    M_DEVBUF, M_NOWAIT | M_ZERO);
-	if (f)
+	if (f) {
 		SLIST_INSERT_HEAD(&vsi->ftl, f, next);
+		bcopy(macaddr, f->macaddr, ETHER_ADDR_LEN);
+		f->vlan = vlan;
+		f->flags |= (IXL_FILTER_ADD | IXL_FILTER_USED);
+	}
 
 	return (f);
 }
