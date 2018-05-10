@@ -443,7 +443,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	if (ixl_allocate_pci_resources(pf)) {
 		device_printf(dev, "Allocation of PCI resources failed\n");
 		error = ENXIO;
-		goto err_out;
+		goto err_pci_res;
 	}
 
 	/* Establish a clean starting point */
@@ -590,14 +590,13 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	INIT_DEBUGOUT("ixl_if_attach_pre: end");
 	return (0);
 
-// TODO: Review what needs to be cleaned up when this fails
 err_mac_hmc:
 	i40e_shutdown_lan_hmc(hw);
 err_get_cap:
 	i40e_shutdown_adminq(hw);
 err_out:
 	ixl_free_pci_resources(pf);
-	ixl_free_mac_filters(vsi);
+err_pci_res:
 	return (error);
 }
 
@@ -623,20 +622,20 @@ ixl_if_attach_post(if_ctx_t ctx)
 	if (ixl_setup_interface(dev, pf)) {
 		device_printf(dev, "interface setup failed!\n");
 		error = EIO;
-		goto err_late;
+		goto err;
 	}
 
 	/* Determine link state */
 	if (ixl_attach_get_link_status(pf)) {
 		error = EINVAL;
-		goto err_late;
+		goto err;
 	}
 
 	error = ixl_switch_config(pf);
 	if (error) {
 		device_printf(dev, "Initial ixl_switch_config() failed: %d\n",
 		     error);
-		goto err_late;
+		goto err;
 	}
 
 	/* Init queue allocation manager */
@@ -644,7 +643,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 	if (error) {
 		device_printf(dev, "Failed to init queue manager for PF queues, error %d\n",
 		    error);
-		goto err_mac_hmc;
+		goto err;
 	}
 	/* reserve a contiguous allocation for the PF's VSI */
 	error = ixl_pf_qmgr_alloc_contiguous(&pf->qmgr,
@@ -652,7 +651,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 	if (error) {
 		device_printf(dev, "Failed to reserve queues for PF LAN VSI, error %d\n",
 		    error);
-		goto err_mac_hmc;
+		goto err;
 	}
 	device_printf(dev, "Allocating %d queues for PF LAN VSI; %d queues active\n",
 	    pf->qtag.num_allocated, pf->qtag.num_active);
@@ -664,7 +663,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 		device_printf(dev, "i40e_aq_set_phy_mask() failed: err %s,"
 		    " aq_err %s\n", i40e_stat_str(hw, status),
 		    i40e_aq_str(hw, hw->aq.asq_last_status));
-		goto err_late;
+		goto err;
 	}
 
 	/* Get the bus configuration and set the shared code */
@@ -702,7 +701,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 				device_printf(dev,
 				    "interfacing to iwarp driver failed: %d\n",
 				    error);
-				goto err_late;
+				goto err;
 			} else
 				device_printf(dev, "iWARP ready\n");
 		} else
@@ -717,14 +716,9 @@ ixl_if_attach_post(if_ctx_t ctx)
 	INIT_DBG_DEV(dev, "end");
 	return (0);
 
-// TODO: Review what needs to be cleaned up when this fails
-err_late:
-err_mac_hmc:
-	i40e_shutdown_lan_hmc(hw);
-	i40e_shutdown_adminq(hw);
-	ixl_free_pci_resources(pf);
-	ixl_free_mac_filters(vsi);
+err:
 	INIT_DEBUGOUT("end: error %d", error);
+	/* ixl_if_detach() is called on error from this */
 	return (error);
 }
 
