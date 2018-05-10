@@ -227,6 +227,11 @@ struct ixl_pf {
 "\t3 - Use Admin Queue command (best)\n"	\
 "Using the Admin Queue is only supported on 710 devices with FW version 1.7 or higher"
 
+#define IXL_SYSCTL_HELP_FW_LLDP		\
+"\nFW LLDP engine:\n"			\
+"\t0 - disable\n"			\
+"\t1 - enable\n"
+
 extern const char * const ixl_fc_string[6];
 
 MALLOC_DECLARE(M_IXL);
@@ -403,5 +408,8 @@ int	ixl_get_fw_lldp_status(struct ixl_pf *pf);
 int	ixl_attach_get_link_status(struct ixl_pf *);
 u64	ixl_max_aq_speed_to_value(u8);
 void	ixl_handle_vflr(void *, int);
+
+int	ixl_get_fw_lldp_status(struct ixl_pf *pf);
+int	ixl_attach_get_link_status(struct ixl_pf *);
 
 #endif /* _IXL_PF_H_ */

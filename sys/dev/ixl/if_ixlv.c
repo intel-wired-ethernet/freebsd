@@ -227,6 +227,17 @@ SYSCTL_INT(_hw_ixlv, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
     "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
 
 /*
+ * Different method for processing TX descriptor
+ * completion.
+ */
+static int ixlv_enable_head_writeback = 0;
+TUNABLE_INT("hw.ixlv.enable_head_writeback",
+    &ixlv_enable_head_writeback);
+SYSCTL_INT(_hw_ixlv, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
+    &ixlv_enable_head_writeback, 0,
+    "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
+
+/*
 ** Controls for Interrupt Throttling
 **      - true/false for dynamic adjustment
 **      - default values for static ITR
@@ -479,6 +490,16 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	sc = (struct ixlv_sc *)vsi->back;
 	hw = &sc->hw;
 
+	/* Do queue interrupt setup */
+	if (ixlv_assign_msix(sc) != 0) {
+		device_printf(dev, "%s: allocating queue interrupts failed!\n",
+		    __func__);
+		error = ENXIO;
+		goto out;
+	}
+
+	INIT_DBG_DEV(dev, "Queue memory and interrupts setup");
+
 	/* Setup the stack interface */
 	if (ixlv_setup_interface(dev, sc) != 0) {
 		device_printf(dev, "%s: setup interface failed!\n",
@@ -489,7 +510,13 @@ ixlv_if_attach_post(if_ctx_t ctx)
 
 	INIT_DBG_DEV(dev, "Interface setup complete");
 
-	/* Initialize statistics & add sysctls */
+	/* Start AdminQ taskqueue */
+	ixlv_init_taskqueue(sc);
+
+	/* We expect a link state message, so schedule the AdminQ task now */
+	taskqueue_enqueue(sc->tq, &sc->aq_irq);
+
+	/* Initialize stats */
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
 	ixlv_add_sysctls(sc);
 
@@ -500,6 +527,9 @@ ixlv_if_attach_post(if_ctx_t ctx)
 // TODO: Check if any failures can happen above
 #if 0
 out:
+	ixlv_free_queues(vsi);
+	ixlv_teardown_adminq_msix(sc);
+err_res_buf:
 	free(sc->vf_res, M_DEVBUF);
 	i40e_shutdown_adminq(hw);
 	ixlv_free_pci_resources(sc);
@@ -535,6 +565,7 @@ ixlv_if_detach(if_ctx_t ctx)
 	}
 
 	free(sc->vf_res, M_DEVBUF);
+	ixlv_free_queues(vsi);
 	ixlv_free_pci_resources(sc);
 	ixlv_free_filters(sc);
 
@@ -1744,7 +1775,7 @@ ixlv_allocate_pci_resources(struct ixlv_sc *sc)
  }
  
 static void
-ixlv_free_pci_resources(struct ixlv_sc *sc)
+ixlv_free_msix_resources(struct ixlv_sc *sc, struct ixl_queue *que)
 {
 	struct ixl_vsi		*vsi = &sc->vsi;
 	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
@@ -1991,6 +2022,116 @@ err_destroy_tx_mtx:
 	return (error);
 }
 #endif
+
+/*
+** Allocate and setup a single queue
+*/
+static int
+ixlv_setup_queue(struct ixlv_sc *sc, struct ixl_queue *que)
+{
+	device_t		dev = sc->dev;
+	struct tx_ring		*txr;
+	struct rx_ring		*rxr;
+	int 			rsize, tsize;
+	int			error = I40E_SUCCESS;
+
+	txr = &que->txr;
+	txr->que = que;
+	txr->tail = I40E_QTX_TAIL1(que->me);
+	/* Initialize the TX lock */
+	snprintf(txr->mtx_name, sizeof(txr->mtx_name), "%s:tx(%d)",
+	    device_get_nameunit(dev), que->me);
+	mtx_init(&txr->mtx, txr->mtx_name, NULL, MTX_DEF);
+	/*
+	 * Create the TX descriptor ring
+	 *
+	 * In Head Writeback mode, the descriptor ring is one bigger
+	 * than the number of descriptors for space for the HW to
+	 * write back index of last completed descriptor.
+	 */
+	if (sc->vsi.enable_head_writeback) {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)) +
+		    sizeof(u32), DBA_ALIGN);
+	} else {
+		tsize = roundup2((que->num_tx_desc *
+		    sizeof(struct i40e_tx_desc)), DBA_ALIGN);
+	}
+	if (i40e_allocate_dma_mem(&sc->hw,
+	    &txr->dma, i40e_mem_reserved, tsize, DBA_ALIGN)) {
+		device_printf(dev,
+		    "Unable to allocate TX Descriptor memory\n");
+		error = ENOMEM;
+		goto err_destroy_tx_mtx;
+	}
+	txr->base = (struct i40e_tx_desc *)txr->dma.va;
+	bzero((void *)txr->base, tsize);
+	/* Now allocate transmit soft structs for the ring */
+	if (ixl_allocate_tx_data(que)) {
+		device_printf(dev,
+		    "Critical Failure setting up TX structures\n");
+		error = ENOMEM;
+		goto err_free_tx_dma;
+	}
+	/* Allocate a buf ring */
+	txr->br = buf_ring_alloc(ixlv_txbrsz, M_DEVBUF,
+	    M_WAITOK, &txr->mtx);
+	if (txr->br == NULL) {
+		device_printf(dev,
+		    "Critical Failure setting up TX buf ring\n");
+		error = ENOMEM;
+		goto err_free_tx_data;
+	}
+
+	/*
+	 * Next the RX queues...
+	 */
+	rsize = roundup2(que->num_rx_desc *
+	    sizeof(union i40e_rx_desc), DBA_ALIGN);
+	rxr = &que->rxr;
+	rxr->que = que;
+	rxr->tail = I40E_QRX_TAIL1(que->me);
+
+	/* Initialize the RX side lock */
+	snprintf(rxr->mtx_name, sizeof(rxr->mtx_name), "%s:rx(%d)",
+	    device_get_nameunit(dev), que->me);
+	mtx_init(&rxr->mtx, rxr->mtx_name, NULL, MTX_DEF);
+
+	if (i40e_allocate_dma_mem(&sc->hw,
+	    &rxr->dma, i40e_mem_reserved, rsize, 4096)) { //JFV - should this be DBA?
+		device_printf(dev,
+		    "Unable to allocate RX Descriptor memory\n");
+		error = ENOMEM;
+		goto err_destroy_rx_mtx;
+	}
+	rxr->base = (union i40e_rx_desc *)rxr->dma.va;
+	bzero((void *)rxr->base, rsize);
+
+	/* Allocate receive soft structs for the ring */
+	if (ixl_allocate_rx_data(que)) {
+		device_printf(dev,
+		    "Critical Failure setting up receive structs\n");
+		error = ENOMEM;
+		goto err_free_rx_dma;
+	}
+
+	return (0);
+
+err_free_rx_dma:
+	i40e_free_dma_mem(&sc->hw, &rxr->dma);
+err_destroy_rx_mtx:
+	mtx_destroy(&rxr->mtx);
+	/* err_free_tx_buf_ring */
+	buf_ring_free(txr->br, M_DEVBUF);
+err_free_tx_data:
+	ixl_free_que_tx(que);
+err_free_tx_dma:
+	i40e_free_dma_mem(&sc->hw, &txr->dma);
+err_destroy_tx_mtx:
+	mtx_destroy(&txr->mtx);
+
+	return (error);
+}
 
 /*
 ** Allocate and setup the interface queues
@@ -2711,15 +2852,10 @@ ixlv_del_multi(struct ixl_vsi *vsi)
 static void
 ixlv_local_timer(void *arg)
 {
-	struct ixlv_sc	*sc = arg;
+	struct ixlv_sc		*sc = arg;
 	struct i40e_hw		*hw = &sc->hw;
 	struct ixl_vsi		*vsi = &sc->vsi;
-	struct ixl_queue	*que = vsi->queues;
-	device_t		dev = sc->dev;
-	struct tx_ring		*txr;
-	int			hung = 0;
-	u32			mask, val;
-	s32			timer, new_timer;
+	u32			val;
 
 	IXLV_CORE_LOCK_ASSERT(sc);
 
@@ -3295,6 +3431,61 @@ ixlv_free_filters(struct ixlv_sc *sc)
 		free(v, M_DEVBUF);
 	}
 	free(sc->vlan_filters, M_DEVBUF);
+}
+
+static char *
+ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed)
+{
+	int index;
+
+	char *speeds[] = {
+		"Unknown",
+		"100 Mbps",
+		"1 Gbps",
+		"10 Gbps",
+		"40 Gbps",
+		"20 Gbps",
+		"25 Gbps",
+	};
+
+	switch (link_speed) {
+	case VIRTCHNL_LINK_SPEED_100MB:
+		index = 1;
+		break;
+	case VIRTCHNL_LINK_SPEED_1GB:
+		index = 2;
+		break;
+	case VIRTCHNL_LINK_SPEED_10GB:
+		index = 3;
+		break;
+	case VIRTCHNL_LINK_SPEED_40GB:
+		index = 4;
+		break;
+	case VIRTCHNL_LINK_SPEED_20GB:
+		index = 5;
+		break;
+	case VIRTCHNL_LINK_SPEED_25GB:
+		index = 6;
+		break;
+	case VIRTCHNL_LINK_SPEED_UNKNOWN:
+	default:
+		index = 0;
+		break;
+	}
+
+	return speeds[index];
+}
+
+static int
+ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	int error = 0;
+
+	error = sysctl_handle_string(oidp,
+	  ixlv_vc_speed_to_string(sc->link_speed),
+	  8, req);
+	return (error);
 }
 
 static char *

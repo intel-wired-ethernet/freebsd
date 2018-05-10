@@ -51,6 +51,31 @@ NOTE TO PEOPLE WHO THINK THAT FreeBSD 12.x IS SLOW:
 
 ****************************** SPECIAL WARNING: ******************************
 
+20180508:
+	The nxge(4) driver has been removed.  This driver was for PCI-X 10g
+	cards made by s2io/Neterion.  The company was aquired by Exar and
+	no longer sells or supports Ethernet products.  If you have device
+	nxge in your kernel config file it must be removed.
+
+20180504:
+	The tz database (tzdb) has been updated to 2018e.  This version more
+	correctly models time stamps in time zones with negative DST such as
+	Europe/Dublin (from 1971 on), Europe/Prague (1946/7), and
+	Africa/Windhoek (1994/2017).  This does not affect the UT offsets, only
+	time zone abbreviations and the tm_isdst flag.
+
+20180502:
+	The ixgb(4) driver has been removed.  This driver was for an early and
+	uncommon legacy PCI 10GbE for a single ASIC, Intel 82597EX. Intel
+	quickly shifted to the long lived ixgbe family.  If you have device
+	ixgb in your kernel config file it must be removed.
+
+20180501:
+	The lmc(4) driver has been removed.  This was a WAN interface
+	card that was already reportedly rare in 2003, and had an ambiguous
+	license.  If you have device lmc in your kernel config file it must
+	be removed.
+
 20180413:
 	Support for Arcnet networks has been removed.  If you have device
 	arcnet or device cm in your kernel config file they must be

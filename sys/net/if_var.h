@@ -70,6 +70,7 @@ struct	route;			/* if_output */
 struct	vnet;
 struct	ifmedia;
 struct	netmap_adapter;
+struct	netdump_methods;
 
 #ifdef _KERNEL
 #include <sys/mbuf.h>		/* ifqueue only? */
@@ -369,6 +370,11 @@ struct ifnet {
 	uint8_t if_pcp;
 
 	/*
+	 * Netdump hooks to be called while dumping.
+	 */
+	struct netdump_methods *if_netdump_methods;
+
+	/*
 	 * Spare fields to be added before branching a stable branch, so
 	 * that structure can be enhanced without changing the kernel
 	 * binary interface.
@@ -590,6 +596,12 @@ VNET_DECLARE(struct ifnet *, loif);	/* first loopback interface */
 #define	V_if_index	VNET(if_index)
 #define	V_loif		VNET(loif)
 
+#ifdef MCAST_VERBOSE
+#define MCDPRINTF printf
+#else
+#define MCDPRINTF(...)
+#endif
+
 int	if_addgroup(struct ifnet *, const char *);
 int	if_delgroup(struct ifnet *, const char *);
 int	if_addmulti(struct ifnet *, struct sockaddr *, struct ifmultiaddr **);
@@ -599,12 +611,14 @@ void	if_attach(struct ifnet *);
 void	if_dead(struct ifnet *);
 int	if_delmulti(struct ifnet *, struct sockaddr *);
 void	if_delmulti_ifma(struct ifmultiaddr *);
+void	if_delmulti_ifma_flags(struct ifmultiaddr *, int flags);
 void	if_detach(struct ifnet *);
 void	if_purgeaddrs(struct ifnet *);
 void	if_delallmulti(struct ifnet *);
 void	if_down(struct ifnet *);
 struct ifmultiaddr *
 	if_findmulti(struct ifnet *, const struct sockaddr *);
+void	if_freemulti(struct ifmultiaddr *ifma);
 void	if_free(struct ifnet *);
 void	if_initname(struct ifnet *, const char *, int);
 void	if_link_state_change(struct ifnet *, int);
