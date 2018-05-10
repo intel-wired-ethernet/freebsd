@@ -2131,20 +2131,15 @@ struct ixl_mac_filter *
 ixl_find_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 {
 	struct ixl_mac_filter	*f;
-	bool			match = FALSE;
 
 	SLIST_FOREACH(f, &vsi->ftl, next) {
-		if (!cmp_etheraddr(f->macaddr, macaddr))
-			continue;
-		if (f->vlan == vlan) {
-			match = TRUE;
-			break;
+		if ((cmp_etheraddr(f->macaddr, macaddr) != 0)
+		    && (f->vlan == vlan)) {
+			return (f);
 		}
 	}	
 
-	if (!match)
-		f = NULL;
-	return (f);
+	return (NULL);
 }
 
 /*
