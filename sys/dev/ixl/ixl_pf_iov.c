@@ -83,16 +83,12 @@ static int	ixl_adminq_err_to_errno(enum i40e_admin_queue_err err);
 void
 ixl_initialize_sriov(struct ixl_pf *pf)
 {
+	return;
+#if 0
 	device_t dev = pf->dev;
 	struct i40e_hw *hw = &pf->hw;
 	nvlist_t	*pf_schema, *vf_schema;
 	int		iov_error;
-
-	/* SR-IOV is only supported when MSI-X is in use. */
-#if 0
-	if (pf->msix <= 1)
-		return;
-#endif
 
 	pf_schema = pci_iov_schema_alloc_node();
 	vf_schema = pci_iov_schema_alloc_node();
@@ -116,7 +112,9 @@ ixl_initialize_sriov(struct ixl_pf *pf)
 		device_printf(dev, "SR-IOV ready\n");
 
 	pf->vc_debug_lvl = 1;
+#endif
 }
+
 
 /*
  * Allocate the VSI for a VF.
