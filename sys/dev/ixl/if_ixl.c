@@ -118,6 +118,7 @@ static uint64_t	 ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt);
 static void	 ixl_if_vflr_handle(if_ctx_t ctx);
 // static void	 ixl_if_link_intr_enable(if_ctx_t ctx);
 static int	 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req);
+static int	 ixl_if_priv_ioctl(if_ctx_t ctx, u_long command, caddr_t data);
 
 /*** Other ***/
 static int	 ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int);
@@ -185,6 +186,7 @@ static device_method_t ixl_if_methods[] = {
 	DEVMETHOD(ifdi_get_counter, ixl_if_get_counter),
 	DEVMETHOD(ifdi_vflr_handle, ixl_if_vflr_handle),
 	DEVMETHOD(ifdi_i2c_req, ixl_if_i2c_req),
+	DEVMETHOD(ifdi_priv_ioctl, ixl_if_priv_ioctl),
 	// ifdi_led_func
 	// ifdi_debug
 	DEVMETHOD_END
@@ -1693,6 +1695,22 @@ ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req)
 		    req->dev_addr, &req->data[i]))
 			return (EIO);
 	return (0);
+}
+
+static int
+ixl_if_priv_ioctl(if_ctx_t ctx, u_long command, caddr_t data)
+{
+	struct ixl_pf *pf = iflib_get_softc(ctx);
+	struct ifdrv *ifd = (struct ifdrv *)data;
+	int error = 0;
+
+	/* NVM update command */
+	if (ifd->ifd_cmd == I40E_NVM_ACCESS)
+		error = ixl_handle_nvmupd_cmd(pf, ifd);
+	else
+		error = EINVAL;
+
+	return (error);
 }
 
 static int
