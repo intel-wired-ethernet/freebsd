@@ -108,6 +108,9 @@
 #include "i40e_prototype.h"
 #include "ixl_debug.h"
 
+#define PVIDV(vendor, devid, name) \
+    PVID(vendor, devid, name " - " IXL_DRIVER_VERSION_STRING)
+
 /* Tunables */
 
 /*

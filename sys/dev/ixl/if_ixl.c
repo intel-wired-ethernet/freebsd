@@ -51,9 +51,10 @@
 #define IXL_DRIVER_VERSION_MINOR	9
 #define IXL_DRIVER_VERSION_BUILD	9
 
-char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
-			    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."
-			    __XSTRING(IXL_DRIVER_VERSION_BUILD) "-iflib-k";
+#define IXL_DRIVER_VERSION_STRING			\
+    __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."		\
+    __XSTRING(IXL_DRIVER_VERSION_MINOR) "."		\
+    __XSTRING(IXL_DRIVER_VERSION_BUILD) "-iflib-k"
 
 /*********************************************************************
  *  PCI Device ID Table
@@ -65,22 +66,22 @@ char ixl_driver_version[] = __XSTRING(IXL_DRIVER_VERSION_MAJOR) "."
 
 static pci_vendor_info_t ixl_vendor_info_array[] =
 {
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710, "Intel(R) Ethernet Controller X710 for 10GbE SFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_B, "Intel(R) Ethernet Controller XL710 for 40GbE backplane"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_C, "Intel(R) Ethernet Controller X710 for 10GbE backplane"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_A, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_B, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_C, "Intel(R) Ethernet Controller X710 for 10GbE QSFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T, "Intel(R) Ethernet Controller X710 for 10GBASE-T"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T4, "Intel(R) Ethernet Controller X710/X557-AT 10GBASE-T"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_X722, "Intel(R) Ethernet Connection X722 for 10GbE backplane"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE QSFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_1G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 1GbE"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 10GBASE-T"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_I_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_B, "Intel(R) Ethernet Controller XXV710 for 25GbE backplane"),
-	PVID(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_SFP28, "Intel(R) Ethernet Controller XXV710 for 25GbE SFP28"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_XL710, "Intel(R) Ethernet Controller X710 for 10GbE SFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_B, "Intel(R) Ethernet Controller XL710 for 40GbE backplane"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_C, "Intel(R) Ethernet Controller X710 for 10GbE backplane"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_A, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_B, "Intel(R) Ethernet Controller XL710 for 40GbE QSFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_C, "Intel(R) Ethernet Controller X710 for 10GbE QSFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T, "Intel(R) Ethernet Controller X710 for 10GBASE-T"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T4, "Intel(R) Ethernet Controller X710/X557-AT 10GBASE-T"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_KX_X722, "Intel(R) Ethernet Connection X722 for 10GbE backplane"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_QSFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE QSFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_1G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 1GbE"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_10G_BASE_T_X722, "Intel(R) Ethernet Connection X722 for 10GBASE-T"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_SFP_I_X722, "Intel(R) Ethernet Connection X722 for 10GbE SFP+"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_B, "Intel(R) Ethernet Controller XXV710 for 25GbE backplane"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_25G_SFP28, "Intel(R) Ethernet Controller XXV710 for 25GbE SFP28"),
 	/* required last entry */
 	PVID_END
 };
@@ -335,7 +336,7 @@ static struct if_shared_ctx ixl_sctx_init = {
 
 	.isc_admin_intrcnt = 1,
 	.isc_vendor_info = ixl_vendor_info_array,
-	.isc_driver_version = ixl_driver_version,
+	.isc_driver_version = IXL_DRIVER_VERSION_STRING,
 	.isc_driver = &ixl_if_driver,
 	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM,
 
