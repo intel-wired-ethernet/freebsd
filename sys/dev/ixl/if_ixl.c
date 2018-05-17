@@ -121,7 +121,7 @@ static int	 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req);
 
 /*** Other ***/
 static int	 ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int);
-static int	 ixl_save_pf_tunables(struct ixl_pf *);
+static void	 ixl_save_pf_tunables(struct ixl_pf *);
 static int	 ixl_allocate_pci_resources(struct ixl_pf *);
 
 /*********************************************************************
@@ -202,39 +202,6 @@ static SYSCTL_NODE(_hw, OID_AUTO, ixl, CTLFLAG_RD, 0,
                    "IXL driver parameters");
 
 /*
- * MSIX should be the default for best performance,
- * but this allows it to be forced off for testing.
- */
-static int ixl_enable_msix = 1;
-TUNABLE_INT("hw.ixl.enable_msix", &ixl_enable_msix);
-SYSCTL_INT(_hw_ixl, OID_AUTO, enable_msix, CTLFLAG_RDTUN, &ixl_enable_msix, 0,
-    "Enable MSI-X interrupts");
-
-/*
-** Number of descriptors per ring
-** - TX and RX sizes are independently configurable
-*/
-static int ixl_tx_ring_size = IXL_DEFAULT_RING;
-TUNABLE_INT("hw.ixl.tx_ring_size", &ixl_tx_ring_size);
-SYSCTL_INT(_hw_ixl, OID_AUTO, tx_ring_size, CTLFLAG_RDTUN,
-    &ixl_tx_ring_size, 0, "TX Descriptor Ring Size");
-
-static int ixl_rx_ring_size = IXL_DEFAULT_RING;
-TUNABLE_INT("hw.ixl.rx_ring_size", &ixl_rx_ring_size);
-SYSCTL_INT(_hw_ixl, OID_AUTO, rx_ring_size, CTLFLAG_RDTUN,
-    &ixl_rx_ring_size, 0, "RX Descriptor Ring Size");
-
-/* 
-** This can be set manually, if left as 0 the
-** number of queues will be calculated based
-** on cpus and msix vectors available.
-*/
-static int ixl_max_queues = 0;
-TUNABLE_INT("hw.ixl.max_queues", &ixl_max_queues);
-SYSCTL_INT(_hw_ixl, OID_AUTO, max_queues, CTLFLAG_RDTUN,
-    &ixl_max_queues, 0, "Number of Queues");
-
-/*
  * Leave this on unless you need to send flow control
  * frames (or other control frames) from software
  */
@@ -277,6 +244,7 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, shared_debug_mask, CTLFLAG_RDTUN,
     &ixl_shared_debug_mask, 0,
     "Display debug statements that are printed in shared code");
 
+#if 0
 /*
 ** Controls for Interrupt Throttling 
 **	- true/false for dynamic adjustment
@@ -291,6 +259,7 @@ static int ixl_dynamic_tx_itr = 0;
 TUNABLE_INT("hw.ixl.dynamic_tx_itr", &ixl_dynamic_tx_itr);
 SYSCTL_INT(_hw_ixl, OID_AUTO, dynamic_tx_itr, CTLFLAG_RDTUN,
     &ixl_dynamic_tx_itr, 0, "Dynamic TX Interrupt Rate");
+#endif
 
 static int ixl_rx_itr = IXL_ITR_8K;
 TUNABLE_INT("hw.ixl.rx_itr", &ixl_rx_itr);
@@ -436,9 +405,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	vsi->shared = scctx = iflib_get_softc_ctx(ctx);
 
 	/* Save tunable values */
-	error = ixl_save_pf_tunables(pf);
-	if (error)
-		return (error);
+	ixl_save_pf_tunables(pf);
 
 	/* Do PCI setup - map BAR0, etc */
 	if (ixl_allocate_pci_resources(pf)) {
@@ -1743,20 +1710,20 @@ ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int count __unused)
 /*
  * Sanity check and save off tunable values.
  */
-static int
+static void
 ixl_save_pf_tunables(struct ixl_pf *pf)
 {
 	device_t dev = pf->dev;
 
 	/* Save tunable information */
-	pf->enable_msix = ixl_enable_msix;
-	pf->max_queues = ixl_max_queues;
 	pf->enable_tx_fc_filter = ixl_enable_tx_fc_filter;
-	pf->dynamic_rx_itr = ixl_dynamic_rx_itr;
-	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
 	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
+#if 0
+	pf->dynamic_rx_itr = ixl_dynamic_rx_itr;
+	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
+#endif
 
 	if (ixl_i2c_access_method > 3 || ixl_i2c_access_method < 0)
 		pf->i2c_access_method = 0;
@@ -1786,7 +1753,5 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 		pf->rx_itr = IXL_ITR_8K;
 	} else
 		pf->rx_itr = ixl_rx_itr;
-
-	return (0);
 }
 
