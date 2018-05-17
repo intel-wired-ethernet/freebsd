@@ -999,7 +999,6 @@ fail:
 
 /*
  * Enable all interrupts
- * TODO: Let it enable all interrupts?
  *
  * Called in:
  * iflib_init_locked, after ixl_if_init()
@@ -1012,7 +1011,6 @@ ixl_if_enable_intr(if_ctx_t ctx)
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*que = vsi->rx_queues;
 
-	// TODO: Allow this to be enabled here?
 	ixl_enable_intr0(hw);
 	/* Enable queue interrupts */
 	for (int i = 0; i < vsi->num_rx_queues; i++, que++)
@@ -1034,7 +1032,6 @@ ixl_if_disable_intr(if_ctx_t ctx)
 	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
 
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
-		ixl_disable_intr0(hw);
 		for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++)
 			ixl_disable_queue(hw, rx_que->msix - 1);
 	} else {
@@ -1260,7 +1257,6 @@ ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 			device_printf(dev, "LAN overflow event\n");
 			break;
 		default:
-			device_printf(dev, "AdminQ unknown event %x\n", opcode);
 			break;
 		}
 	} while (*pending && (loop++ < IXL_ADM_LIMIT));
@@ -1282,63 +1278,11 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 	struct i40e_hw			*hw = &pf->hw;
 	u16				pending;
 
-	// TODO: Refactor reset handling
-	if (pf->state & IXL_PF_STATE_ADAPTER_RESETTING) {
+	if (pf->state & IXL_PF_STATE_ADAPTER_RESETTING)
 		ixl_handle_empr_reset(pf);
-		//iflib_init_locked(ctx);
-	}
-
-	if (pf->state & IXL_PF_STATE_CORE_RESET_REQ) {
-		device_printf(pf->dev, "Doing CORE reset...\n");
-		//iflib_stop(ctx);
-		ixl_teardown_hw_structs(pf);
-		wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_CORER_MASK);
-		atomic_set_int(&pf->state, IXL_PF_STATE_ADAPTER_RESETTING);
-		// ixl_handle_empr_reset(pf);
-		// iflib_init_locked(ctx);
-		return;
-	}
-
-	if (pf->state & IXL_PF_STATE_GLOB_RESET_REQ) {
-		device_printf(pf->dev, "Doing GLOB reset...\n");
-		//iflib_stop(ctx);
-		ixl_teardown_hw_structs(pf);
-		wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_GLOBR_MASK);
-		atomic_set_int(&pf->state, IXL_PF_STATE_ADAPTER_RESETTING);
-		// ixl_handle_empr_reset(pf);
-		// iflib_init_locked(ctx);
-		return;
-	}
-
-	if (pf->state & IXL_PF_STATE_EMP_RESET_REQ) {
-		/* This register is read-only to drivers */
-		if (!(rd32(hw, 0x000B818C) & 0x1)) {
-			device_printf(pf->dev, "SW not allowed to initiate EMPR\n");
-			atomic_clear_int(&pf->state, IXL_PF_STATE_EMP_RESET_REQ);
-		} else {
-			device_printf(pf->dev, "Doing EMP reset...\n");
-			//iflib_stop(ctx);
-			ixl_teardown_hw_structs(pf);
-			wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_EMPFWR_MASK);
-			atomic_set_int(&pf->state, IXL_PF_STATE_ADAPTER_RESETTING);
-			// ixl_handle_empr_reset(pf);
-			// iflib_init_locked(ctx);
-			return;
-		}
-	}
 
 	if (pf->state & IXL_PF_STATE_MDD_PENDING)
 		ixl_handle_mdd_event(pf);
-
-	if (pf->state & IXL_PF_STATE_PF_RESET_REQ) {
-		device_printf(pf->dev, "Doing PF reset...\n");
-		//iflib_stop(ctx);
-		ixl_teardown_hw_structs(pf);
-		ixl_reset(pf);
-		device_printf(pf->dev, "PF reset done.\n");
-		// TODO: Do init if previously up!
-		//iflib_init_locked(ctx);
-	}
 
 #ifdef PCI_IOV
 	if (pf->state & IXL_PF_STATE_VF_RESET_REQ)

@@ -2816,16 +2816,8 @@ int
 ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up)
 {
 	struct i40e_hw *hw = &pf->hw;
-	struct ixl_vsi *vsi = &pf->vsi;
 	device_t dev = pf->dev;
 	int error = 0;
-
-// TODO: Fix
-#if 0
-	/* Teardown */
-	if (is_up)
-		ixl_stop(pf);
-#endif
 
 	error = i40e_shutdown_lan_hmc(hw);
 	if (error)
@@ -2839,16 +2831,7 @@ ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up)
 		device_printf(dev,
 		    "Shutdown Admin queue failed with code %d\n", error);
 
-#if 0
-	/* Free ring buffers, locks and filters */
-	ixl_vsi_free_queues(vsi);
-#endif
-
-	/* Free VSI filter list */
-	ixl_free_mac_filters(vsi);
-
 	ixl_pf_qmgr_release(&pf->qmgr, &pf->qtag);
-
 	return (error);
 }
 
@@ -2856,7 +2839,7 @@ int
 ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 {
 	struct i40e_hw *hw = &pf->hw;
-	// struct ixl_vsi *vsi = &pf->vsi;
+	struct ixl_vsi *vsi = &pf->vsi;
 	device_t dev = pf->dev;
 	int error = 0;
 
@@ -2869,8 +2852,6 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
 
-// TODO: Fix
-#if 0
 	/* Setup */
 	error = i40e_init_adminq(hw);
 	if (error != 0 && error != I40E_ERR_FIRMWARE_API_VERSION) {
@@ -2918,38 +2899,6 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
 
-	if (ixl_vsi_setup_queues(vsi)) {
-		device_printf(dev, "setup queues failed!\n");
-		error = ENOMEM;
-		goto ixl_rebuild_hw_structs_after_reset_err;
-	}
-
-	if (pf->msix > 1) {
-		error = ixl_setup_adminq_msix(pf);
-		if (error) {
-			device_printf(dev, "ixl_setup_adminq_msix() error: %d\n",
-			    error);
-			goto ixl_rebuild_hw_structs_after_reset_err;
-		}
-
-		ixl_configure_intr0_msix(pf);
-		ixl_enable_intr0(hw);
-
-		error = ixl_setup_queue_msix(vsi);
-		if (error) {
-			device_printf(dev, "ixl_setup_queue_msix() error: %d\n",
-			    error);
-			goto ixl_rebuild_hw_structs_after_reset_err;
-		}
-	} else {
-		error = ixl_setup_legacy(pf);
-		if (error) {
-			device_printf(dev, "ixl_setup_legacy() error: %d\n",
-			    error);
-			goto ixl_rebuild_hw_structs_after_reset_err;
-		}
-	}
-
 	/* Determine link state */
 	if (ixl_attach_get_link_status(pf)) {
 		error = EINVAL;
@@ -2959,15 +2908,11 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 	i40e_aq_set_dcb_parameters(hw, TRUE, NULL);
 	ixl_get_fw_lldp_status(pf);
 
-	if (is_up)
-		ixl_init(pf);
-
 	/* Keep admin queue interrupts active while driver is loaded */
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
-		ixl_configure_intr0_msix(pf);
-		ixl_enable_intr0(hw);
- 	}
-#endif
+ 		ixl_configure_intr0_msix(pf);
+ 		ixl_enable_intr0(hw);
+	}
 
 	device_printf(dev, "Rebuilding driver state done.\n");
 	return (0);
@@ -2998,15 +2943,11 @@ ixl_handle_empr_reset(struct ixl_pf *pf)
 			break;
 	}
 	ixl_dbg(pf, IXL_DBG_INFO,
-			"EMPR reset wait count: %d\n", count);
+			"Reset wait count: %d\n", count);
 
 	ixl_rebuild_hw_structs_after_reset(pf, is_up);
 
-	//atomic_clear_int(&pf->state, IXL_PF_STATE_EMPR_RESETTING);
 	atomic_clear_int(&pf->state, IXL_PF_STATE_ADAPTER_RESETTING);
-	atomic_clear_int(&pf->state, IXL_PF_STATE_CORE_RESET_REQ);
-	atomic_clear_int(&pf->state, IXL_PF_STATE_GLOB_RESET_REQ);
-	atomic_clear_int(&pf->state, IXL_PF_STATE_EMP_RESET_REQ);
 }
 
 /**
@@ -4988,6 +4929,7 @@ static int
 ixl_sysctl_do_core_reset(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct i40e_hw *hw = &pf->hw;
 	int requested = 0, error = 0;
 
 	/* Read in new mode */
@@ -4995,8 +4937,7 @@ ixl_sysctl_do_core_reset(SYSCTL_HANDLER_ARGS)
 	if ((error) || (req->newptr == NULL))
 		return (error);
 
-	/* Initiate the CORE reset later in the admin task */
-	atomic_set_32(&pf->state, IXL_PF_STATE_CORE_RESET_REQ);
+	wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_CORER_MASK);
 
 	return (error);
 }
@@ -5005,6 +4946,7 @@ static int
 ixl_sysctl_do_global_reset(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct i40e_hw *hw = &pf->hw;
 	int requested = 0, error = 0;
 
 	/* Read in new mode */
@@ -5012,8 +4954,7 @@ ixl_sysctl_do_global_reset(SYSCTL_HANDLER_ARGS)
 	if ((error) || (req->newptr == NULL))
 		return (error);
 
-	/* Initiate the CORE reset later in the admin task */
-	atomic_set_32(&pf->state, IXL_PF_STATE_GLOB_RESET_REQ);
+	wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_GLOBR_MASK);
 
 	return (error);
 }
@@ -5022,6 +4963,7 @@ static int
 ixl_sysctl_do_emp_reset(SYSCTL_HANDLER_ARGS)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
+	struct i40e_hw *hw = &pf->hw;
 	int requested = 0, error = 0;
 
 	/* Read in new mode */
@@ -5029,8 +4971,12 @@ ixl_sysctl_do_emp_reset(SYSCTL_HANDLER_ARGS)
 	if ((error) || (req->newptr == NULL))
 		return (error);
 
-	/* Initiate the EMP reset later in the admin task */
-	atomic_set_32(&pf->state, IXL_PF_STATE_EMP_RESET_REQ);
+	/* TODO: Find out how to bypass this */
+	if (!(rd32(hw, 0x000B818C) & 0x1)) {
+		device_printf(pf->dev, "SW not allowed to initiate EMPR\n");
+		error = EINVAL;
+	} else
+		wr32(hw, I40E_GLGEN_RTRIG, I40E_GLGEN_RTRIG_EMPFWR_MASK);
 
 	return (error);
 }
