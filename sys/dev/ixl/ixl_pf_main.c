@@ -2889,9 +2889,6 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 		/* TODO: error handling */
 	}
 
-	device_printf(dev, "Allocating %d queues for PF LAN VSI; %d queues active\n",
-	    pf->qtag.num_allocated, pf->qtag.num_active);
-
 	error = ixl_switch_config(pf);
 	if (error) {
 		device_printf(dev, "ixl_rebuild_hw_structs_after_reset: ixl_switch_config() failed: %d\n",
