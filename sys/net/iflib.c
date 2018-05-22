@@ -101,6 +101,10 @@ __FBSDID("$FreeBSD$");
 #include <x86/iommu/busdma_dmar.h>
 #endif
 
+#ifdef PCI_IOV
+#include <dev/pci/pci_iov.h>
+#endif
+
 #include <sys/bitstring.h>
 /*
  * enable accounting of every mbuf as it comes in to and goes out of
@@ -4978,6 +4982,12 @@ iflib_device_deregister(if_ctx_t ctx)
 		device_printf(dev,"Vlan in use, detach first\n");
 		return (EBUSY);
 	}
+#ifdef PCI_IOV
+	if (pci_iov_detach(dev)) {
+		device_printf(dev, "SR-IOV in use; detach first.\n");
+		return (EBUSY);
+	}
+#endif
 
 	CTX_LOCK(ctx);
 	ctx->ifc_in_detach = 1;
@@ -5399,7 +5409,7 @@ iflib_queues_alloc(if_ctx_t ctx)
 			fl[j].ifl_ifdi = &rxq->ifr_ifdi[j + rxq->ifr_fl_offset];
 			fl[j].ifl_rxd_size = scctx->isc_rxd_size[j];
 		}
-        /* Allocate receive buffers for the ring*/
+		/* Allocate receive buffers for the ring */
 		if (iflib_rxsd_alloc(rxq)) {
 			device_printf(dev,
 			    "Critical Failure setting up receive buffers\n");
