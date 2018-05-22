@@ -77,7 +77,8 @@
 	struct	sx pc_copyout_slock;					\
 	char	*pc_copyout_buf;					\
 	uint32_t pc_smp_tlb_done;	/* TLB op acknowledgement */	\
-	char	__pad[550]
+	uint32_t pc_ibpb_set;						\
+	char	__pad[546]
 
 #ifdef _KERNEL
 
@@ -239,6 +240,8 @@ __curpcb(void)
 	return (pcb);
 }
 #define	curpcb		(__curpcb())
+
+#define	IS_BSP()	(PCPU_GET(cpuid) == 0)
 
 #else /* defined(__GNUCLIKE_ASM) && defined(__GNUCLIKE___TYPEOF) */
 

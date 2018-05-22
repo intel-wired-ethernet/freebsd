@@ -458,7 +458,7 @@ rtm_get_jailed(struct rt_addrinfo *info, struct ifnet *ifp,
 		 * that belongs to the jail.
 		 */
 		IF_ADDR_RLOCK(ifp);
-		TAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
+		CK_STAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
 			struct sockaddr *sa;
 			sa = ifa->ifa_addr;
 			if (sa->sa_family != AF_INET)
@@ -500,7 +500,7 @@ rtm_get_jailed(struct rt_addrinfo *info, struct ifnet *ifp,
 		 * that belongs to the jail.
 		 */
 		IF_ADDR_RLOCK(ifp);
-		TAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
+		CK_STAILQ_FOREACH(ifa, &ifp->if_addrhead, ifa_link) {
 			struct sockaddr *sa;
 			sa = ifa->ifa_addr;
 			if (sa->sa_family != AF_INET6)
@@ -1411,7 +1411,10 @@ rt_newmaddrmsg(int cmd, struct ifmultiaddr *ifma)
 
 	bzero((caddr_t)&info, sizeof(info));
 	info.rti_info[RTAX_IFA] = ifma->ifma_addr;
-	info.rti_info[RTAX_IFP] = ifp ? ifp->if_addr->ifa_addr : NULL;
+	if (ifp && ifp->if_addr)
+		info.rti_info[RTAX_IFP] = ifp->if_addr->ifa_addr;
+	else
+		info.rti_info[RTAX_IFP] = NULL;
 	/*
 	 * If a link-layer address is present, present it as a ``gateway''
 	 * (similarly to how ARP entries, e.g., are presented).
@@ -1754,7 +1757,7 @@ sysctl_iflist(int af, struct walkarg *w)
 			if (error)
 				goto done;
 		}
-		while ((ifa = TAILQ_NEXT(ifa, ifa_link)) != NULL) {
+		while ((ifa = CK_STAILQ_NEXT(ifa, ifa_link)) != NULL) {
 			if (af && af != ifa->ifa_addr->sa_family)
 				continue;
 			if (prison_if(w->w_req->td->td_ucred,
@@ -1809,7 +1812,7 @@ sysctl_ifmalist(int af, struct walkarg *w)
 		ifa = ifp->if_addr;
 		info.rti_info[RTAX_IFP] = ifa ? ifa->ifa_addr : NULL;
 		IF_ADDR_RLOCK(ifp);
-		TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+		CK_STAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
 			if (af && af != ifma->ifma_addr->sa_family)
 				continue;
 			if (prison_if(w->w_req->td->td_ucred,
