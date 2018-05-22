@@ -53,11 +53,11 @@
 
 /* Manager */
 struct ixl_pf_qmgr_qinfo {
-	bool allocated;
-	bool tx_enabled;
-	bool rx_enabled;
-	bool tx_configured;
-	bool rx_configured;
+	u8 allocated;
+	u8 tx_enabled;
+	u8 rx_enabled;
+	u8 tx_configured;
+	u8 rx_configured;
 };
 
 struct ixl_pf_qmgr {
@@ -74,7 +74,10 @@ enum ixl_pf_qmgr_qalloc_type {
 struct ixl_pf_qtag {
 	struct ixl_pf_qmgr *qmgr;
 	enum ixl_pf_qmgr_qalloc_type type;
-	u16 qidx[IXL_MAX_SCATTERED_QUEUES];
+	union {
+		u16 qidx[IXL_MAX_SCATTERED_QUEUES];
+		u16 first_qidx;
+	};
 	u16 num_allocated;
 	u16 num_active;
 };

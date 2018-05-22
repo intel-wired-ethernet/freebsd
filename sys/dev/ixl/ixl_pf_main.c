@@ -1194,7 +1194,7 @@ ixl_initialize_vsi(struct ixl_vsi *vsi)
 	 * the driver may not use all of them).
 	 */
 	tc_queues = fls(pf->qtag.num_allocated) - 1;
-	ctxt.info.tc_mapping[0] = ((0 << I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT)
+	ctxt.info.tc_mapping[0] = ((pf->qtag.first_qidx << I40E_AQ_VSI_TC_QUE_OFFSET_SHIFT)
 	    & I40E_AQ_VSI_TC_QUE_OFFSET_MASK) |
 	    ((tc_queues << I40E_AQ_VSI_TC_QUE_NUMBER_SHIFT)
 	    & I40E_AQ_VSI_TC_QUE_NUMBER_MASK);
