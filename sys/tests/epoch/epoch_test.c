@@ -29,6 +29,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/types.h>
+#include <sys/proc.h>
 #include <sys/counter.h>
 #include <sys/epoch.h>
 #include <sys/gtaskqueue.h>
@@ -38,6 +39,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mutex.h>
+#include <sys/proc.h>
+#include <sys/sched.h>
 #include <sys/smp.h>
 #include <sys/sysctl.h>
 #include <sys/systm.h>
@@ -73,12 +76,12 @@ epoch_testcase1(struct epoch_test_instance *eti)
 		mtxp = &mutexB;
 
 	while (i < iterations) {
-		epoch_enter(test_epoch);
+		epoch_enter_preempt(test_epoch);
 		mtx_lock(mtxp);
 		i++;
 		mtx_unlock(mtxp);
-		epoch_exit(test_epoch);
-		epoch_wait(test_epoch);
+		epoch_exit_preempt(test_epoch);
+		epoch_wait_preempt(test_epoch);
 	}
 	printf("test1: thread: %d took %d ticks to complete %d iterations\n",
 		   eti->threadid, ticks - startticks, iterations);
@@ -95,13 +98,13 @@ epoch_testcase2(struct epoch_test_instance *eti)
 	mtxp = &mutexA;
 
 	while (i < iterations) {
-		epoch_enter(test_epoch);
+		epoch_enter_preempt(test_epoch);
 		mtx_lock(mtxp);
 		DELAY(1);
 		i++;
 		mtx_unlock(mtxp);
-		epoch_exit(test_epoch);
-		epoch_wait(test_epoch);
+		epoch_exit_preempt(test_epoch);
+		epoch_wait_preempt(test_epoch);
 	}
 	printf("test2: thread: %d took %d ticks to complete %d iterations\n",
 		   eti->threadid, ticks - startticks, iterations);
@@ -132,16 +135,24 @@ static struct epoch_test_instance etilist[MAXCPU];
 static int
 test_modinit(void)
 {
-	int i, error;
+	struct thread *td;
+	int i, error, pri_range, pri_off;
 
-	test_epoch = epoch_alloc();
-	for (i = 0; i < mp_ncpus; i++) {
+	pri_range = PRI_MIN_TIMESHARE - PRI_MIN_REALTIME;
+	test_epoch = epoch_alloc(EPOCH_PREEMPT);
+	for (i = 0; i < mp_ncpus*2; i++) {
 		etilist[i].threadid = i;
 		error = kthread_add(testloop, &etilist[i], NULL, &testthreads[i],
 							0, 0, "epoch_test_%d", i);
 		if (error) {
 			printf("%s: kthread_add(epoch_test): error %d", __func__,
 				   error);
+		} else {
+			pri_off = (i*4)%pri_range;
+			td = testthreads[i];
+			thread_lock(td);
+			sched_prio(td, PRI_MIN_REALTIME + pri_off);
+			thread_unlock(td);
 		}
 	}
 	inited = 1;

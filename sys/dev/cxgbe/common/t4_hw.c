@@ -7905,6 +7905,44 @@ int t4_get_flash_params(struct adapter *adapter)
 		break;
 	}
 
+	case 0x9d: { /* ISSI -- Integrated Silicon Solution, Inc. */
+		/*
+		 * This Density -> Size decoding table is taken from ISSI
+		 * Data Sheets.
+		 */
+		density = (flashid >> 16) & 0xff;
+		switch (density) {
+		case 0x16: size = 1 << 25; break; /*  32MB */
+		case 0x17: size = 1 << 26; break; /*  64MB */
+
+		default:
+			CH_ERR(adapter, "ISSI Flash Part has bad size, "
+			       "ID = %#x, Density code = %#x\n",
+			       flashid, density);
+			return -EINVAL;
+		}
+		break;
+	}
+
+	case 0xc2: { /* Macronix */
+		/*
+		 * This Density -> Size decoding table is taken from Macronix
+		 * Data Sheets.
+		 */
+		density = (flashid >> 16) & 0xff;
+		switch (density) {
+		case 0x17: size = 1 << 23; break; /*   8MB */
+		case 0x18: size = 1 << 24; break; /*  16MB */
+
+		default:
+			CH_ERR(adapter, "Macronix Flash Part has bad size, "
+			       "ID = %#x, Density code = %#x\n",
+			       flashid, density);
+			return -EINVAL;
+		}
+		break;
+	}
+
 	case 0xef: { /* Winbond */
 		/*
 		 * This Density -> Size decoding table is taken from Winbond
@@ -8368,6 +8406,7 @@ int t4_init_sge_params(struct adapter *adapter)
 static void read_filter_mode_and_ingress_config(struct adapter *adap,
     bool sleep_ok)
 {
+	uint32_t v;
 	struct tp_params *tpp = &adap->params.tp;
 
 	t4_tp_pio_read(adap, &tpp->vlan_pri_map, 1, A_TP_VLAN_PRI_MAP,
@@ -8391,12 +8430,12 @@ static void read_filter_mode_and_ingress_config(struct adapter *adap,
 	tpp->matchtype_shift = t4_filter_field_shift(adap, F_MPSHITTYPE);
 	tpp->frag_shift = t4_filter_field_shift(adap, F_FRAGMENTATION);
 
-	/*
-	 * If TP_INGRESS_CONFIG.VNID == 0, then TP_VLAN_PRI_MAP.VNIC_ID
-	 * represents the presence of an Outer VLAN instead of a VNIC ID.
-	 */
-	if ((tpp->ingress_config & F_VNIC) == 0)
-		tpp->vnic_shift = -1;
+	if (chip_id(adap) > CHELSIO_T4) {
+		v = t4_read_reg(adap, LE_HASH_MASK_GEN_IPV4T5(3));
+		adap->params.tp.hash_filter_mask = v;
+		v = t4_read_reg(adap, LE_HASH_MASK_GEN_IPV4T5(4));
+		adap->params.tp.hash_filter_mask |= (u64)v << 32;
+	}
 }
 
 /**

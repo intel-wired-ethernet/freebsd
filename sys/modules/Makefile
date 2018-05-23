@@ -42,6 +42,7 @@ SUBDIR=	\
 	${_aout} \
 	${_apm} \
 	${_arcmsr} \
+	${_allwinner} \
 	${_armv8crypto} \
 	${_asmc} \
 	ata \
@@ -120,6 +121,7 @@ SUBDIR=	\
 	${_ena} \
 	${_ep} \
 	${_epic} \
+	epoch_test \
 	esp \
 	${_et} \
 	evdev \
@@ -398,7 +400,6 @@ SUBDIR=	\
 	vr \
 	vte \
 	vx \
-	${_vxge} \
 	wb \
 	${_wbwd} \
 	${_wi} \
@@ -557,6 +558,7 @@ _cxgb=		cxgb
 .endif
 
 .if ${MACHINE_CPUARCH} == "aarch64"
+_allwinner=	allwinner
 _armv8crypto=	armv8crypto
 _efirt=		efirt
 _em=		em
@@ -616,7 +618,6 @@ _speaker=	speaker
 _splash=	splash
 _sppp=		sppp
 _vmware=	vmware
-_vxge=  	vxge
 _wbwd=		wbwd
 _wi=		wi
 _xe=		xe

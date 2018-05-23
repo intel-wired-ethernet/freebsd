@@ -669,7 +669,7 @@ ixl_add_multi(struct ixl_vsi *vsi)
 	** First just get a count, to decide if we
 	** we simply use multicast promiscuous.
 	*/
-	TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+	CK_STAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
 		if (ifma->ifma_addr->sa_family != AF_LINK)
 			continue;
 		mcnt++;
@@ -686,7 +686,7 @@ ixl_add_multi(struct ixl_vsi *vsi)
 
 	mcnt = 0;
 	if_maddr_rlock(ifp);
-	TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+	CK_STAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
 		if (ifma->ifma_addr->sa_family != AF_LINK)
 			continue;
 		ixl_add_mc_filter(vsi,
@@ -718,7 +718,7 @@ ixl_del_multi(struct ixl_vsi *vsi)
 	SLIST_FOREACH(f, &vsi->ftl, next) {
 		if ((f->flags & IXL_FILTER_USED) && (f->flags & IXL_FILTER_MC)) {
 			match = FALSE;
-			TAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
+			CK_STAILQ_FOREACH(ifma, &ifp->if_multiaddrs, ifma_link) {
 				if (ifma->ifma_addr->sa_family != AF_LINK)
 					continue;
 				u8 *mc_addr = (u8 *)LLADDR((struct sockaddr_dl *)ifma->ifma_addr);
