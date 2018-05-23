@@ -529,9 +529,6 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	/* Tell FW to apply DCB config on link up */
 	i40e_aq_set_dcb_parameters(hw, true, NULL);
 
-	/* Initialize mac filter list for VSI */
-	SLIST_INIT(&vsi->ftl);
-
 	/* Fill out iflib parameters */
 	if (hw->mac.type == I40E_MAC_X722)
 		scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 128;
@@ -607,6 +604,9 @@ ixl_if_attach_post(if_ctx_t ctx)
 		     error);
 		goto err;
 	}
+
+	/* Add protocol filters to list */
+	ixl_init_filters(vsi);
 
 	/* Init queue allocation manager */
 	error = ixl_pf_qmgr_init(&pf->qmgr, hw->func_caps.num_tx_qp);
@@ -847,25 +847,22 @@ ixl_if_init(if_ctx_t ctx)
 	}
 
 	/* Get the latest mac address... User might use a LAA */
-	bcopy(IF_LLADDR(vsi->ifp), tmpaddr,
-	      ETH_ALEN);
+	bcopy(IF_LLADDR(vsi->ifp), tmpaddr, ETH_ALEN);
 	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&
 	    (i40e_validate_mac_addr(tmpaddr) == I40E_SUCCESS)) {
 		ixl_del_filter(vsi, hw->mac.addr, IXL_VLAN_ANY);
-		bcopy(tmpaddr, hw->mac.addr,
-		    ETH_ALEN);
+		bcopy(tmpaddr, hw->mac.addr, ETH_ALEN);
 		ret = i40e_aq_mac_address_write(hw,
 		    I40E_AQC_WRITE_TYPE_LAA_ONLY,
 		    hw->mac.addr, NULL);
 		if (ret) {
-			device_printf(dev, "LLA address"
-			 "change failed!!\n");
+			device_printf(dev, "LLA address change failed!!\n");
 			return;
 		}
+		ixl_add_filter(vsi, hw->mac.addr, IXL_VLAN_ANY);
 	}
 
 	iflib_set_mac(ctx, hw->mac.addr);
-	ixl_add_filter(vsi, hw->mac.addr, IXL_VLAN_ANY);
 
 	/* Prepare the VSI: rings, hmc contexts, etc... */
 	if (ixl_initialize_vsi(vsi)) {
@@ -879,12 +876,6 @@ ixl_if_init(if_ctx_t ctx)
 
 	/* Set up RSS */
 	ixl_config_rss(pf);
-
-	/* Add protocol filters to list */
-	ixl_init_filters(vsi);
-
-	/* Setup vlan's if needed */
-	ixl_setup_vlan_filters(vsi);
 
 	/* Set up MSI/X routing and the ITR settings */
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {

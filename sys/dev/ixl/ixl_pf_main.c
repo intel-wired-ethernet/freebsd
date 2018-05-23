@@ -46,6 +46,7 @@
 
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 static void	ixl_sbuf_print_bytes(struct sbuf *, u8 *, int, int, bool);
+static void	ixl_del_default_hw_filters(struct ixl_vsi *);
 
 /* Sysctls */
 static int	ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS);
@@ -1999,6 +2000,30 @@ ixl_setup_vlan_filters(struct ixl_vsi *vsi)
 }
 
 /*
+ * In some firmware versions there is default MAC/VLAN filter
+ * configured which interferes with filters managed by driver.
+ * Make sure it's removed.
+ */
+static void
+ixl_del_default_hw_filters(struct ixl_vsi *vsi)
+{
+	struct i40e_aqc_remove_macvlan_element_data e;
+
+	bzero(&e, sizeof(e));
+	bcopy(vsi->hw->mac.perm_addr, e.mac_addr, ETHER_ADDR_LEN);
+	e.vlan_tag = 0;
+	e.flags = I40E_AQC_MACVLAN_DEL_PERFECT_MATCH;
+	i40e_aq_remove_macvlan(vsi->hw, vsi->seid, &e, 1, NULL);
+
+	bzero(&e, sizeof(e));
+	bcopy(vsi->hw->mac.perm_addr, e.mac_addr, ETHER_ADDR_LEN);
+	e.vlan_tag = 0;
+	e.flags = I40E_AQC_MACVLAN_DEL_PERFECT_MATCH |
+		I40E_AQC_MACVLAN_DEL_IGNORE_VLAN;
+	i40e_aq_remove_macvlan(vsi->hw, vsi->seid, &e, 1, NULL);
+}
+
+/*
 ** Initialize filter list and add filters that the hardware
 ** needs to know about.
 **
@@ -2009,9 +2034,15 @@ ixl_init_filters(struct ixl_vsi *vsi)
 {
 	struct ixl_pf *pf = (struct ixl_pf *)vsi->back;
 
+	/* Initialize mac filter list for VSI */
+	SLIST_INIT(&vsi->ftl);
+
 	/* Receive broadcast Ethernet frames */
 	i40e_aq_set_vsi_broadcast(&pf->hw, vsi->seid, TRUE, NULL);
 
+	ixl_del_default_hw_filters(vsi);
+
+	ixl_add_filter(vsi, vsi->hw->mac.addr, IXL_VLAN_ANY);
 	/*
 	 * Prevent Tx flow control frames from being sent out by
 	 * non-firmware transmitters.
@@ -2888,6 +2919,9 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 		     error);
 		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
+
+	/* Remove default filters reinstalled by FW on reset */
+	ixl_del_default_hw_filters(vsi);
 
 	/* Determine link state */
 	if (ixl_attach_get_link_status(pf)) {
