@@ -1770,7 +1770,6 @@ void
 ixl_if_iov_uninit(if_ctx_t ctx)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
-	device_t dev = iflib_get_dev(ctx);
 	struct i40e_hw *hw;
 	struct ixl_vsi *vsi;
 	struct ifnet *ifp;
@@ -1843,7 +1842,6 @@ int
 ixl_if_iov_vf_add(if_ctx_t ctx, uint16_t vfnum, const nvlist_t *params)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
-	device_t dev = iflib_get_dev(ctx);
 	char sysctl_name[QUEUE_NAME_LEN];
 	struct ixl_vf *vf;
 	const void *mac;
