@@ -415,9 +415,8 @@ ixl_reinit_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 	vfrtrig &= ~I40E_VPGEN_VFRTRIG_VFSWR_MASK;
 	wr32(hw, I40E_VPGEN_VFRTRIG(vf->vf_num), vfrtrig);
 
-	// TODO: This needs to be fixed
 	if (vf->vsi.seid != 0)
-		ixl_disable_rings(&vf->vsi);
+		ixl_disable_rings_vf(pf, vf);
 
 	ixl_vf_release_resources(pf, vf);
 	ixl_vf_setup_vsi(pf, vf);

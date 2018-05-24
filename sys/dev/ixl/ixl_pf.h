@@ -346,6 +346,7 @@ int	ixl_disable_rings(struct ixl_vsi *);
 int	ixl_disable_tx_ring(struct ixl_pf *, struct ixl_pf_qtag *, u16);
 int	ixl_disable_rx_ring(struct ixl_pf *, struct ixl_pf_qtag *, u16);
 int	ixl_disable_ring(struct ixl_pf *pf, struct ixl_pf_qtag *, u16);
+int	ixl_disable_rings_vf(struct ixl_pf *pf, struct ixl_vf *vf);
 
 int	ixl_enable_rings(struct ixl_vsi *);
 int	ixl_enable_tx_ring(struct ixl_pf *, struct ixl_pf_qtag *, u16);

@@ -2456,7 +2456,7 @@ ixl_disable_ring(struct ixl_pf *pf, struct ixl_pf_qtag *qtag, u16 vsi_qidx)
 	return (error);
 }
 
-/* For PF VSI only */
+/* For PF only */
 int
 ixl_disable_rings(struct ixl_vsi *vsi)
 {
@@ -2468,6 +2468,22 @@ ixl_disable_rings(struct ixl_vsi *vsi)
 
 	for (int i = 0; i < vsi->num_rx_queues; i++)
 		error = ixl_disable_rx_ring(pf, &pf->qtag, i);
+
+	return (error);
+}
+
+/* For VFs only */
+int
+ixl_disable_rings_vf(struct ixl_pf *pf, struct ixl_vf *vf)
+{
+	struct ixl_vsi	*vsi = &vf->vsi;
+	int		error = 0;
+
+	for (int i = 0; i < vsi->num_tx_queues; i++)
+		error = ixl_disable_tx_ring(pf, &vf->qtag, i);
+
+	for (int i = 0; i < vsi->num_rx_queues; i++)
+		error = ixl_disable_rx_ring(pf, &vf->qtag, i);
 
 	return (error);
 }
