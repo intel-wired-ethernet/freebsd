@@ -943,6 +943,9 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 	int err, i, rid, vector = 0;
 	char buf[16];
 
+	MPASS(vsi->shared->isc_nrxqsets > 0);
+	MPASS(vsi->shared->isc_ntxqsets > 0);
+
 	/* Admin Que must use vector 0*/
 	rid = vector + 1;
 	err = iflib_irq_alloc_generic(ctx, &vsi->irq, rid, IFLIB_INTR_ADMIN,
@@ -957,7 +960,7 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 	// iflib_softirq_alloc_generic(ctx, rid, IFLIB_INTR_IOV, pf, 0, "ixl_iov");
 
 	/* Now set up the stations */
-	for (i = 0, vector = 1; i < vsi->num_rx_queues; i++, vector++, rx_que++) {
+	for (i = 0, vector = 1; i < vsi->shared->isc_nrxqsets; i++, vector++, rx_que++) {
 		rid = vector + 1;
 
 		snprintf(buf, sizeof(buf), "rxq%d", i);
@@ -976,16 +979,16 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 
 	bzero(buf, sizeof(buf));
 
-	for (i = 0; i < vsi->num_tx_queues; i++, tx_que++) {
+	for (i = 0; i < vsi->shared->isc_ntxqsets; i++, tx_que++) {
 		snprintf(buf, sizeof(buf), "txq%d", i);
 		iflib_softirq_alloc_generic(ctx,
-		    &vsi->rx_queues[i % vsi->num_rx_queues].que_irq,
+		    &vsi->rx_queues[i % vsi->shared->isc_nrxqsets].que_irq,
 		    IFLIB_INTR_TX, tx_que, tx_que->txr.me, buf);
 
 		/* TODO: Maybe call a strategy function for this to figure out which
 		* interrupts to map Tx queues to. I don't know if there's an immediately
 		* better way than this other than a user-supplied map, though. */
-		tx_que->msix = (i % vsi->num_rx_queues) + 1;
+		tx_que->msix = (i % vsi->shared->isc_nrxqsets) + 1;
 	}
 
 	return (0);
