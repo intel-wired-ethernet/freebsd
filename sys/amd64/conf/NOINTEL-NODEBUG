@@ -1,8 +1,0 @@
-
-include GENERIC-NODEBUG
-
-nodevice ixl
-nodevice ixlv
-nodevice ix
-nodevice ixv
-

@@ -627,7 +627,7 @@ ixl_read_i2c_byte_reg(struct ixl_pf *pf, u8 byte_offset,
 	/* Get data from I2C register */
 	reg = rd32(hw, I40E_GLGEN_I2CCMD(hw->func_caps.mdio_port_num));
 
-	/* Retreive data readed from EEPROM */
+	/* Retrieve data readed from EEPROM */
 	*data = (u8)(reg & 0xff);
 
 	if (status)
