@@ -61,7 +61,7 @@
  *
  * The patch version is incremented for every bug fix.
  */
-#define	PMC_VERSION_MAJOR	0x04
+#define	PMC_VERSION_MAJOR	0x05
 #define	PMC_VERSION_MINOR	0x01
 #define	PMC_VERSION_PATCH	0x0000
 
@@ -775,6 +775,7 @@ struct pmc {
 	 */
 
 	pmc_id_t	pm_id;		/* allocated PMC id */
+	enum pmc_class pm_class;
 
 	/* md extensions */
 	union pmc_md_pmc	pm_md;

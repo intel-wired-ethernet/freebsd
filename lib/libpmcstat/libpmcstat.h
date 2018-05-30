@@ -53,6 +53,7 @@
 
 #define	PMCSTAT_NHASH			256
 #define	PMCSTAT_HASH_MASK		0xFF
+#define	DEFAULT_SAMPLE_COUNT		65536
 
 typedef const void *pmcstat_interned_string;
 struct pmc_plugins;
@@ -380,6 +381,7 @@ int pmcstat_analyze_log(struct pmcstat_args *args,
 
 int pmcstat_open_log(const char *_p, int _mode);
 int pmcstat_close_log(struct pmcstat_args *args);
+
 __END_DECLS
 
 #endif /* !_LIBPMCSTAT_H_ */
