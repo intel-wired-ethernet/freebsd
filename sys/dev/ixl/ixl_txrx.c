@@ -140,67 +140,62 @@ ixl_is_tx_desc_done(struct tx_ring *txr, int idx)
 	    & I40E_TXD_QW1_DTYPE_MASK) == I40E_TX_DESC_DTYPE_DESC_DONE);
 }
 
-// TODO: Might want to still incorporate this
-// TODO: Compare this version of iflib with current version in OOT driver
-#if 0
-static inline bool
-ixl_tso_detect_sparse(struct mbuf *mp)
-{
-	struct mbuf	*m;
-	int		num, mss;
-
-	num = 0;
-	mss = mp->m_pkthdr.tso_segsz;
-
-	/* Exclude first mbuf; assume it contains all headers */
-	for (m = mp->m_next; m != NULL; m = m->m_next) {
-		if (m == NULL)
-			break;
-		num++;
-		mss -= m->m_len % mp->m_pkthdr.tso_segsz;
-
-		if (num > IXL_SPARSE_CHAIN)
-			return (true);
-		if (mss < 1) {
-			num = (mss == 0) ? 0 : 1;
-			mss += mp->m_pkthdr.tso_segsz;
-		}
-	}
-
-	return (false);
-}
-#endif
 static int
 ixl_tso_detect_sparse(bus_dma_segment_t *segs, int nsegs, if_pkt_info_t pi)
 {
-	int		count, curseg, i, hlen, segsz;
+	int	count, curseg, i, hlen, segsz, seglen, tsolen;
 
 	if (nsegs <= IXL_MAX_TX_SEGS-2)
 		return (0);
 	segsz = pi->ipi_tso_segsz;
 	curseg = count = 0;
 
-	/*
-	 * skip the 1st segment if it is just the header, since the
-	 * IXL_MAX_TX_SEGS-2 restriction applies to the payload
-	 */
 	hlen = pi->ipi_ehdrlen + pi->ipi_ip_hlen + pi->ipi_tcp_hlen;
-	if (hlen == segs[0].ds_len)
-		i = 1;
-	else
-		i = 0;
-	for (; i < nsegs; i++) {
-		curseg += segs[i].ds_len;
+	tsolen = pi->ipi_len - hlen;
+
+	i = 0;
+	curseg = segs[0].ds_len;
+	while (hlen > 0) {
 		count++;
-		if (__predict_false(count > IXL_MAX_TX_SEGS-2))
+		if (count > IXL_MAX_TX_SEGS - 2)
 			return (1);
-		if (curseg > segsz) {
-			curseg -= segsz;
-			count = 1;
+		if (curseg == 0) {
+			i++;
+			if (__predict_false(i == nsegs))
+				return (1);
+
+			curseg = segs[i].ds_len;
 		}
-		if (curseg == segsz)
-			curseg = count = 0;
- 	}
+		seglen = min(curseg, hlen);
+		curseg -= seglen;
+		hlen -= seglen;
+		printf("H:seglen = %d, count=%d\n", seglen, count);
+	}
+	while (tsolen > 0) {
+		segsz = pi->ipi_tso_segsz;
+		while (segsz > 0 && tsolen != 0) {
+			count++;
+			if (count > IXL_MAX_TX_SEGS - 2) {
+				printf("bad: count = %d\n", count);
+				return (1);
+			}
+			if (curseg == 0) {
+				i++;
+				if (__predict_false(i == nsegs)) {
+					printf("bad: tsolen = %d", tsolen);
+					return (1);
+				}
+				curseg = segs[i].ds_len;
+			}
+			seglen = min(curseg, segsz);
+			segsz -= seglen;
+			curseg -= seglen;
+			tsolen -= seglen;
+			printf("D:seglen = %d, count=%d\n", seglen, count);
+		}
+		count = 0;
+	}
+
  	return (0);
 }
 
