@@ -2137,7 +2137,8 @@ ixl_del_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 
 	f->flags |= IXL_FILTER_DEL;
 	ixl_del_hw_filters(vsi, 1);
-	vsi->num_macs--;
+	if (f->vlan == IXL_VLAN_ANY && (f->flags & IXL_FILTER_VLAN) != 0)
+		vsi->num_macs--;
 
 	/* Check if this is the last vlan removal */
 	if (vlan != IXL_VLAN_ANY && vsi->num_vlans == 0) {
@@ -2181,6 +2182,8 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	device_t		dev;
 	enum i40e_status_code	status;
 	int			j = 0;
+
+	MPASS(cnt > 0);
 
 	pf = vsi->back;
 	dev = iflib_get_dev(vsi->ctx);
