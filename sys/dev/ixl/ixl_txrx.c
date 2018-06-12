@@ -169,20 +169,20 @@ ixl_tso_detect_sparse(bus_dma_segment_t *segs, int nsegs, if_pkt_info_t pi)
 		seglen = min(curseg, hlen);
 		curseg -= seglen;
 		hlen -= seglen;
-		printf("H:seglen = %d, count=%d\n", seglen, count);
+		// printf("H:seglen = %d, count=%d\n", seglen, count);
 	}
 	while (tsolen > 0) {
 		segsz = pi->ipi_tso_segsz;
 		while (segsz > 0 && tsolen != 0) {
 			count++;
 			if (count > IXL_MAX_TX_SEGS - 2) {
-				printf("bad: count = %d\n", count);
+				// printf("bad: count = %d\n", count);
 				return (1);
 			}
 			if (curseg == 0) {
 				i++;
 				if (__predict_false(i == nsegs)) {
-					printf("bad: tsolen = %d", tsolen);
+					// printf("bad: tsolen = %d", tsolen);
 					return (1);
 				}
 				curseg = segs[i].ds_len;
@@ -191,7 +191,7 @@ ixl_tso_detect_sparse(bus_dma_segment_t *segs, int nsegs, if_pkt_info_t pi)
 			segsz -= seglen;
 			curseg -= seglen;
 			tsolen -= seglen;
-			printf("D:seglen = %d, count=%d\n", seglen, count);
+			// printf("D:seglen = %d, count=%d\n", seglen, count);
 		}
 		count = 0;
 	}
