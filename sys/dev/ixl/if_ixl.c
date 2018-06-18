@@ -263,12 +263,12 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, dynamic_tx_itr, CTLFLAG_RDTUN,
     &ixl_dynamic_tx_itr, 0, "Dynamic TX Interrupt Rate");
 #endif
 
-static int ixl_rx_itr = IXL_ITR_1K;
+static int ixl_rx_itr = IXL_ITR_8K;
 TUNABLE_INT("hw.ixl.rx_itr", &ixl_rx_itr);
 SYSCTL_INT(_hw_ixl, OID_AUTO, rx_itr, CTLFLAG_RDTUN,
     &ixl_rx_itr, 0, "RX Interrupt Rate");
 
-static int ixl_tx_itr = IXL_ITR_1K;
+static int ixl_tx_itr = IXL_ITR_4K;
 TUNABLE_INT("hw.ixl.tx_itr", &ixl_tx_itr);
 SYSCTL_INT(_hw_ixl, OID_AUTO, tx_itr, CTLFLAG_RDTUN,
     &ixl_tx_itr, 0, "TX Interrupt Rate");

@@ -174,7 +174,6 @@
 /*
  * Interrupt Moderation parameters
  * Multiply ITR values by 2 for real ITR value
- * (These are the register values)
  */
 #define IXL_MAX_ITR		0x0FF0
 #define IXL_ITR_100K		0x0005
