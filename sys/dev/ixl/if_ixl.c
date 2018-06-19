@@ -970,7 +970,7 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 		 * what's expected in the iflib context? */
 		if (err) {
 			device_printf(iflib_get_dev(ctx),
-			    "Failed to allocate q int %d err: %d", i, err);
+			    "Failed to allocate queue RX int vector %d, err: %d\n", i, err);
 			vsi->num_rx_queues = i + 1;
 			goto fail;
 		}
