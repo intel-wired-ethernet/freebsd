@@ -42,9 +42,10 @@
 #define IXLV_DRIVER_VERSION_MINOR	5
 #define IXLV_DRIVER_VERSION_BUILD	4
 
-char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
-			     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."
-			     __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-iflib-k";
+#define IXLV_DRIVER_VERSION_STRING			\
+    __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."		\
+    __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."		\
+    __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-iflib-k"
 
 /*********************************************************************
  *  PCI Device ID Table
@@ -56,9 +57,10 @@ char ixlv_driver_version[] = __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."
 
 static pci_vendor_info_t ixlv_vendor_info_array[] =
 {
-	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_VF, 0, 0, 0},
-	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_X722_VF, 0, 0, 0},
-	{I40E_INTEL_VENDOR_ID, I40E_DEV_ID_ADAPTIVE_VF, 0, 0, 0},
+	// TODO: Add proper device descriptions
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_VF, "Intel(R) Ethernet Virtual Function 700 Series"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_X722_VF, "Intel(R) Ethernet Virtual Function 700 Series (X722)"),
+	PVIDV(I40E_INTEL_VENDOR_ID, I40E_DEV_ID_ADAPTIVE_VF, "Intel(R) Ethernet Adaptive Virtual Function"),
 	/* required last entry */
 	PVID_END
 };
