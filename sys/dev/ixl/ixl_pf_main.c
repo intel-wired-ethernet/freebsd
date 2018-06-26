@@ -1072,6 +1072,30 @@ ixl_setup_interface(device_t dev, struct ixl_pf *pf)
 }
 
 /*
+ * Input: bitmap of enum i40e_aq_link_speed
+ */
+u64
+ixl_max_aq_speed_to_value(u8 link_speeds)
+{
+	if (link_speeds & I40E_LINK_SPEED_40GB)
+		return IF_Gbps(40);
+	if (link_speeds & I40E_LINK_SPEED_25GB)
+		return IF_Gbps(25);
+	if (link_speeds & I40E_LINK_SPEED_20GB)
+		return IF_Gbps(20);
+	if (link_speeds & I40E_LINK_SPEED_10GB)
+		return IF_Gbps(10);
+	if (link_speeds & I40E_LINK_SPEED_1GB)
+		return IF_Gbps(1);
+	if (link_speeds & I40E_LINK_SPEED_100MB)
+		return IF_Mbps(100);
+	else
+		/* Minimum supported link speed */
+		return IF_Mbps(100);
+}
+
+
+/*
 ** Run when the Admin Queue gets a link state change interrupt.
 */
 void
