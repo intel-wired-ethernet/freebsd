@@ -706,9 +706,9 @@ ixl_init_cmd_complete(struct ixl_vc_cmd *cmd, void *arg,
 void
 ixlv_if_init(if_ctx_t ctx)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	if_softc_ctx_t scctx = vsi->shared;
-	struct ixlv_sc *sc = vsi->back;
 	struct i40e_hw *hw = &sc->hw;
 	struct ifnet *ifp = iflib_get_ifp(ctx);
 	struct ixl_tx_queue *tx_que = vsi->tx_queues;
@@ -1019,7 +1019,8 @@ fail:
 static void
 ixlv_if_enable_intr(if_ctx_t ctx)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 
 	ixlv_enable_intr(vsi);
 }
@@ -1028,7 +1029,8 @@ ixlv_if_enable_intr(if_ctx_t ctx)
 static void
 ixlv_if_disable_intr(if_ctx_t ctx)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 
 	ixlv_disable_intr(vsi);
 }
@@ -1180,7 +1182,8 @@ ixlv_if_queues_free(if_ctx_t ctx)
 static void
 ixlv_if_update_admin_status(if_ctx_t ctx)
 {
-	struct ixl_vsi			*vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	//struct ixlv_sc			*sc = vsi->back; 
 	//struct i40e_hw			*hw = &sc->hw;
 	//struct i40e_arq_event_info	event;
@@ -1280,9 +1283,9 @@ ixlv_if_update_admin_status(if_ctx_t ctx)
 static void
 ixlv_if_multi_set(if_ctx_t ctx)
 {
-	// struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	// struct ixlv_sc *sc = iflib_get_softc(ctx);
+	// struct ixl_vsi *vsi = &sc->vsi;
 	// struct i40e_hw		*hw = vsi->hw;
-	// struct ixlv_sc		*sc = vsi->back;
 	// int			mcnt = 0, flags;
 
 	IOCTL_DEBUGOUT("ixl_if_multi_set: begin");
@@ -1398,7 +1401,8 @@ ixlv_if_media_change(if_ctx_t ctx)
 static int
 ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	struct ifnet	*ifp = iflib_get_ifp(ctx);
 	struct i40e_hw	*hw = vsi->hw;
 	int		err;
@@ -1424,26 +1428,8 @@ ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 static void
 ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 {
-	struct ixl_vsi		*vsi = iflib_get_softc(ctx);
-	struct ixlv_sc		*sc = vsi->back;
-	//struct i40e_hw		*hw = &sc->hw;
-	//struct ixl_tx_queue	*que = &vsi->tx_queues[qid];
-	//u32			mask;
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
 
-#if 0
-	/*
-	** Check status of the queues
-	*/
-	mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
-		I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK);
- 
-	/* If queue param has outstanding work, trigger sw irq */
-	// TODO: TX queues in iflib don't use HW interrupts; does this do anything?
-	if (que->busy)
-		wr32(hw, I40E_PFINT_DYN_CTLN(que->txr.me), mask);
- #endif
- 
-	// XXX: Is this timer per-queue?
 	if (qid != 0)
 		return;
 
@@ -1457,7 +1443,8 @@ ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 static void
 ixlv_if_vlan_register(if_ctx_t ctx, u16 vtag)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	//struct i40e_hw	*hw = vsi->hw;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
@@ -1475,7 +1462,8 @@ ixlv_if_vlan_register(if_ctx_t ctx, u16 vtag)
 static void
 ixlv_if_vlan_unregister(if_ctx_t ctx, u16 vtag)
 {
-	struct ixl_vsi	*vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	//struct i40e_hw	*hw = vsi->hw;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
@@ -1495,7 +1483,8 @@ ixlv_if_vlan_unregister(if_ctx_t ctx, u16 vtag)
 static uint64_t
 ixlv_if_get_counter(if_ctx_t ctx, ift_counter cnt)
 {
-	struct ixl_vsi *vsi = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixl_vsi *vsi = &sc->vsi;
 	if_t ifp = iflib_get_ifp(ctx);
 
 	switch (cnt) {
