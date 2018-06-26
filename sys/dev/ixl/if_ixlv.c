@@ -1509,13 +1509,10 @@ ixlv_free_pci_resources(struct ixlv_sc *sc)
 	device_t                dev = sc->dev;
 
 	/* We may get here before stations are setup */
-	// TODO: Check if we can still check against sc->msix
-	if ((sc->msix > 0) || (rx_que == NULL))
+	if (rx_que == NULL)
 		goto early;
 
-	/*
-	**  Release all msix VSI resources:
-	*/
+	/* Release all interrupts */
 	iflib_irq_free(vsi->ctx, &vsi->irq);
 
 	for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++)
@@ -1771,8 +1768,8 @@ ixlv_msix_adminq(void *arg)
 void
 ixlv_enable_intr(struct ixl_vsi *vsi)
 {
-	struct i40e_hw		*hw = vsi->hw;
-	struct ixl_rx_queue	*que = vsi->rx_queues;
+	struct i40e_hw *hw = vsi->hw;
+	struct ixl_rx_queue *que = vsi->rx_queues;
 
 	ixlv_enable_adminq_irq(hw);
 	for (int i = 0; i < vsi->num_rx_queues; i++, que++)
@@ -1782,8 +1779,8 @@ ixlv_enable_intr(struct ixl_vsi *vsi)
 void
 ixlv_disable_intr(struct ixl_vsi *vsi)
 {
-        struct i40e_hw          *hw = vsi->hw;
-        struct ixl_rx_queue       *que = vsi->rx_queues;
+        struct i40e_hw *hw = vsi->hw;
+        struct ixl_rx_queue *que = vsi->rx_queues;
 
 	ixlv_disable_adminq_irq(hw);
 	for (int i = 0; i < vsi->num_rx_queues; i++, que++)
@@ -1827,7 +1824,6 @@ ixlv_disable_queue_irq(struct i40e_hw *hw, int id)
 	wr32(hw, I40E_VFINT_DYN_CTLN1(id),
 	    I40E_VFINT_DYN_CTLN1_ITR_INDX_MASK);
 	rd32(hw, I40E_VFGEN_RSTAT);
-	return;
 }
 
 /*
