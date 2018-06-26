@@ -1251,25 +1251,6 @@ ixlv_if_update_admin_status(if_ctx_t ctx)
 	free(event.msg_buf, M_IXLV);
 #endif
 
-#if 0
-	/* XXX: This updates the link status */
-	if (pf->link_up) { 
-		if (vsi->link_active == FALSE) {
-			vsi->link_active = TRUE;
-			baudrate = ixl_max_aq_speed_to_value(pf->link_speed);
-			iflib_link_state_change(ctx, LINK_STATE_UP, baudrate);
-			ixl_link_up_msg(pf);
-			// ixl_ping_all_vfs(adapter);      
-		}
-	} else { /* Link down */
-		if (vsi->link_active == TRUE) {
-			vsi->link_active = FALSE;
-			iflib_link_state_change(ctx, LINK_STATE_DOWN, 0);
-			// ixl_ping_all_vfs(adapter);
-		}
-	}
-#endif
-	
 	/*
 	 * If there are still messages to process, reschedule ourselves.
 	 * Otherwise, re-enable our interrupt and go to sleep.
