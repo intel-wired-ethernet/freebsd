@@ -501,7 +501,6 @@ err_aq:
 err_pci_res:
 	ixlv_free_pci_resources(sc);
 err_early:
-	ixlv_free_filters(sc);
 	return (error);
 }
 
