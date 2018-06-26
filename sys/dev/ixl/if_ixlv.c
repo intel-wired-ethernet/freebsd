@@ -716,6 +716,7 @@ ixlv_if_init(if_ctx_t ctx)
 	int error = 0;
 
 	INIT_DBG_IF(ifp, "begin");
+	MPASS(sc->vc_mgr.sc == sc);
 
 	/* Do a reinit first if an init has already been done */
 	if ((sc->init_state == IXLV_RUNNING) ||
