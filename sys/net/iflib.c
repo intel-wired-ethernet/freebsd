@@ -4699,11 +4699,10 @@ iflib_device_register(device_t dev, void *sc, if_shared_ctx_t sctx, if_ctx_t *ct
 	ctx->ifc_flags |= IFC_INIT_DONE;
 	CTX_UNLOCK(ctx);
 	return (0);
+
 fail_detach:
 	ether_ifdetach(ctx->ifc_ifp);
 fail_intr_free:
-	if (scctx->isc_intr == IFLIB_INTR_MSIX || scctx->isc_intr == IFLIB_INTR_MSI)
-		pci_release_msi(ctx->ifc_dev);
 fail_queues:
 	iflib_tx_structures_free(ctx);
 	iflib_rx_structures_free(ctx);
@@ -4711,6 +4710,7 @@ fail:
 	iflib_free_intr_mem(ctx);
 	IFDI_DETACH(ctx);
 	CTX_UNLOCK(ctx);
+
 	return (err);
 }
 
@@ -4995,7 +4995,7 @@ iflib_device_deregister(if_ctx_t ctx)
 
 	/* Make sure VLANS are not using driver */
 	if (if_vlantrunkinuse(ifp)) {
-		device_printf(dev,"Vlan in use, detach first\n");
+		device_printf(dev, "Vlan in use, detach first\n");
 		return (EBUSY);
 	}
 #ifdef PCI_IOV
@@ -5251,7 +5251,7 @@ iflib_register(if_ctx_t ctx)
 
 	CTX_LOCK_INIT(ctx);
 	STATE_LOCK_INIT(ctx, device_get_nameunit(ctx->ifc_dev));
-	ifp = ctx->ifc_ifp = if_gethandle(IFT_ETHER);
+	ifp = ctx->ifc_ifp = if_alloc(IFT_ETHER);
 	if (ifp == NULL) {
 		device_printf(dev, "can not allocate ifnet structure\n");
 		return (ENOMEM);
@@ -5590,6 +5590,8 @@ iflib_rx_structures_free(if_ctx_t ctx)
 	for (int i = 0; i < ctx->ifc_softc_ctx.isc_nrxqsets; i++, rxq++) {
 		iflib_rx_sds_free(rxq);
 	}
+	free(ctx->ifc_rxqs, M_IFLIB);
+	ctx->ifc_rxqs = NULL;
 }
 
 static int
@@ -5850,7 +5852,7 @@ iflib_irq_alloc_generic(if_ctx_t ctx, if_irq_t irq, int rid,
 }
 
 void
-iflib_softirq_alloc_generic(if_ctx_t ctx, if_irq_t irq, iflib_intr_type_t type,  void *arg, int qid, const char *name)
+iflib_softirq_alloc_generic(if_ctx_t ctx, if_irq_t irq, iflib_intr_type_t type, void *arg, int qid, const char *name)
 {
 	struct grouptask *gtask;
 	struct taskqgroup *tqg;
@@ -6168,8 +6170,9 @@ iflib_msix_init(if_ctx_t ctx)
 	if (ctx->ifc_sysctl_qs_eq_override == 0) {
 #ifdef INVARIANTS
 		if (tx_queues != rx_queues)
-			device_printf(dev, "queue equality override not set, capping rx_queues at %d and tx_queues at %d\n",
-				      min(rx_queues, tx_queues), min(rx_queues, tx_queues));
+			device_printf(dev,
+			    "queue equality override not set, capping rx_queues at %d and tx_queues at %d\n",
+			    min(rx_queues, tx_queues), min(rx_queues, tx_queues));
 #endif
 		tx_queues = min(rx_queues, tx_queues);
 		rx_queues = min(rx_queues, tx_queues);
@@ -6179,8 +6182,7 @@ iflib_msix_init(if_ctx_t ctx)
 
 	vectors = rx_queues + admincnt;
 	if ((err = pci_alloc_msix(dev, &vectors)) == 0) {
-		device_printf(dev,
-					  "Using MSIX interrupts with %d vectors\n", vectors);
+		device_printf(dev, "Using MSIX interrupts with %d vectors\n", vectors);
 		scctx->isc_vectors = vectors;
 		scctx->isc_nrxqsets = rx_queues;
 		scctx->isc_ntxqsets = tx_queues;
@@ -6188,7 +6190,8 @@ iflib_msix_init(if_ctx_t ctx)
 
 		return (vectors);
 	} else {
-		device_printf(dev, "failed to allocate %d msix vectors, err: %d - using MSI\n", vectors, err);
+		device_printf(dev,
+		    "failed to allocate %d msix vectors, err: %d - using MSI\n", vectors, err);
 		bus_release_resource(dev, SYS_RES_MEMORY, bar,
 		    ctx->ifc_msix_mem);
 		ctx->ifc_msix_mem = NULL;

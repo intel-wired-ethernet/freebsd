@@ -115,21 +115,19 @@ SLIST_HEAD(vlan_list, ixlv_vlan_filter);
 
 /* Software controller structure */
 struct ixlv_sc {
+	struct ixl_vsi		vsi;
+
 	struct i40e_hw		hw;
 	struct i40e_osdep	osdep;
 	device_t		dev;
 
 	struct resource		*pci_mem;
-	struct resource		*msix_mem;
 
 	enum ixlv_state_t	init_state;
 	int			init_in_progress;
 
-	/*
-	 * Interrupt resources
-	 */
-	void			*tag;
-	struct resource 	*res; /* For the AQ */
+	// TODO: remove?
+	struct mtx		mtx;
 
 	struct ifmedia		media;
 	struct callout		timer;
@@ -139,18 +137,6 @@ struct ixlv_sc {
 
 	bool				link_up;
 	enum virtchnl_link_speed	link_speed;
-
-	struct mtx		mtx;
-
-	u32			qbase;
-	u32 			admvec;
-	struct timeout_task	timeout;
-#ifdef notyet
-	struct task     	aq_irq;
-	struct task     	aq_sched;
-#endif
-
-	struct ixl_vsi		vsi;
 
 	/* Filter lists */
 	struct mac_list		*mac_filters;
@@ -233,9 +219,14 @@ void	ixlv_del_vlans(struct ixlv_sc *);
 void	ixlv_update_stats_counters(struct ixlv_sc *,
 		    struct i40e_eth_stats *);
 void	ixlv_update_link_status(struct ixlv_sc *);
-void	ixlv_get_default_rss_key(u32 *, bool);
-void	ixlv_config_rss_key(struct ixlv_sc *);
-void	ixlv_set_rss_hena(struct ixlv_sc *);
-void	ixlv_config_rss_lut(struct ixlv_sc *);
+int	ixlv_get_default_rss_key(u32 *, bool);
+int	ixlv_config_rss_key(struct ixlv_sc *);
+int	ixlv_set_rss_hena(struct ixlv_sc *);
+int	ixlv_config_rss_lut(struct ixlv_sc *);
+int	ixlv_config_promisc_mode(struct ixlv_sc *);
 
+void	*ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op);
+int	ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request);
+int	ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op);
+char	*ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 #endif /* _IXLV_H_ */

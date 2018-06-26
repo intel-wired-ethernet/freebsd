@@ -161,29 +161,27 @@ static int
 ixlv_send_pf_msg(struct ixlv_sc *sc,
 	enum virtchnl_ops op, u8 *msg, u16 len)
 {
-	struct i40e_hw	*hw = &sc->hw;
-	device_t	dev = sc->dev;
-	i40e_status	err;
-
-#ifdef IXL_DEBUG
-	/*
-	** Pre-validating messages to the PF
-	*/
+	struct i40e_hw *hw = &sc->hw;
+	device_t dev = sc->dev;
+	i40e_status status;
 	int val_err;
-	val_err = ixl_vc_validate_vf_msg(sc, op, msg, len);
+
+	/* Validating message before sending it to the PF */
+	struct virtchnl_version_info vers = {1, 1};
+	val_err = virtchnl_vc_validate_vf_msg(&vers, op, msg, len);
 	if (val_err)
 		device_printf(dev, "Error validating msg to PF for op %d,"
 		    " msglen %d: error %d\n", op, len, val_err);
-#endif
 
-	err = i40e_aq_send_msg_to_pf(hw, op, I40E_SUCCESS, msg, len, NULL);
-	if (err)
+	status = i40e_aq_send_msg_to_pf(hw, op, I40E_SUCCESS, msg, len, NULL);
+	if (status)
 		device_printf(dev, "Unable to send opcode %s to PF, "
 		    "status %s, aq error %s\n",
 		    ixl_vc_opcode_str(op),
-		    i40e_stat_str(hw, err),
+		    i40e_stat_str(hw, status),
 		    i40e_aq_str(hw, hw->aq.asq_last_status));
-	return err;
+
+	return (0);
 }
 
 
@@ -502,7 +500,7 @@ ixlv_map_queues(struct ixlv_sc *sc)
 	q = scctx->isc_vectors - 1;
 
 	len = sizeof(struct virtchnl_irq_map_info) +
-	      (scctx->isc_vectors * sizeof(struct i40e_virtchnl_vector_map));
+	      (scctx->isc_vectors * sizeof(struct virtchnl_vector_map));
 	vm = malloc(len, M_DEVBUF, M_NOWAIT);
 	if (!vm) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
@@ -1016,63 +1014,26 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		}
 		break;
 	case VIRTCHNL_OP_DEL_ETH_ADDR:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_DEL_MAC_FILTER,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_CONFIGURE_PROMISC,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_ADD_VLAN:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_ADD_VLAN_FILTER,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_DEL_VLAN:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_DEL_VLAN_FILTER,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_ENABLE_QUEUES:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_ENABLE_QUEUES,
-		    v_retval);
-		if (v_retval == 0) {
-			/* Update link status */
-			ixlv_update_link_status(sc);
-			/* Turn on all interrupts */
-			ixlv_enable_intr(vsi);
-			/* And inform the stack we're ready */
-			// vsi->ifp->if_drv_flags |= IFF_DRV_RUNNING;
-			/* TODO: Clear a state flag, so we know we're ready to run init again */
-		}
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_DISABLE_QUEUES,
-		    v_retval);
-		if (v_retval == 0) {
-			/* Turn off all interrupts */
-			ixlv_disable_intr(vsi);
-			/* Tell the stack that the interface is no longer active */
-			vsi->ifp->if_drv_flags &= ~(IFF_DRV_RUNNING);
-		}
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_CONFIGURE_QUEUES,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_CONFIG_IRQ_MAP:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_MAP_VECTORS,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_KEY:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_CONFIG_RSS_KEY,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_SET_RSS_HENA:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_SET_RSS_HENA,
-		    v_retval);
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_LUT:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_CONFIG_RSS_LUT,
-		    v_retval);
 		break;
 	default:
 #ifdef IXL_DEBUG

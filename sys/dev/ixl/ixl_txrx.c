@@ -767,3 +767,35 @@ ixl_max_aq_speed_to_value(u8 link_speeds)
 		/* Minimum supported link speed */
 		return IF_Mbps(100);
 }
+
+/* Set Report Status queue fields to 0 */
+void
+ixl_init_tx_rsqs(struct ixl_vsi *vsi)
+{
+	if_softc_ctx_t scctx = vsi->shared;
+	struct ixl_tx_queue *tx_que;
+	int i, j;
+
+	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
+		struct tx_ring *txr = &tx_que->txr;
+
+		txr->tx_rs_cidx = txr->tx_rs_pidx = txr->tx_cidx_processed = 0;
+
+		for (j = 0; j < scctx->isc_ntxd[0]; j++)
+			txr->tx_rsq[j] = QIDX_INVALID;
+	}
+}
+
+void
+ixl_init_tx_cidx(struct ixl_vsi *vsi)
+{
+	struct ixl_tx_queue *tx_que;
+	int i;
+	
+	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
+		struct tx_ring *txr = &tx_que->txr;
+
+		txr->tx_cidx_processed = 0;
+	}
+}
+

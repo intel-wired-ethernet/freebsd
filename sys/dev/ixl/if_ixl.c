@@ -169,7 +169,6 @@ static device_method_t ixl_if_methods[] = {
 	DEVMETHOD(ifdi_msix_intr_assign, ixl_if_msix_intr_assign),
 	DEVMETHOD(ifdi_intr_enable, ixl_if_enable_intr),
 	DEVMETHOD(ifdi_intr_disable, ixl_if_disable_intr),
-	//DEVMETHOD(ifdi_link_intr_enable, ixl_if_link_intr_enable),
 	DEVMETHOD(ifdi_rx_queue_intr_enable, ixl_if_rx_queue_intr_enable),
 	DEVMETHOD(ifdi_tx_queue_intr_enable, ixl_if_tx_queue_intr_enable),
 	DEVMETHOD(ifdi_tx_queues_alloc, ixl_if_tx_queues_alloc),
@@ -207,7 +206,7 @@ static driver_t ixl_if_driver = {
 */
 
 static SYSCTL_NODE(_hw, OID_AUTO, ixl, CTLFLAG_RD, 0,
-                   "IXL driver parameters");
+    "ixl driver parameters");
 
 /*
  * Leave this on unless you need to send flow control
@@ -338,9 +337,9 @@ ixl_register(device_t dev)
 static int
 ixl_allocate_pci_resources(struct ixl_pf *pf)
 {
-	int             rid;
-	struct i40e_hw *hw = &pf->hw;
 	device_t dev = iflib_get_dev(pf->vsi.ctx);
+	struct i40e_hw *hw = &pf->hw;
+	int             rid;
 
 	/* Map BAR0 */
 	rid = PCIR_BAR(0);
@@ -391,9 +390,8 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	enum i40e_status_code status;
 	int error = 0;
 
-	INIT_DEBUGOUT("ixl_if_attach_pre: begin");
+	INIT_DBG_DEV(dev, "begin");
 
-	/* Allocate, clear, and link in our primary soft structure */
 	dev = iflib_get_dev(ctx);
 	pf = iflib_get_softc(ctx);
 
@@ -402,11 +400,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	pf->dev = dev;
 	hw = &pf->hw;
 
-	/*
-	** Note this assumes we have a single embedded VSI,
-	** this could be enhanced later to allocate multiple
-	*/
-	vsi->dev = pf->dev;
+	vsi->dev = dev;
 	vsi->hw = &pf->hw;
 	vsi->id = 0;
 	vsi->num_vlans = 0;
@@ -562,7 +556,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	scctx->isc_tx_csum_flags = CSUM_OFFLOAD;
 	scctx->isc_capabilities = scctx->isc_capenable = IXL_CAPS;
 
-	INIT_DEBUGOUT("ixl_if_attach_pre: end");
+	INIT_DBG_DEV(dev, "end");
 	return (0);
 
 err_mac_hmc:
@@ -585,7 +579,7 @@ ixl_if_attach_post(if_ctx_t ctx)
 	int error = 0;
 	enum i40e_status_code status;
 
-	INIT_DEBUGOUT("ixl_if_attach_post: begin");
+	INIT_DBG_DEV(dev, "begin");
 
 	dev = iflib_get_dev(ctx);
 	pf = iflib_get_softc(ctx);
@@ -758,7 +752,6 @@ ixl_if_detach(if_ctx_t ctx)
 	return (0);
 }
 
-/* TODO: Do shutdown-specific stuff here */
 static int
 ixl_if_shutdown(if_ctx_t ctx)
 {
@@ -801,37 +794,6 @@ ixl_if_resume(if_ctx_t ctx)
 		ixl_if_init(ctx);
 
 	return (0);
-}
-
-/* Set Report Status queue fields to 0 */
-static void
-ixl_init_tx_rsqs(struct ixl_vsi *vsi)
-{
-	if_softc_ctx_t scctx = vsi->shared;
-	struct ixl_tx_queue *tx_que;
-	int i, j;
-
-	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
-		struct tx_ring *txr = &tx_que->txr;
-
-		txr->tx_rs_cidx = txr->tx_rs_pidx = txr->tx_cidx_processed = 0;
-
-		for (j = 0; j < scctx->isc_ntxd[0]; j++)
-			txr->tx_rsq[j] = QIDX_INVALID;
-	}
-}
-
-static void
-ixl_init_tx_cidx(struct ixl_vsi *vsi)
-{
-	struct ixl_tx_queue *tx_que;
-	int i;
-	
-	for (i = 0, tx_que = vsi->tx_queues; i < vsi->num_tx_queues; i++, tx_que++) {
-		struct tx_ring *txr = &tx_que->txr;
-
-		txr->tx_cidx_processed = 0;
-	}
 }
 
 void
@@ -953,7 +915,7 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 	if (err) {
 		iflib_irq_free(ctx, &vsi->irq);
 		device_printf(iflib_get_dev(ctx),
-		    "Failed to register Admin que handler");
+		    "Failed to register Admin Que handler");
 		return (err);
 	}
 	// TODO: Re-enable this at some point
@@ -1061,11 +1023,10 @@ ixl_if_tx_queue_intr_enable(if_ctx_t ctx, uint16_t txqid)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &pf->vsi;
-	struct i40e_hw		*hw = vsi->hw;
-	struct ixl_tx_queue	*tx_que = &vsi->tx_queues[txqid];
+	struct i40e_hw *hw = vsi->hw;
+	struct ixl_tx_queue *tx_que = &vsi->tx_queues[txqid];
 
 	ixl_enable_queue(hw, tx_que->msix - 1);
-
 	return (0);
 }
 
@@ -1078,9 +1039,9 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 	struct ixl_tx_queue *que;
 	int i, j, error = 0;
 
-	MPASS(vsi->shared->isc_ntxqsets > 0);
+	MPASS(scctx->isc_ntxqsets > 0);
 	MPASS(ntxqs == 1);
-	MPASS(vsi->shared->isc_ntxqsets == ntxqsets);
+	MPASS(scctx->isc_ntxqsets == ntxqsets);
 
 	/* Allocate queue structure memory */
 	if (!(vsi->tx_queues =
@@ -1127,9 +1088,9 @@ ixl_if_rx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int nrxq
 	struct ixl_rx_queue *que;
 	int i, error = 0;
 
-	MPASS(vsi->shared->isc_nrxqsets > 0);
+	MPASS(scctx->isc_nrxqsets > 0);
 	MPASS(nrxqs == 1);
-	MPASS(vsi->shared->isc_nrxqsets == nrxqsets);
+	MPASS(scctx->isc_nrxqsets == nrxqsets);
 
 	/* Allocate queue structure memory */
 	if (!(vsi->rx_queues =

@@ -87,10 +87,6 @@ struct ixl_vf {
 
 /* Physical controller structure */
 struct ixl_pf {
-	/*
-	 * This is first so that iflib_get_softc can return
-	 * either the VSI or the PF structures.
-	 */
 	struct ixl_vsi		vsi;
 
 	struct i40e_hw		hw;

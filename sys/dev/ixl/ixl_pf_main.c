@@ -527,11 +527,11 @@ ixl_intr(void *arg)
 int
 ixl_msix_que(void *arg)
 {
-	struct ixl_rx_queue *que = arg;
+	struct ixl_rx_queue *rx_que = arg;
 
-	++que->irqs;
+	++rx_que->irqs;
 
-	ixl_set_queue_rx_itr(que);
+	ixl_set_queue_rx_itr(rx_que);
 	// ixl_set_queue_tx_itr(que);
 
 	return (FILTER_SCHEDULE_THREAD);
@@ -1028,7 +1028,11 @@ ixl_setup_interface(device_t dev, struct ixl_pf *pf)
 
 	INIT_DBG_DEV(dev, "begin");
 
-	/* TODO: Remove VLAN_ENCAP_LEN? */
+	/* initialize fast path functions */
+	cap = IXL_CAPS;
+	if_setifheaderlen(ifp, sizeof(struct ether_vlan_header));
+	if_setcapabilitiesbit(ifp, cap, 0);
+	if_setcapenable(ifp, if_getcapabilities(ifp));
 	vsi->shared->isc_max_frame_size =
 	    ifp->if_mtu + ETHER_HDR_LEN + ETHER_CRC_LEN
 	    + ETHER_VLAN_ENCAP_LEN;
