@@ -1886,8 +1886,8 @@ ixl_if_iov_vf_add(if_ctx_t ctx, uint16_t vfnum, const nvlist_t *params)
 
 	vf->vf_flags |= VF_FLAG_VLAN_CAP;
 
-	// TODO: This is causing a kernel panic in ixl_if_update_admin_status()/grouptaskqueue_enqueue()
-	// ixl_reset_vf(pf, vf);
+	/* VF needs to be reset before it can be used */
+	ixl_reset_vf(pf, vf);
 out:
 	if (error == 0) {
 		snprintf(sysctl_name, sizeof(sysctl_name), "vf%d", vfnum);
