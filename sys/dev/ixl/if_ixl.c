@@ -545,6 +545,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 		    * sizeof(struct i40e_tx_desc), DBA_ALIGN);
 		scctx->isc_txrx = &ixl_txrx_dwb;
 	}
+	scctx->isc_txrx->ift_legacy_intr = ixl_intr;
 	scctx->isc_rxqsizes[0] = roundup2(scctx->isc_nrxd[0]
 	    * sizeof(union i40e_32byte_rx_desc), DBA_ALIGN);
 	scctx->isc_msix_bar = PCIR_BAR(IXL_MSIX_BAR);

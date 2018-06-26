@@ -75,7 +75,7 @@ struct if_txrx ixl_txrx_hwb = {
 	ixl_isc_rxd_pkt_get,
 	ixl_isc_rxd_refill,
 	ixl_isc_rxd_flush,
-	ixl_intr
+	NULL
 };
 
 struct if_txrx ixl_txrx_dwb = {
@@ -86,7 +86,7 @@ struct if_txrx ixl_txrx_dwb = {
 	ixl_isc_rxd_pkt_get,
 	ixl_isc_rxd_refill,
 	ixl_isc_rxd_flush,
-	ixl_intr
+	NULL
 };
 
 /*
