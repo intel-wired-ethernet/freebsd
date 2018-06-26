@@ -534,6 +534,8 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
 	ixlv_add_sysctls(sc);
 
+	ixl_vc_init_mgr(sc, &sc->vc_mgr);
+
 	/* We want AQ enabled early */
 	ixlv_enable_adminq_irq(hw);
 	INIT_DBG_DEV(dev, "end");
