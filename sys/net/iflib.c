@@ -161,9 +161,9 @@ typedef struct iflib_filter_info {
 
 struct iflib_ctx {
 	KOBJ_FIELDS;
-   /*
-   * Pointer to hardware driver's softc
-   */
+	/*
+	 * Pointer to hardware driver's softc
+	 */
 	void *ifc_softc;
 	device_t ifc_dev;
 	if_t ifc_ifp;
