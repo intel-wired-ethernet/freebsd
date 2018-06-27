@@ -1025,6 +1025,7 @@ ixl_setup_interface(device_t dev, struct ixl_pf *pf)
 	struct ifnet *ifp = iflib_get_ifp(ctx);
 	struct i40e_aq_get_phy_abilities_resp abilities;
 	enum i40e_status_code aq_error = 0;
+	uint64_t cap;
 
 	INIT_DBG_DEV(dev, "begin");
 
@@ -1093,7 +1094,6 @@ ixl_max_aq_speed_to_value(u8 link_speeds)
 		/* Minimum supported link speed */
 		return IF_Mbps(100);
 }
-
 
 /*
 ** Run when the Admin Queue gets a link state change interrupt.
