@@ -36,6 +36,7 @@
 #ifndef _IXLV_H_
 #define _IXLV_H_
 
+#include "ixl.h"
 #include "ixlv_vc_mgr.h"
 
 #define IXLV_AQ_MAX_ERR		200
@@ -154,6 +155,7 @@ struct ixlv_sc {
 	struct ixl_vc_cmd	config_queues_cmd;
 	struct ixl_vc_cmd	map_vectors_cmd;
 	struct ixl_vc_cmd	enable_queues_cmd;
+	struct ixl_vc_cmd	disable_queues_cmd;
 	struct ixl_vc_cmd	add_vlan_cmd;
 	struct ixl_vc_cmd	del_vlan_cmd;
 	struct ixl_vc_cmd	add_multi_cmd;

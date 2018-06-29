@@ -958,6 +958,9 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 	device_t	dev = sc->dev;
 	struct ixl_vsi	*vsi = &sc->vsi;
 
+	if (v_opcode != VIRTCHNL_OP_GET_STATS)
+		device_printf(dev, "%s: opcode %s\n", __func__, ixl_vc_opcode_str(v_opcode));
+
 	if (v_opcode == VIRTCHNL_OP_EVENT) {
 		struct virtchnl_pf_event *vpe =
 			(struct virtchnl_pf_event *)msg;
@@ -996,12 +999,8 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		    __func__, i40e_vc_stat_str(&sc->hw, v_retval), ixl_vc_opcode_str(v_opcode));
 	}
 
-#ifdef IXL_DEBUG
-	if (v_opcode != VIRTCHNL_OP_GET_STATS)
-		DDPRINTF(dev, "opcode %d", v_opcode);
-#endif
-
 	switch (v_opcode) {
+#if 0
 	case VIRTCHNL_OP_GET_STATS:
 		ixlv_update_stats_counters(sc, (struct i40e_eth_stats *)msg);
 		break;
@@ -1021,12 +1020,14 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		break;
 	case VIRTCHNL_OP_DEL_VLAN:
 		break;
+#endif
 	case VIRTCHNL_OP_ENABLE_QUEUES:
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
 		break;
+#if 0
 	case VIRTCHNL_OP_CONFIG_IRQ_MAP:
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_KEY:
@@ -1035,6 +1036,7 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_LUT:
 		break;
+#endif
 	default:
 #ifdef IXL_DEBUG
 		device_printf(dev,

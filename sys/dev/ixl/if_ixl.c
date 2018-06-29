@@ -1089,9 +1089,12 @@ ixl_if_rx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int nrxq
 	struct ixl_rx_queue *que;
 	int i, error = 0;
 
+#ifdef INVARIANTS
+	if_softc_ctx_t scctx = vsi->shared;
 	MPASS(scctx->isc_nrxqsets > 0);
 	MPASS(nrxqs == 1);
 	MPASS(scctx->isc_nrxqsets == nrxqsets);
+#endif
 
 	/* Allocate queue structure memory */
 	if (!(vsi->rx_queues =

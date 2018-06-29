@@ -2193,11 +2193,16 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	enum i40e_status_code	status;
 	int			j = 0;
 
-	MPASS(cnt > 0);
+	// MPASS(cnt > 0);
 
 	pf = vsi->back;
 	dev = vsi->dev;
 	hw = &pf->hw;
+
+	if (cnt < 1) {
+		device_printf(dev, "%s: cnt == 0\n", __func__);
+		return;
+	}
 
 	a = malloc(sizeof(struct i40e_aqc_add_macvlan_element_data) * cnt,
 	    M_DEVBUF, M_NOWAIT | M_ZERO);

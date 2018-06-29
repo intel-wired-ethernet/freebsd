@@ -406,9 +406,7 @@ ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que)
 	      (sizeof(struct i40e_tx_desc)) *
 	      (vsi->shared->isc_ntxd[0] + (vsi->enable_head_writeback ? 1 : 0)));
 
-	// TODO: Write max descriptor index instead of 0?
 	wr32(vsi->hw, txr->tail, 0);
-	wr32(vsi->hw, I40E_QTX_HEAD(txr->me), 0);
 }
 
 /*

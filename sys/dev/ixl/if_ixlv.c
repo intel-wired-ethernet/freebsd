@@ -32,7 +32,6 @@
 ******************************************************************************/
 /*$FreeBSD$*/
 
-#include "ixl.h"
 #include "ixlv.h"
 
 /*********************************************************************
@@ -276,7 +275,7 @@ static struct if_shared_ctx ixlv_sctx_init = {
 	.isc_driver_version = IXLV_DRIVER_VERSION_STRING,
 	.isc_driver = &ixlv_if_driver,
 	// TODO: VF driver may not need IFLIB_ADMIN_ALWAYS_RUN
-	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM,
+	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM | IFLIB_IS_VF | IFLIB_ADMIN_ALWAYS_RUN,
 
 	.isc_nrxd_min = {IXL_MIN_RING},
 	.isc_ntxd_min = {IXL_MIN_RING},
@@ -534,10 +533,9 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
 	ixlv_add_sysctls(sc);
 
-	ixl_vc_init_mgr(sc, &sc->vc_mgr);
-
-	/* We want AQ enabled early */
+	/* We want AQ enabled early for init */
 	ixlv_enable_adminq_irq(hw);
+
 	INIT_DBG_DEV(dev, "end");
 	return (error);
 // TODO: Check if any failures can happen above
@@ -569,9 +567,6 @@ ixlv_if_detach(if_ctx_t ctx)
 
 	/* Remove all the media and link information */
 	ifmedia_removeall(vsi->media);
-
-	/* Drain VC mgr */
-	callout_drain(&sc->vc_mgr.callout);
 
 	ixlv_disable_adminq_irq(hw);
 	status = i40e_shutdown_adminq(&sc->hw);
@@ -716,8 +711,11 @@ ixlv_if_init(if_ctx_t ctx)
 	int error = 0;
 
 	INIT_DBG_IF(ifp, "begin");
-	MPASS(sc->vc_mgr.sc == sc);
 
+	MPASS(sx_xlocked(iflib_ctx_lock_get(ctx)));
+
+#if 0
+	MPASS(sc->vc_mgr.sc == sc);
 	/* Do a reinit first if an init has already been done */
 	if ((sc->init_state == IXLV_RUNNING) ||
 	    (sc->init_state == IXLV_RESET_REQUIRED) ||
@@ -726,7 +724,9 @@ ixlv_if_init(if_ctx_t ctx)
 	/* Don't bother with init if we failed reinit */
 	if (error)
 		goto init_done;
+#endif
 
+#if 0
 	/* Remove existing MAC filter if new MAC addr is set */
 	if (bcmp(IF_LLADDR(ifp), hw->mac.addr, ETHER_ADDR_LEN) != 0) {
 		error = ixlv_del_mac_filter(sc, hw->mac.addr);
@@ -735,6 +735,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 		bcopy(tmpaddr, hw->mac.addr, ETH_ALEN);
 	}
+#endif
 
 	error = ixlv_add_mac_filter(sc, hw->mac.addr, 0);
 	if (!error || error == EEXIST)
@@ -747,7 +748,6 @@ ixlv_if_init(if_ctx_t ctx)
 	// TODO: Functionize
 	/* Prepare the queues for operation */
 	for (int i = 0; i < vsi->num_tx_queues; i++, tx_que++) {
-		// TODO: Necessary? Correct?
 		ixl_init_tx_ring(vsi, tx_que);
 	}
 	for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++) {
@@ -764,6 +764,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_QUEUES);
 
+#if 0
 	/* Set up RSS */
 	ixlv_config_rss(sc);
 
@@ -778,7 +779,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 	sc->init_state = IXLV_RUNNING;
 
-init_done:
+//init_done:
 	INIT_DBG_IF(ifp, "end");
 	return;
 }
@@ -1118,9 +1119,12 @@ ixlv_if_rx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int nrx
 	struct ixl_rx_queue *que;
 	int i, error = 0;
 
+#ifdef INVARIANTS
+	if_softc_ctx_t scctx = vsi->shared;
 	MPASS(scctx->isc_nrxqsets > 0);
 	MPASS(nrxqs == 1);
 	MPASS(scctx->isc_nrxqsets == nrxqsets);
+#endif
 
 	/* Allocate queue structure memory */
 	if (!(vsi->rx_queues =
@@ -1179,87 +1183,112 @@ ixlv_if_queues_free(if_ctx_t ctx)
 	}
 }
 
-// TODO: Implement
+#if 0
+static int
+ixlv_check_aq_errors(struct ixlv_sc *sc)
+{
+	/* check for Admin queue errors */
+	oldreg = reg = rd32(hw, hw->aq.arq.len);
+	if (reg & I40E_VF_ARQLEN1_ARQVFE_MASK) {
+		device_printf(dev, "ARQ VF Error detected\n");
+		reg &= ~I40E_VF_ARQLEN1_ARQVFE_MASK;
+		aq_error = true;
+	}
+	if (reg & I40E_VF_ARQLEN1_ARQOVFL_MASK) {
+		device_printf(dev, "ARQ Overflow Error detected\n");
+		reg &= ~I40E_VF_ARQLEN1_ARQOVFL_MASK;
+		aq_error = true;
+	}
+	if (reg & I40E_VF_ARQLEN1_ARQCRIT_MASK) {
+		device_printf(dev, "ARQ Critical Error detected\n");
+		reg &= ~I40E_VF_ARQLEN1_ARQCRIT_MASK;
+		aq_error = true;
+	}
+	if (oldreg != reg)
+		wr32(hw, hw->aq.arq.len, reg);
+
+	oldreg = reg = rd32(hw, hw->aq.asq.len);
+	if (reg & I40E_VF_ATQLEN1_ATQVFE_MASK) {
+		device_printf(dev, "ASQ VF Error detected\n");
+		reg &= ~I40E_VF_ATQLEN1_ATQVFE_MASK;
+		aq_error = true;
+	}
+	if (reg & I40E_VF_ATQLEN1_ATQOVFL_MASK) {
+		device_printf(dev, "ASQ Overflow Error detected\n");
+		reg &= ~I40E_VF_ATQLEN1_ATQOVFL_MASK;
+		aq_error = true;
+	}
+	if (reg & I40E_VF_ATQLEN1_ATQCRIT_MASK) {
+		device_printf(dev, "ASQ Critical Error detected\n");
+		reg &= ~I40E_VF_ATQLEN1_ATQCRIT_MASK;
+		aq_error = true;
+	}
+	if (oldreg != reg)
+		wr32(hw, hw->aq.asq.len, reg);
+
+#if 0
+	if (aq_error) {
+		/* Need to reset adapter */
+		device_printf(dev, "WARNING: Resetting!\n");
+		sc->init_state = IXLV_RESET_REQUIRED;
+		ixlv_stop(sc);
+		ixlv_init_locked(sc);
+	}
+#endif
+
+}
+#endif
+
+static int
+ixlv_process_adminq(struct ixlv_sc *sc, u16 *pending)
+{
+	enum i40e_status_code status = I40E_SUCCESS;
+	struct i40e_arq_event_info event;
+	struct i40e_hw *hw = &sc->hw;
+	struct virtchnl_msg *v_msg;
+	u32 loop = 0, reg;
+
+	event.buf_len = IXL_AQ_BUF_SZ;
+        event.msg_buf = sc->aq_buffer;
+	bzero(event.msg_buf, IXL_AQ_BUF_SZ);
+	v_msg = (struct virtchnl_msg *)&event.desc;
+
+	/* clean and process any events */
+	do {
+		status = i40e_clean_arq_element(hw, &event, pending);
+		if (status)
+			break;
+		ixlv_vc_completion(sc, v_msg->v_opcode,
+		    v_msg->v_retval, event.msg_buf, event.msg_len);
+		bzero(event.msg_buf, IXL_AQ_BUF_SZ);
+	} while (*pending && (loop++ < IXL_ADM_LIMIT));
+
+	/* Re-enable admin queue interrupt cause */
+	reg = rd32(hw, I40E_VFINT_ICR0_ENA1);
+	reg |= I40E_VFINT_ICR0_ENA1_ADMINQ_MASK;
+	wr32(hw, I40E_VFINT_ICR0_ENA1, reg);
+
+	return (status);
+}
+
 static void
 ixlv_if_update_admin_status(if_ctx_t ctx)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
-	struct ixl_vsi *vsi = &sc->vsi;
-	//struct ixlv_sc			*sc = vsi->back; 
-	//struct i40e_hw			*hw = &sc->hw;
-	//struct i40e_arq_event_info	event;
-	//i40e_status			ret;
-	//u32				loop = 0;
-	//u16				opcode
-	u16				result = 0;
-	//u64				baudrate;
+	struct i40e_hw *hw = &sc->hw;
+	u16 pending;
 
-	/* TODO: Split up
-	 * - Update admin queue stuff
-	 * - Update link status
-	 * - Enqueue aq task
-	 * - Re-enable admin intr
-	 */
-
-/* TODO: Does VF reset need to be handled here? */
-#if 0
-	if (pf->state & IXL_PF_STATE_EMPR_RESETTING) {
-		/* Flag cleared at end of this function */
-		ixl_handle_empr_reset(pf);
-		return;
-	}
-#endif
-
-#if 0
-	event.buf_len = IXL_AQ_BUF_SZ;
-	event.msg_buf = malloc(event.buf_len,
-	    M_IXLV, M_NOWAIT | M_ZERO);
-	if (!event.msg_buf) {
-		device_printf(pf->dev, "%s: Unable to allocate memory for Admin"
-		    " Queue event!\n", __func__);
-		return;
-	}
-
-	/* clean and process any events */
-	do {
-		ret = i40e_clean_arq_element(hw, &event, &result);
-		if (ret)
-			break;
-		opcode = LE16_TO_CPU(event.desc.opcode);
-		ixl_dbg(pf, IXL_DBG_AQ,
-		    "Admin Queue event: %#06x\n", opcode);
-		switch (opcode) {
-		case i40e_aqc_opc_get_link_status:
-			ixl_link_event(pf, &event);
-			break;
-		case i40e_aqc_opc_send_msg_to_pf:
-#ifdef PCI_IOV
-			ixl_handle_vf_msg(pf, &event);
-#endif
-			break;
-		case i40e_aqc_opc_event_lan_overflow:
-			break;
-		default:
-#ifdef IXL_DEBUG
-			printf("AdminQ unknown event %x\n", opcode);
-#endif
-			break;
-		}
-
-	} while (result && (loop++ < IXL_ADM_LIMIT));
-
-	free(event.msg_buf, M_IXLV);
-#endif
-
+	ixlv_process_adminq(sc, &pending);
+	ixlv_update_link_status(sc);
+	
 	/*
-	 * If there are still messages to process, reschedule ourselves.
-	 * Otherwise, re-enable our interrupt and go to sleep.
+	 * If there are still messages to process, reschedule.
+	 * Otherwise, re-enable the Admin Queue interrupt.
 	 */
-	if (result > 0)
+	if (pending > 0)
 		iflib_admin_intr_deferred(ctx);
 	else
-		/* TODO: Link/adminq interrupt should be re-enabled in IFDI_LINK_INTR_ENABLE */
-		ixlv_enable_intr(vsi);
+		ixlv_enable_adminq_irq(hw);
 }
 
 static void
@@ -1410,7 +1439,7 @@ ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 static void
 ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 {
-	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	// struct ixlv_sc *sc = iflib_get_softc(ctx);
 
 	if (qid != 0)
 		return;
@@ -1419,7 +1448,8 @@ ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 	iflib_admin_intr_deferred(ctx);
 
 	/* Update stats */
-	ixlv_request_stats(sc);
+	// TODO: Re-enable
+	// ixlv_request_stats(sc);
 }
 
 static void
@@ -1740,29 +1770,34 @@ ixlv_msix_adminq(void *arg)
 {
 	struct ixlv_sc	*sc = arg;
 	struct i40e_hw	*hw = &sc->hw;
-	// device_t	dev = sc->dev;
+	device_t	dev = sc->dev;
 	u32		reg, mask;
 	bool		do_task = FALSE;
+
+	device_printf(dev, "%s: begin\n", __func__);
 
 	++sc->admin_irq;
 
         reg = rd32(hw, I40E_VFINT_ICR01);
         mask = rd32(hw, I40E_VFINT_ICR0_ENA1);
 
+#if 0
+	// TODO: Check if this is still necessary
         reg = rd32(hw, I40E_VFINT_DYN_CTL01);
         reg |= I40E_VFINT_DYN_CTL01_CLEARPBA_MASK;
         wr32(hw, I40E_VFINT_DYN_CTL01, reg);
+#endif
 
 	/* Check on the cause */
-	if (reg & I40E_VFINT_ICR0_ADMINQ_MASK)
+	if (reg & I40E_VFINT_ICR0_ADMINQ_MASK) {
+		// mask &= ~I40E_VFINT_ICR0_ENA_ADMINQ_MASK;
 		do_task = TRUE;
+	}
 
 	if (do_task)
-		iflib_admin_intr_deferred(sc->vsi.ctx);
+		return (FILTER_SCHEDULE_THREAD);
 	else
-		ixlv_enable_adminq_irq(hw);
-
-	return (FILTER_HANDLED);
+		return (FILTER_HANDLED);
 }
 
 void
@@ -1782,7 +1817,7 @@ ixlv_disable_intr(struct ixl_vsi *vsi)
         struct i40e_hw *hw = vsi->hw;
         struct ixl_rx_queue *que = vsi->rx_queues;
 
-	ixlv_disable_adminq_irq(hw);
+	// ixlv_disable_adminq_irq(hw);
 	for (int i = 0; i < vsi->num_rx_queues; i++, que++)
 		ixlv_disable_queue_irq(hw, que->rxr.me);
 }
@@ -2129,13 +2164,13 @@ ixlv_update_link_status(struct ixlv_sc *sc)
 static void
 ixlv_stop(struct ixlv_sc *sc)
 {
+	if_ctx_t ctx = sc->vsi.ctx;
 	struct ifnet *ifp;
-	int start;
+	int error = 0;
 
 	ifp = sc->vsi.ifp;
 	INIT_DBG_IF(ifp, "begin");
 
-	ixl_vc_flush(&sc->vc_mgr);
 	ixlv_disable_queues(sc);
 
 	start = ticks;
@@ -2145,6 +2180,7 @@ ixlv_stop(struct ixlv_sc *sc)
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
+	ixlv_disable_intr(vsi);
 	INIT_DBG_IF(ifp, "end");
 }
 

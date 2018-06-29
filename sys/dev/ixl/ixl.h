@@ -40,6 +40,7 @@
 #include "opt_inet6.h"
 #include "opt_rss.h"
 #include "opt_ixl.h"
+#include "opt_global.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -86,6 +87,12 @@
 #include <vm/vm.h>
 #include <vm/pmap.h>
 #include <machine/clock.h>
+#if 0
+// DEBUG
+#include <sys/pciio.h>
+#include <dev/pci/pci_iov_private.h>
+// END DEBUG
+#endif
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcireg.h>
 #include <sys/proc.h>
@@ -136,8 +143,6 @@
 
 #define IXL_MSIX_BAR		3
 #define IXL_ADM_LIMIT		2
-// TODO: Find out which TSO_SIZE to use
-//#define IXL_TSO_SIZE		65535
 #define IXL_TSO_SIZE		((255*1024)-1)
 #define IXL_TX_BUF_SZ		((u32) 1514)
 #define IXL_AQ_BUF_SZ		((u32) 4096)
