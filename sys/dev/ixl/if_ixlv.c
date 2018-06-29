@@ -1160,7 +1160,7 @@ ixlv_if_queues_free(if_ctx_t ctx)
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &sc->vsi;
 
-	if (vsi->enable_head_writeback) {
+	if (!vsi->enable_head_writeback) {
 		struct ixl_tx_queue *que;
 		int i = 0;
 
@@ -2180,7 +2180,7 @@ ixlv_stop(struct ixlv_sc *sc)
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
-	ixlv_disable_intr(vsi);
+	ixlv_disable_intr(&sc->vsi);
 	INIT_DBG_IF(ifp, "end");
 }
 
