@@ -209,8 +209,6 @@ ixl_vf_setup_vsi(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	vf->vsi.hw_filters_add = 0;
 	vf->vsi.hw_filters_del = 0;
-	// ixl_add_filter(&vf->vsi, ixl_bcast_addr, IXL_VLAN_ANY);
-	ixl_reconfigure_filters(&vf->vsi);
 
 	return (0);
 }
@@ -1830,9 +1828,9 @@ ixl_vf_reserve_queues(struct ixl_pf *pf, struct ixl_vf *vf, int num_queues)
 		return (ENOSPC);
 	}
 
-	ixl_dbg(pf, IXL_DBG_IOV, "VF %d: %d allocated, %d active",
+	ixl_dbg(pf, IXL_DBG_IOV, "VF %d: %d allocated, %d active\n",
 	    vf->vf_num, vf->qtag.num_allocated, vf->qtag.num_active);
-	ixl_dbg(pf, IXL_DBG_IOV, "Unallocated total: %d", ixl_pf_qmgr_get_num_free(&pf->qmgr));
+	ixl_dbg(pf, IXL_DBG_IOV, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));
 
 	return (0);
 }

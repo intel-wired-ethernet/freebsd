@@ -551,4 +551,5 @@ const char *	i40e_vc_stat_str(struct i40e_hw *hw,
     enum virtchnl_status_code stat_err);
 void		ixl_init_tx_rsqs(struct ixl_vsi *vsi);
 void		ixl_init_tx_cidx(struct ixl_vsi *vsi);
+u64		ixl_max_vc_speed_to_value(u8 link_speeds);
 #endif /* _IXL_H_ */

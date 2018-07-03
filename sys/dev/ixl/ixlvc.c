@@ -184,7 +184,6 @@ ixlv_send_pf_msg(struct ixlv_sc *sc,
 	return (0);
 }
 
-
 /*
 ** ixlv_send_api_ver
 **
@@ -222,7 +221,7 @@ ixlv_verify_api_ver(struct ixlv_sc *sc)
 	int retries = 0;
 
 	event.buf_len = IXL_AQ_BUF_SZ;
-	event.msg_buf = malloc(event.buf_len, M_DEVBUF, M_NOWAIT);
+	event.msg_buf = malloc(event.buf_len, M_IXLV, M_NOWAIT);
 	if (!event.msg_buf) {
 		err = ENOMEM;
 		goto out;
@@ -273,7 +272,7 @@ ixlv_verify_api_ver(struct ixlv_sc *sc)
 	    VIRTCHNL_VERSION_MAJOR, VIRTCHNL_VERSION_MINOR);
 
 out_alloc:
-	free(event.msg_buf, M_DEVBUF);
+	free(event.msg_buf, M_IXLV);
 out:
 	return (err);
 }
@@ -324,7 +323,7 @@ ixlv_get_vf_config(struct ixlv_sc *sc)
 	len = sizeof(struct virtchnl_vf_resource) +
 	    sizeof(struct virtchnl_vsi_resource);
 	event.buf_len = len;
-	event.msg_buf = malloc(event.buf_len, M_DEVBUF, M_NOWAIT);
+	event.msg_buf = malloc(event.buf_len, M_IXLV, M_NOWAIT);
 	if (!event.msg_buf) {
 		err = ENOMEM;
 		goto out;
@@ -369,7 +368,7 @@ ixlv_get_vf_config(struct ixlv_sc *sc)
 	i40e_vf_parse_hw_config(hw, sc->vf_res);
 
 out_alloc:
-	free(event.msg_buf, M_DEVBUF);
+	free(event.msg_buf, M_IXLV);
 out:
 	return err;
 }
@@ -411,6 +410,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 	/* Size check is not needed here - HW max is 16 queue pairs, and we
 	 * can fit info for 31 of them into the AQ buffer before it overflows.
 	 */
+	// TODO: the above is wrong now; X722 VFs can have 256 queues
 	for (int i = 0; i < pairs; i++, tx_que++, rx_que++, vqpi++) {
 		txr = &tx_que->txr;
 		rxr = &rx_que->rxr;
@@ -420,15 +420,19 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 		vqpi->txq.ring_len = scctx->isc_ntxd[0];
 		vqpi->txq.dma_ring_addr = txr->tx_paddr;
 		/* Enable Head writeback */
-		vqpi->txq.headwb_enabled = 0;
-		vqpi->txq.dma_headwb_addr = 0;
+		if (!vsi->enable_head_writeback) {
+			vqpi->txq.headwb_enabled = 0;
+			vqpi->txq.dma_headwb_addr = 0;
+		} else {
+			vqpi->txq.headwb_enabled = 1;
+			vqpi->txq.dma_headwb_addr = txr->tx_paddr + sizeof(struct i40e_tx_desc) * scctx->isc_ntxd[0];
+		}
 
 		vqpi->rxq.vsi_id = vqci->vsi_id;
 		vqpi->rxq.queue_id = i;
 		vqpi->rxq.ring_len = scctx->isc_nrxd[0];
 		vqpi->rxq.dma_ring_addr = rxr->rx_paddr;
 		vqpi->rxq.max_pkt_size = scctx->isc_max_frame_size;
-		// TODO: Get this value from iflib, somehow
 		vqpi->rxq.databuffer_size = rxr->mbuf_sz;
 		vqpi->rxq.splithdr_enabled = 0;
 	}
@@ -451,7 +455,7 @@ ixlv_enable_queues(struct ixlv_sc *sc)
 	vqs.vsi_id = sc->vsi_res->vsi_id;
 	/* XXX: In Linux PF, as long as neither of these is 0,
 	 * every queue in VF VSI is enabled. */
-	vqs.tx_queues = (1 << sc->vsi_res->num_queue_pairs) - 1;
+	vqs.tx_queues = (1 << sc->vsi.num_tx_queues) - 1;
 	vqs.rx_queues = vqs.tx_queues;
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_ENABLE_QUEUES,
 			   (u8 *)&vqs, sizeof(vqs));
@@ -470,7 +474,7 @@ ixlv_disable_queues(struct ixlv_sc *sc)
 	vqs.vsi_id = sc->vsi_res->vsi_id;
 	/* XXX: In Linux PF, as long as neither of these is 0,
 	 * every queue in VF VSI is disabled. */
-	vqs.tx_queues = (1 << sc->vsi_res->num_queue_pairs) - 1;
+	vqs.tx_queues = (1 << sc->vsi.num_tx_queues) - 1;
 	vqs.rx_queues = vqs.tx_queues;
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_DISABLE_QUEUES,
 			   (u8 *)&vqs, sizeof(vqs));
@@ -504,16 +508,18 @@ ixlv_map_queues(struct ixlv_sc *sc)
 	vm = malloc(len, M_DEVBUF, M_NOWAIT);
 	if (!vm) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
-		ixl_vc_schedule_retry(&sc->vc_mgr);
+		// ixl_vc_schedule_retry(&sc->vc_mgr);
 		return;
 	}
 
 	vm->num_vectors = scctx->isc_vectors;
+	device_printf(dev, "%s: num_vectors: %d\n", __func__, vm->num_vectors);
 	/* Queue vectors first */
 	for (i = 0; i < q; i++, rx_que++) {
 		vm->vecmap[i].vsi_id = sc->vsi_res->vsi_id;
 		vm->vecmap[i].vector_id = i + 1; /* first is adminq */
-		// vm->vecmap[i].txq_map = (1 << que->me);
+		// TODO: Re-examine this
+		vm->vecmap[i].txq_map = (1 << rx_que->rxr.me);
 		vm->vecmap[i].rxq_map = (1 << rx_que->rxr.me);
 		vm->vecmap[i].rxitr_idx = 0;
 		vm->vecmap[i].txitr_idx = 1;
@@ -678,8 +684,6 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) { /* Should not happen... */
 		DDPRINTF(dev, "cnt == 0, exiting...");
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_ADD_MAC_FILTER,
-		    VIRTCHNL_STATUS_SUCCESS);
 		return;
 	}
 
@@ -690,7 +694,6 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	if (a == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
-		ixl_vc_schedule_retry(&sc->vc_mgr);
 		return;
 	}
 	a->vsi_id = sc->vsi.id;
@@ -738,8 +741,6 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) {
 		DDPRINTF(dev, "cnt == 0, exiting...");
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_DEL_MAC_FILTER,
-		    VIRTCHNL_STATUS_SUCCESS);
 		return;
 	}
 
@@ -750,7 +751,6 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	if (d == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
-		ixl_vc_schedule_retry(&sc->vc_mgr);
 		return;
 	}
 	d->vsi_id = sc->vsi.id;
@@ -865,7 +865,7 @@ ixlv_config_rss_key(struct ixlv_sc *sc)
 	/* Send the fetched key */
 	key_length = IXL_RSS_KEY_SIZE;
 	msg_len = sizeof(struct virtchnl_rss_key) + (sizeof(u8) * key_length) - 1;
-	rss_key_msg = malloc(msg_len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	rss_key_msg = malloc(msg_len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (rss_key_msg == NULL) {
 		device_printf(sc->dev, "Unable to allocate msg memory for RSS key msg.\n");
 		return;
@@ -881,7 +881,7 @@ ixlv_config_rss_key(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_RSS_KEY,
 			  (u8 *)rss_key_msg, msg_len);
 
-	free(rss_key_msg, M_DEVBUF);
+	free(rss_key_msg, M_IXLV);
 }
 
 void
@@ -910,7 +910,7 @@ ixlv_config_rss_lut(struct ixlv_sc *sc)
 
 	lut_length = IXL_RSS_VSI_LUT_SIZE;
 	msg_len = sizeof(struct virtchnl_rss_lut) + (lut_length * sizeof(u8)) - 1;
-	rss_lut_msg = malloc(msg_len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	rss_lut_msg = malloc(msg_len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (rss_lut_msg == NULL) {
 		device_printf(sc->dev, "Unable to allocate msg memory for RSS lut msg.\n");
 		return;
@@ -940,7 +940,7 @@ ixlv_config_rss_lut(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_RSS_LUT,
 			  (u8 *)rss_lut_msg, msg_len);
 
-	free(rss_lut_msg, M_DEVBUF);
+	free(rss_lut_msg, M_IXLV);
 }
 
 /*
@@ -956,7 +956,7 @@ ixlv_vc_completion(struct ixlv_sc *sc,
     enum virtchnl_status_code v_retval, u8 *msg, u16 msglen)
 {
 	device_t	dev = sc->dev;
-	struct ixl_vsi	*vsi = &sc->vsi;
+	//struct ixl_vsi	*vsi = &sc->vsi;
 
 	if (v_opcode != VIRTCHNL_OP_GET_STATS)
 		device_printf(dev, "%s: opcode %s\n", __func__, ixl_vc_opcode_str(v_opcode));
@@ -967,11 +967,9 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 
 		switch (vpe->event) {
 		case VIRTCHNL_EVENT_LINK_CHANGE:
-#ifdef IXL_DEBUG
 			device_printf(dev, "Link change: status %d, speed %d\n",
 			    vpe->event_data.link_event.link_status,
 			    vpe->event_data.link_event.link_speed);
-#endif
 			sc->link_up =
 				vpe->event_data.link_event.link_status;
 			sc->link_speed =
@@ -1000,34 +998,33 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 	}
 
 	switch (v_opcode) {
-#if 0
 	case VIRTCHNL_OP_GET_STATS:
 		ixlv_update_stats_counters(sc, (struct i40e_eth_stats *)msg);
 		break;
 	case VIRTCHNL_OP_ADD_ETH_ADDR:
-		ixl_vc_process_resp(&sc->vc_mgr, IXLV_FLAG_AQ_ADD_MAC_FILTER,
-		    v_retval);
 		if (v_retval) {
 			device_printf(dev, "WARNING: Error adding VF mac filter!\n");
 			device_printf(dev, "WARNING: Device may not receive traffic!\n");
 		}
+		device_printf(sc->dev, "Waking add_mac_cmd\n");
+		wakeup_one(&sc->add_mac_cmd);
 		break;
 	case VIRTCHNL_OP_DEL_ETH_ADDR:
 		break;
+#if 0
 	case VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE:
 		break;
+#endif
 	case VIRTCHNL_OP_ADD_VLAN:
 		break;
 	case VIRTCHNL_OP_DEL_VLAN:
 		break;
-#endif
 	case VIRTCHNL_OP_ENABLE_QUEUES:
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
 		break;
-#if 0
 	case VIRTCHNL_OP_CONFIG_IRQ_MAP:
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_KEY:
@@ -1036,19 +1033,16 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		break;
 	case VIRTCHNL_OP_CONFIG_RSS_LUT:
 		break;
-#endif
 	default:
-#ifdef IXL_DEBUG
 		device_printf(dev,
 		    "%s: Received unexpected message %s from PF.\n",
 		    __func__, ixl_vc_opcode_str(v_opcode));
-#endif
 		break;
 	}
 	return;
 }
 
-static void
+void
 ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 {
 
@@ -1231,3 +1225,36 @@ ixl_vc_flush(struct ixl_vc_mgr *mgr)
 	callout_stop(&mgr->callout);
 }
 
+void *
+ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op)
+{
+	switch (op) {
+	case IXLV_FLAG_AQ_ENABLE_QUEUES:
+		return (&sc->enable_queues_cmd);
+	case IXLV_FLAG_AQ_DISABLE_QUEUES:
+		return (&sc->disable_queues_cmd);
+	case IXLV_FLAG_AQ_ADD_MAC_FILTER:
+		return (&sc->add_mac_cmd);
+	case IXLV_FLAG_AQ_ADD_VLAN_FILTER:
+		return (&sc->add_vlan_cmd);
+	case IXLV_FLAG_AQ_DEL_MAC_FILTER:
+		return (&sc->del_mac_cmd);
+	case IXLV_FLAG_AQ_DEL_VLAN_FILTER:
+		return (&sc->del_vlan_cmd);
+	case IXLV_FLAG_AQ_CONFIGURE_QUEUES:
+		return (&sc->config_queues_cmd);
+	case IXLV_FLAG_AQ_MAP_VECTORS:
+		return (&sc->map_vectors_cmd);
+	case IXLV_FLAG_AQ_CONFIG_RSS_KEY:
+		return (&sc->config_rss_key_cmd);
+	case IXLV_FLAG_AQ_SET_RSS_HENA:
+		return (&sc->set_rss_hena_cmd);
+	case IXLV_FLAG_AQ_GET_RSS_HENA_CAPS:
+		return (&sc->get_rss_hena_caps_cmd);
+	case IXLV_FLAG_AQ_CONFIG_RSS_LUT:
+		return (&sc->config_rss_lut_cmd);
+	default:
+		device_printf(sc->dev, "Op %b has no chan!\n", op, IXLV_FLAGS);
+		return (NULL);
+	}
+}

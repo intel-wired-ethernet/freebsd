@@ -65,8 +65,6 @@ static int	ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx,
 				      qidx_t budget);
 static int	ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri);
 
-extern int	ixl_intr(void *arg);
-
 struct if_txrx ixl_txrx_hwb = {
 	ixl_isc_txd_encap,
 	ixl_isc_txd_flush,
@@ -319,7 +317,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	int             	i, j, mask, pidx_last;
 	u32			cmd, off, tx_intr;
 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
+	device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	cmd = off = 0;
 	i = pi->ipi_pidx;
@@ -772,5 +770,28 @@ ixl_init_tx_cidx(struct ixl_vsi *vsi)
 
 		txr->tx_cidx_processed = 0;
 	}
+}
+
+/*
+ * Input: bitmap of enum virtchnl_link_speed
+ */
+u64
+ixl_max_vc_speed_to_value(u8 link_speeds)
+{
+	if (link_speeds & VIRTCHNL_LINK_SPEED_40GB)
+		return IF_Gbps(40);
+	if (link_speeds & VIRTCHNL_LINK_SPEED_25GB)
+		return IF_Gbps(25);
+	if (link_speeds & VIRTCHNL_LINK_SPEED_20GB)
+		return IF_Gbps(20);
+	if (link_speeds & VIRTCHNL_LINK_SPEED_10GB)
+		return IF_Gbps(10);
+	if (link_speeds & VIRTCHNL_LINK_SPEED_1GB)
+		return IF_Gbps(1);
+	if (link_speeds & VIRTCHNL_LINK_SPEED_100MB)
+		return IF_Mbps(100);
+	else
+		/* Minimum supported link speed */
+		return IF_Mbps(100);
 }
 

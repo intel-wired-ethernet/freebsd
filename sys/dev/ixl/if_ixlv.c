@@ -114,9 +114,6 @@ static int	ixlv_add_mac_filter(struct ixlv_sc *, u8 *, u16);
 static int	ixlv_del_mac_filter(struct ixlv_sc *sc, u8 *macaddr);
 static int	ixlv_msix_que(void *);
 static int	ixlv_msix_adminq(void *);
-static void	ixlv_do_adminq_locked(struct ixlv_sc *sc);
-static void	ixl_init_cmd_complete(struct ixl_vc_cmd *, void *,
-		    enum i40e_status_code);
 static void	ixlv_configure_itr(struct ixlv_sc *);
 
 //static void	ixlv_setup_vlan_filters(struct ixlv_sc *);
@@ -469,7 +466,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	/* Fill out more iflib parameters */
 	// TODO: This needs to be set to configured "num-queues" value
 	// from iovctl.conf
-	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 16;
+	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 4;
 	if (vsi->enable_head_writeback) {
 		scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
 		    * sizeof(struct i40e_tx_desc) + sizeof(u32), DBA_ALIGN);
@@ -678,24 +675,23 @@ ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
 	return (error);
 }
 
-static void
-ixl_init_cmd_complete(struct ixl_vc_cmd *cmd, void *arg,
-	enum i40e_status_code code)
+int
+ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 {
-	struct ixlv_sc *sc;
+	if_ctx_t ctx = sc->vsi.ctx;
+	int error = 0;
 
-	sc = arg;
+	ixl_vc_send_cmd(sc, op);
 
-	/*
-	 * Ignore "Adapter Stopped" message as that happens if an ifconfig down
-	 * happens while a command is in progress, so we don't print an error
-	 * in that case.
-	 */
-	if (code != I40E_SUCCESS && code != I40E_ERR_ADAPTER_STOPPED) {
-		if_printf(sc->vsi.ifp,
-		    "Error %s waiting for PF to complete operation %d\n",
-		    i40e_stat_str(&sc->hw, code), cmd->request);
-	}
+	device_printf(sc->dev, "Sleeping for op %b\n", op, IXLV_FLAGS);
+	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), 0, "ixlv01", IXLV_AQ_TIMEOUT);
+
+	if (error == EWOULDBLOCK)
+		device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
+	else
+		device_printf(sc->dev, "%b finished successfully\n", op, IXLV_FLAGS);
+
+	return (error);
 }
 
 void
@@ -714,8 +710,6 @@ ixlv_if_init(if_ctx_t ctx)
 
 	MPASS(sx_xlocked(iflib_ctx_lock_get(ctx)));
 
-#if 0
-	MPASS(sc->vc_mgr.sc == sc);
 	/* Do a reinit first if an init has already been done */
 	if ((sc->init_state == IXLV_RUNNING) ||
 	    (sc->init_state == IXLV_RESET_REQUIRED) ||
@@ -724,9 +718,7 @@ ixlv_if_init(if_ctx_t ctx)
 	/* Don't bother with init if we failed reinit */
 	if (error)
 		goto init_done;
-#endif
 
-#if 0
 	/* Remove existing MAC filter if new MAC addr is set */
 	if (bcmp(IF_LLADDR(ifp), hw->mac.addr, ETHER_ADDR_LEN) != 0) {
 		error = ixlv_del_mac_filter(sc, hw->mac.addr);
@@ -735,7 +727,6 @@ ixlv_if_init(if_ctx_t ctx)
 
 		bcopy(tmpaddr, hw->mac.addr, ETH_ALEN);
 	}
-#endif
 
 	error = ixlv_add_mac_filter(sc, hw->mac.addr, 0);
 	if (!error || error == EEXIST)
@@ -764,7 +755,6 @@ ixlv_if_init(if_ctx_t ctx)
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_QUEUES);
 
-#if 0
 	/* Set up RSS */
 	ixlv_config_rss(sc);
 
@@ -779,7 +769,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 	sc->init_state = IXLV_RUNNING;
 
-//init_done:
+init_done:
 	INIT_DBG_IF(ifp, "end");
 	return;
 }
@@ -1448,8 +1438,7 @@ ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 	iflib_admin_intr_deferred(ctx);
 
 	/* Update stats */
-	// TODO: Re-enable
-	// ixlv_request_stats(sc);
+	//ixlv_request_stats(sc);
 }
 
 static void
@@ -2134,22 +2123,18 @@ void
 ixlv_update_link_status(struct ixlv_sc *sc)
 {
 	struct ixl_vsi *vsi = &sc->vsi;
-	struct ifnet *ifp = vsi->ifp;
+	u64 baudrate;
 
 	if (sc->link_up){ 
 		if (vsi->link_active == FALSE) {
-			if (bootverbose)
-				if_printf(ifp, "Link is Up, %s\n",
-				    ixlv_vc_speed_to_string(sc->link_speed));
 			vsi->link_active = TRUE;
-			if_link_state_change(ifp, LINK_STATE_UP);
+			baudrate = ixl_max_vc_speed_to_value(sc->link_speed);
+			iflib_link_state_change(vsi->ctx, LINK_STATE_UP, baudrate);
 		}
 	} else { /* Link down */
 		if (vsi->link_active == TRUE) {
-			if (bootverbose)
-				if_printf(ifp, "Link is Down\n");
-			if_link_state_change(ifp, LINK_STATE_DOWN);
 			vsi->link_active = FALSE;
+			iflib_link_state_change(vsi->ctx, LINK_STATE_DOWN, 0);
 		}
 	}
 }
@@ -2164,21 +2149,13 @@ ixlv_update_link_status(struct ixlv_sc *sc)
 static void
 ixlv_stop(struct ixlv_sc *sc)
 {
-	if_ctx_t ctx = sc->vsi.ctx;
+	//if_ctx_t ctx = sc->vsi.ctx;
 	struct ifnet *ifp;
-	int error = 0;
 
 	ifp = sc->vsi.ifp;
 	INIT_DBG_IF(ifp, "begin");
 
-	ixlv_disable_queues(sc);
-
-	start = ticks;
-	while ((ifp->if_drv_flags & IFF_DRV_RUNNING) &&
-	    ((ticks - start) < hz/10))
-		ixlv_do_adminq_locked(sc);
-
-	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
+	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
 	ixlv_disable_intr(&sc->vsi);
 	INIT_DBG_IF(ifp, "end");
@@ -2380,82 +2357,6 @@ ixlv_del_mac_filter(struct ixlv_sc *sc, u8 *macaddr)
 
 	f->flags |= IXL_FILTER_DEL;
 	return (0);
-}
-
-static void
-ixlv_do_adminq_locked(struct ixlv_sc *sc)
-{
-	struct i40e_hw			*hw = &sc->hw;
-	struct i40e_arq_event_info	event;
-	struct virtchnl_msg	*v_msg;
-	device_t			dev = sc->dev;
-	u16				result = 0;
-	u32				reg, oldreg;
-	i40e_status			ret;
-	bool				aq_error = false;
-
-	event.buf_len = IXL_AQ_BUF_SZ;
-        event.msg_buf = sc->aq_buffer;
-	v_msg = (struct virtchnl_msg *)&event.desc;
-
-	do {
-		ret = i40e_clean_arq_element(hw, &event, &result);
-		if (ret)
-			break;
-		ixlv_vc_completion(sc, v_msg->v_opcode,
-		    v_msg->v_retval, event.msg_buf, event.msg_len);
-		if (result != 0)
-			bzero(event.msg_buf, IXL_AQ_BUF_SZ);
-	} while (result);
-
-	/* check for Admin queue errors */
-	oldreg = reg = rd32(hw, hw->aq.arq.len);
-	if (reg & I40E_VF_ARQLEN1_ARQVFE_MASK) {
-		device_printf(dev, "ARQ VF Error detected\n");
-		reg &= ~I40E_VF_ARQLEN1_ARQVFE_MASK;
-		aq_error = true;
-	}
-	if (reg & I40E_VF_ARQLEN1_ARQOVFL_MASK) {
-		device_printf(dev, "ARQ Overflow Error detected\n");
-		reg &= ~I40E_VF_ARQLEN1_ARQOVFL_MASK;
-		aq_error = true;
-	}
-	if (reg & I40E_VF_ARQLEN1_ARQCRIT_MASK) {
-		device_printf(dev, "ARQ Critical Error detected\n");
-		reg &= ~I40E_VF_ARQLEN1_ARQCRIT_MASK;
-		aq_error = true;
-	}
-	if (oldreg != reg)
-		wr32(hw, hw->aq.arq.len, reg);
-
-	oldreg = reg = rd32(hw, hw->aq.asq.len);
-	if (reg & I40E_VF_ATQLEN1_ATQVFE_MASK) {
-		device_printf(dev, "ASQ VF Error detected\n");
-		reg &= ~I40E_VF_ATQLEN1_ATQVFE_MASK;
-		aq_error = true;
-	}
-	if (reg & I40E_VF_ATQLEN1_ATQOVFL_MASK) {
-		device_printf(dev, "ASQ Overflow Error detected\n");
-		reg &= ~I40E_VF_ATQLEN1_ATQOVFL_MASK;
-		aq_error = true;
-	}
-	if (reg & I40E_VF_ATQLEN1_ATQCRIT_MASK) {
-		device_printf(dev, "ASQ Critical Error detected\n");
-		reg &= ~I40E_VF_ATQLEN1_ATQCRIT_MASK;
-		aq_error = true;
-	}
-	if (oldreg != reg)
-		wr32(hw, hw->aq.asq.len, reg);
-
-	if (aq_error) {
-		/* Need to reset adapter */
-		device_printf(dev, "WARNING: Resetting!\n");
-		sc->init_state = IXLV_RESET_REQUIRED;
-		ixlv_stop(sc);
-		// TODO: Make stop/init calls match
-		ixlv_if_init(sc->vsi.ctx);
-	}
-	ixlv_enable_adminq_irq(hw);
 }
 
 static void
