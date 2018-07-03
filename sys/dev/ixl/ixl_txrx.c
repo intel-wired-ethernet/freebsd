@@ -317,7 +317,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	int             	i, j, mask, pidx_last;
 	u32			cmd, off, tx_intr;
 
-	device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
+	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
 
 	cmd = off = 0;
 	i = pi->ipi_pidx;
