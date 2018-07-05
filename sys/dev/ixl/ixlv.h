@@ -69,16 +69,20 @@
     "\12CONFIGURE_PROMISC\13GET_STATS\14CONFIG_RSS_KEY" \
     "\15SET_RSS_HENA\16GET_RSS_HENA_CAPS\17CONFIG_RSS_LUT"
 #define IXLV_PRINTF_VF_OFFLOAD_FLAGS \
-    "\20\1I40E_VIRTCHNL_VF_OFFLOAD_L2" \
-    "\2I40E_VIRTCHNL_VF_OFFLOAD_IWARP" \
-    "\3I40E_VIRTCHNL_VF_OFFLOAD_FCOE" \
-    "\4I40E_VIRTCHNL_VF_OFFLOAD_RSS_AQ" \
-    "\5I40E_VIRTCHNL_VF_OFFLOAD_RSS_REG" \
-    "\6I40E_VIRTCHNL_VF_OFFLOAD_WB_ON_ITR" \
-    "\21I40E_VIRTCHNL_VF_OFFLOAD_VLAN" \
-    "\22I40E_VIRTCHNL_VF_OFFLOAD_RX_POLLING" \
-    "\23I40E_VIRTCHNL_VF_OFFLOAD_RSS_PCTYPE_V2" \
-    "\24I40E_VIRTCHNL_VF_OFFLOAD_RSS_PF"
+    "\20\1L2" \
+    "\2IWARP" \
+    "\3RSVD" \
+    "\4RSS_AQ" \
+    "\5RSS_REG" \
+    "\6WB_ON_ITR" \
+    "\7REQ_QUEUES" \
+    "\21VLAN" \
+    "\22RX_POLLING" \
+    "\23RSS_PCTYPE_V2" \
+    "\24RSS_PF" \
+    "\25ENCAP" \
+    "\26ENCAP_CSUM" \
+    "\27RX_ENCAP_CSUM"
 
 static MALLOC_DEFINE(M_IXLV, "ixlv", "ixlv driver allocations");
 
@@ -134,8 +138,10 @@ struct ixlv_sc {
 	struct ifmedia		media;
 	struct callout		timer;
 	int			msix;
-	int			pf_version;
+	//int			pf_version;
+	struct virtchnl_version_info	version;
 	int			if_flags;
+	enum ixl_dbg_mask	dbg_mask;
 
 	bool				link_up;
 	enum virtchnl_link_speed	link_speed;
@@ -191,6 +197,12 @@ ixlv_check_ether_addr(u8 *addr)
 		status = FALSE;
 	return (status);
 }
+
+/* Debug printing */
+#define ixlv_dbg(sc, m, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, m, s, ##__VA_ARGS__)
+#define ixlv_dbg_init(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_INIT, s, ##__VA_ARGS__)
+#define ixlv_dbg_info(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_INFO, s, ##__VA_ARGS__)
+#define ixlv_dbg_vc(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_VC, s, ##__VA_ARGS__)
 
 /*
 ** VF Common function prototypes

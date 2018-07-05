@@ -131,6 +131,21 @@ i40e_vc_stat_str(struct i40e_hw *hw, enum virtchnl_status_code stat_err)
 	return hw->err_str;
 }
 
+void
+ixl_debug_core(device_t dev, u32 enabled_mask, u32 mask, char *fmt, ...)
+{
+	va_list args;
+
+	if (!(mask & enabled_mask))
+		return;
+
+	/* Re-implement device_printf() */
+	device_print_prettyname(dev);
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+}
+
 static bool
 ixl_is_tx_desc_done(struct tx_ring *txr, int idx)
 {

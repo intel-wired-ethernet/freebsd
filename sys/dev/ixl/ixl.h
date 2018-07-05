@@ -40,7 +40,6 @@
 #include "opt_inet6.h"
 #include "opt_rss.h"
 #include "opt_ixl.h"
-#include "opt_global.h"
 
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -533,6 +532,20 @@ next_power_of_two(u32 n)
 	return (n);
 }
 
+#if 0
+#define ixl_us_scale(x)  max(1, (x/(1000000/hz)))
+static inline int
+ixl_ms_scale(int x)
+{
+	if (hz == 1000)
+		return (x);
+	else if (hz > 1000)
+		return (x*(hz/1000));
+	else
+		return (max(1, x/(1000/hz)));
+}
+#endif
+
 /*
  * Info for stats sysctls
  */
@@ -545,6 +558,7 @@ struct ixl_sysctl_info {
 extern const uint8_t ixl_bcast_addr[ETHER_ADDR_LEN];
 
 /* Common function prototypes between PF/VF driver */
+void		ixl_debug_core(device_t dev, u32 enabled_mask, u32 mask, char *fmt, ...);
 void		 ixl_init_tx_ring(struct ixl_vsi *vsi, struct ixl_tx_queue *que);
 void		 ixl_get_default_rss_key(u32 *);
 const char *	i40e_vc_stat_str(struct i40e_hw *hw,

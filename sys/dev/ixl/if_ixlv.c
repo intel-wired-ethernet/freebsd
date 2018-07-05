@@ -118,14 +118,11 @@ static void	ixlv_configure_itr(struct ixlv_sc *);
 
 //static void	ixlv_setup_vlan_filters(struct ixlv_sc *);
 
-static char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
+char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static int ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
+static void	ixlv_save_tunables(struct ixlv_sc *);
 
 // static void	ixlv_add_sysctls(struct ixlv_sc *);
-#ifdef IXL_DEBUG
-static int 	ixlv_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS);
-static int 	ixlv_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS);
-#endif
 
 /*********************************************************************
  *  FreeBSD Device Interface Entry Points
@@ -208,11 +205,9 @@ SYSCTL_INT(_hw_ixlv, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
     &ixlv_enable_head_writeback, 0,
     "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
 
-#if 0
-// This should be implemented...
 static int ixlv_core_debug_mask = 0;
 TUNABLE_INT("hw.ixlv.core_debug_mask",
-    &ixl_core_debug_mask);
+    &ixlv_core_debug_mask);
 SYSCTL_INT(_hw_ixlv, OID_AUTO, core_debug_mask, CTLFLAG_RDTUN,
     &ixlv_core_debug_mask, 0,
     "Display debug statements that are printed in non-shared code");
@@ -224,6 +219,7 @@ SYSCTL_INT(_hw_ixlv, OID_AUTO, shared_debug_mask, CTLFLAG_RDTUN,
     &ixlv_shared_debug_mask, 0,
     "Display debug statements that are printed in shared code");
 
+#if 0
 /*
 ** Controls for Interrupt Throttling
 **      - true/false for dynamic adjustment
@@ -271,7 +267,6 @@ static struct if_shared_ctx ixlv_sctx_init = {
 	.isc_vendor_info = ixlv_vendor_info_array,
 	.isc_driver_version = IXLV_DRIVER_VERSION_STRING,
 	.isc_driver = &ixlv_if_driver,
-	// TODO: VF driver may not need IFLIB_ADMIN_ALWAYS_RUN
 	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM | IFLIB_IS_VF | IFLIB_ADMIN_ALWAYS_RUN,
 
 	.isc_nrxd_min = {IXL_MIN_RING},
@@ -345,8 +340,6 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	if_softc_ctx_t scctx;
 	int error = 0;
 
-	INIT_DBG_DEV(dev, "begin");
-
 	dev = iflib_get_dev(ctx);
 	sc = iflib_get_softc(ctx);
 
@@ -363,8 +356,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	vsi->media = iflib_get_media(ctx);
 	vsi->shared = scctx = iflib_get_softc_ctx(ctx);
 
-	/* Save this tunable */
-	vsi->enable_head_writeback = !!(ixlv_enable_head_writeback);
+	ixlv_save_tunables(sc);
 
 	/* Do PCI setup - map BAR0, etc */
 	if (ixlv_allocate_pci_resources(sc)) {
@@ -374,7 +366,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 		goto err_early;
 	}
 
-	INIT_DBG_DEV(dev, "Allocated PCI resources and MSIX vectors");
+	ixlv_dbg_init(sc, "Allocated PCI resources and MSIX vectors\n");
 
 	/*
 	 * XXX: This is called by init_shared_code in the PF driver,
@@ -394,7 +386,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 		goto err_pci_res;
 	}
 
-	INIT_DBG_DEV(dev, "VF Device is ready for configuration");
+	ixlv_dbg_init(sc, "VF Device is ready for configuration\n");
 
 	/* Sets up Admin Queue */
 	error = ixlv_setup_vc(sc);
@@ -404,7 +396,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 		goto err_pci_res;
 	}
 
-	INIT_DBG_DEV(dev, "PF API version verified");
+	ixlv_dbg_init(sc, "PF API version verified\n");
 
 	/* Need API version before sending reset message */
 	error = ixlv_reset(sc);
@@ -413,7 +405,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 		goto err_aq;
 	}
 
-	INIT_DBG_DEV(dev, "VF reset complete");
+	ixlv_dbg_init(sc, "VF reset complete\n");
 
 	/* Ask for VF config from PF */
 	error = ixlv_vf_config(sc);
@@ -429,10 +421,8 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	    sc->vf_res->max_vectors,
 	    sc->vf_res->rss_key_size,
 	    sc->vf_res->rss_lut_size);
-#ifdef IXL_DEBUG
-	device_printf(dev, "Offload flags: 0x%b\n",
-	    sc->vf_res->vf_offload_flags, IXLV_PRINTF_VF_OFFLOAD_FLAGS);
-#endif
+	ixlv_dbg_info(sc, "Received offload flags: 0x%b\n",
+	    sc->vf_res->vf_cap_flags, IXLV_PRINTF_VF_OFFLOAD_FLAGS);
 
 	/* got VF config message back from PF, now we can parse it */
 	for (int i = 0; i < sc->vf_res->num_vsis; i++) {
@@ -446,7 +436,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	}
 	vsi->id = sc->vsi_res->vsi_id;
 
-	INIT_DBG_DEV(dev, "Resource Acquisition complete");
+	ixlv_dbg_init(sc, "Resource Acquisition complete\n");
 
 	/* If no mac address was assigned just make a random one */
 	// TODO: What if the PF doesn't allow us to set our own MAC?
@@ -483,8 +473,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	scctx->isc_tx_tso_segments_max = IXL_MAX_TSO_SEGS;
 	scctx->isc_tx_tso_size_max = IXL_TSO_SIZE;
 	scctx->isc_tx_tso_segsize_max = IXL_MAX_DMA_SEG_SIZE;
-	// TODO: Probably needs changing
-	scctx->isc_rss_table_size = sc->hw.func_caps.rss_table_size;
+	scctx->isc_rss_table_size = IXL_RSS_VSI_LUT_SIZE;
 	scctx->isc_tx_csum_flags = CSUM_OFFLOAD;
 	scctx->isc_capabilities = scctx->isc_capenable = IXL_CAPS;
 
@@ -683,13 +672,11 @@ ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 
 	ixl_vc_send_cmd(sc, op);
 
-	device_printf(sc->dev, "Sleeping for op %b\n", op, IXLV_FLAGS);
-	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), 0, "ixlv01", IXLV_AQ_TIMEOUT);
+	ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
+	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), 0, "ixlvc", IXLV_AQ_TIMEOUT);
 
 	if (error == EWOULDBLOCK)
 		device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
-	else
-		device_printf(sc->dev, "%b finished successfully\n", op, IXLV_FLAGS);
 
 	return (error);
 }
@@ -710,6 +697,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 	MPASS(sx_xlocked(iflib_ctx_lock_get(ctx)));
 
+#if 0
 	/* Do a reinit first if an init has already been done */
 	if ((sc->init_state == IXLV_RUNNING) ||
 	    (sc->init_state == IXLV_RESET_REQUIRED) ||
@@ -718,6 +706,7 @@ ixlv_if_init(if_ctx_t ctx)
 	/* Don't bother with init if we failed reinit */
 	if (error)
 		goto init_done;
+#endif
 
 	/* Remove existing MAC filter if new MAC addr is set */
 	if (bcmp(IF_LLADDR(ifp), hw->mac.addr, ETHER_ADDR_LEN) != 0) {
@@ -769,7 +758,7 @@ ixlv_if_init(if_ctx_t ctx)
 
 	sc->init_state = IXLV_RUNNING;
 
-init_done:
+//init_done:
 	INIT_DBG_IF(ifp, "end");
 	return;
 }
@@ -804,7 +793,7 @@ ixlv_setup_vc(struct ixlv_sc *sc)
 			continue;
 		}
 
-		INIT_DBG_DEV(dev, "Initialized Admin Queue; starting"
+		ixlv_dbg_init(sc, "Initialized Admin Queue; starting"
 		    " send_api_ver attempt %d", i+1);
 
 retry_send:
@@ -833,7 +822,7 @@ retry_send:
 		if (asq_retries > IXLV_AQ_MAX_ERR)
 			continue;
 
-		INIT_DBG_DEV(dev, "Sent API version message to PF");
+		ixlv_dbg_init(sc, "Sent API version message to PF");
 
 		/* Verify that the VF accepts the PF's API version */
 		error = ixlv_verify_api_ver(sc);
@@ -900,7 +889,7 @@ retry_config:
 		i40e_msec_pause(10);
 	}
 
-	INIT_DBG_DEV(dev, "Sent VF config message to PF, attempt %d",
+	ixlv_dbg_init(sc, "Sent VF config message to PF, attempt %d\n",
 	    retried + 1);
 
 	if (!sc->vf_res) {
@@ -1345,10 +1334,8 @@ ixlv_if_media_status(if_ctx_t ctx, struct ifmediareq *ifmr)
 	ifmr->ifm_status = IFM_AVALID;
 	ifmr->ifm_active = IFM_ETHER;
 
-	if (!sc->link_up) {
-		INIT_DBG_IF(ifp, "end: link not up");
+	if (!sc->link_up)
 		return;
-	}
 
 	ifmr->ifm_status |= IFM_ACTIVE;
 	/* Hardware is always full-duplex */
@@ -1429,7 +1416,7 @@ ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 static void
 ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 {
-	// struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
 
 	if (qid != 0)
 		return;
@@ -1438,7 +1425,7 @@ ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 	iflib_admin_intr_deferred(ctx);
 
 	/* Update stats */
-	//ixlv_request_stats(sc);
+	ixlv_request_stats(sc);
 }
 
 static void
@@ -1759,11 +1746,8 @@ ixlv_msix_adminq(void *arg)
 {
 	struct ixlv_sc	*sc = arg;
 	struct i40e_hw	*hw = &sc->hw;
-	device_t	dev = sc->dev;
 	u32		reg, mask;
 	bool		do_task = FALSE;
-
-	device_printf(dev, "%s: begin\n", __func__);
 
 	++sc->admin_irq;
 
@@ -2129,6 +2113,7 @@ ixlv_update_link_status(struct ixlv_sc *sc)
 		if (vsi->link_active == FALSE) {
 			vsi->link_active = TRUE;
 			baudrate = ixl_max_vc_speed_to_value(sc->link_speed);
+			ixlv_dbg_info(sc, "baudrate: %lu\n", baudrate);
 			iflib_link_state_change(vsi->ctx, LINK_STATE_UP, baudrate);
 		}
 	} else { /* Link down */
@@ -2153,12 +2138,10 @@ ixlv_stop(struct ixlv_sc *sc)
 	struct ifnet *ifp;
 
 	ifp = sc->vsi.ifp;
-	INIT_DBG_IF(ifp, "begin");
 
 	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
 	ixlv_disable_intr(&sc->vsi);
-	INIT_DBG_IF(ifp, "end");
 }
 
 static void
@@ -2272,10 +2255,10 @@ static void
 ixlv_config_rss(struct ixlv_sc *sc)
 {
 	if (sc->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_REG) {
-		DDPRINTF(sc->dev, "Setting up RSS using VF registers...");
+		ixlv_dbg_info(sc, "Setting up RSS using VF registers...");
 		ixlv_config_rss_reg(sc);
 	} else if (sc->vf_res->vf_cap_flags & VIRTCHNL_VF_OFFLOAD_RSS_PF) {
-		DDPRINTF(sc->dev, "Setting up RSS using messages to PF...");
+		ixlv_dbg_info(sc, "Setting up RSS using messages to PF...");
 		ixlv_config_rss_pf(sc);
 	} else
 		device_printf(sc->dev, "VF does not support RSS capability sent by PF.\n");
@@ -2529,7 +2512,7 @@ ixlv_free_filters(struct ixlv_sc *sc)
 	free(sc->vlan_filters, M_DEVBUF);
 }
 
-static char *
+char *
 ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed)
 {
 	int index;
@@ -2584,49 +2567,13 @@ ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 	return (error);
 }
 
-#ifdef IXL_DEBUG
-/**
- * ixlv_sysctl_qtx_tail_handler
- * Retrieves I40E_QTX_TAIL1 value from hardware
- * for a sysctl.
+/*
+ * Sanity check and save off tunable values.
  */
-static int 
-ixlv_sysctl_qtx_tail_handler(SYSCTL_HANDLER_ARGS)
+static void
+ixlv_save_tunables(struct ixlv_sc *sc)
 {
-	struct ixl_queue *que;
-	int error;
-	u32 val;
-
-	que = ((struct ixl_queue *)oidp->oid_arg1);
-	if (!que) return 0;
-
-	val = rd32(que->vsi->hw, que->txr.tail);
-	error = sysctl_handle_int(oidp, &val, 0, req);
-	if (error || !req->newptr)
-		return error;
-	return (0);
+	sc->dbg_mask = ixlv_core_debug_mask;
+	sc->hw.debug_mask = ixlv_shared_debug_mask;
+	sc->vsi.enable_head_writeback = !!(ixlv_enable_head_writeback);
 }
-
-/**
- * ixlv_sysctl_qrx_tail_handler
- * Retrieves I40E_QRX_TAIL1 value from hardware
- * for a sysctl.
- */
-static int 
-ixlv_sysctl_qrx_tail_handler(SYSCTL_HANDLER_ARGS)
-{
-	struct ixl_queue *que;
-	int error;
-	u32 val;
-
-	que = ((struct ixl_queue *)oidp->oid_arg1);
-	if (!que) return 0;
-
-	val = rd32(que->vsi->hw, que->rxr.tail);
-	error = sysctl_handle_int(oidp, &val, 0, req);
-	if (error || !req->newptr)
-		return error;
-	return (0);
-}
-#endif
-

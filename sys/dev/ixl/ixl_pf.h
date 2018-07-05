@@ -238,14 +238,10 @@ MALLOC_DECLARE(M_IXL);
 	ixl_send_vf_nack_msg((pf), (vf), (op), (st), __FILE__, __LINE__)
 
 /* Debug printing */
-#define ixl_dbg(p, m, s, ...)	ixl_debug_core(p, m, s, ##__VA_ARGS__)
-void	ixl_debug_core(struct ixl_pf *, enum ixl_dbg_mask, char *, ...);
+#define ixl_dbg(pf, m, s, ...)	ixl_debug_core(pf->dev, pf->dbg_mask, m, s, ##__VA_ARGS__)
 
 /* For stats sysctl naming */
 #define QUEUE_NAME_LEN 32
-
-/* For netmap(4) compatibility */
-#define ixl_disable_intr(vsi)	ixl_disable_rings_intr(vsi)
 
 /* PF-only function declarations */
 int	ixl_setup_interface(device_t, struct ixl_pf *);

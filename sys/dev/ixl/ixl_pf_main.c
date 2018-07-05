@@ -113,21 +113,6 @@ static char *ixl_fec_string[3] = {
 
 MALLOC_DEFINE(M_IXL, "ixl", "ixl driver allocations");
 
-void
-ixl_debug_core(struct ixl_pf *pf, enum ixl_dbg_mask mask, char *fmt, ...)
-{
-	va_list args;
-
-	if (!(mask & pf->dbg_mask))
-		return;
-
-	/* Re-implement device_printf() */
-	device_print_prettyname(pf->dev);
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-}
-
 /*
 ** Put the FW, API, NVM, EEtrackID, and OEM version information into a string
 */
