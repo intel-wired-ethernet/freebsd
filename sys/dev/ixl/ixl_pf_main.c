@@ -2065,8 +2065,6 @@ ixl_add_mc_filter(struct ixl_vsi *vsi, u8 *macaddr)
 		f->flags |= IXL_FILTER_MC;
 	else
 		printf("WARNING: no filter available!!\n");
-
-	return;
 }
 
 void
@@ -3366,9 +3364,7 @@ ixl_sysctl_unallocated_queues(SYSCTL_HANDLER_ARGS)
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	int queues;
 
-	//IXL_PF_LOCK(pf);
 	queues = (int)ixl_pf_qmgr_get_num_free(&pf->qmgr);
-	//IXL_PF_UNLOCK(pf);
 
 	return sysctl_handle_int(oidp, NULL, queues, req);
 }

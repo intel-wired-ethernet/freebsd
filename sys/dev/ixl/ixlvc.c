@@ -300,6 +300,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 	vqci = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
 	if (!vqci) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
+		wakeup_one(&sc->config_queues_cmd);
 		return;
 	}
 	vqci->vsi_id = sc->vsi_res->vsi_id;
@@ -898,10 +899,8 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 		break;
 	case VIRTCHNL_OP_DEL_ETH_ADDR:
 		break;
-#if 0
 	case VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE:
 		break;
-#endif
 	case VIRTCHNL_OP_ADD_VLAN:
 		break;
 	case VIRTCHNL_OP_DEL_VLAN:
@@ -975,6 +974,10 @@ ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 
 	case IXLV_FLAG_AQ_CONFIG_RSS_LUT:
 		ixlv_config_rss_lut(sc);
+		break;
+
+	case VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE:
+		device_printf(sc->dev, "Promisc mode not implemented\n");
 		break;
 	}
 }

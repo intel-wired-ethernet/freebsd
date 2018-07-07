@@ -102,7 +102,7 @@ static void	ixlv_init_filters(struct ixlv_sc *);
 static void	ixlv_free_pci_resources(struct ixlv_sc *);
 static void	ixlv_free_filters(struct ixlv_sc *);
 static void	ixlv_setup_interface(device_t, struct ixlv_sc *);
-static void	ixlv_add_sysctls(struct ixlv_sc *);
+static void	ixlv_add_device_sysctls(struct ixlv_sc *);
 static void	ixlv_enable_adminq_irq(struct i40e_hw *);
 static void	ixlv_disable_adminq_irq(struct i40e_hw *);
 static void	ixlv_enable_queue_irq(struct i40e_hw *, int);
@@ -114,15 +114,16 @@ static int	ixlv_add_mac_filter(struct ixlv_sc *, u8 *, u16);
 static int	ixlv_del_mac_filter(struct ixlv_sc *sc, u8 *macaddr);
 static int	ixlv_msix_que(void *);
 static int	ixlv_msix_adminq(void *);
-static void	ixlv_configure_itr(struct ixlv_sc *);
+//static void	ixlv_del_multi(struct ixlv_sc *sc);
+static void	ixlv_init_multi(struct ixlv_sc *sc);
+static void	ixlv_configure_itr(struct ixlv_sc *sc);
 
-//static void	ixlv_setup_vlan_filters(struct ixlv_sc *);
+static int	ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
-static int ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static void	ixlv_save_tunables(struct ixlv_sc *);
-
-// static void	ixlv_add_sysctls(struct ixlv_sc *);
 
 /*********************************************************************
  *  FreeBSD Device Interface Entry Points
@@ -350,7 +351,6 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 
 	vsi->dev = dev;
 	vsi->hw = &sc->hw;
-	//vsi->id = 0;
 	vsi->num_vlans = 0;
 	vsi->ctx = ctx;
 	vsi->media = iflib_get_media(ctx);
@@ -517,7 +517,7 @@ ixlv_if_attach_post(if_ctx_t ctx)
 
 	/* Initialize statistics & add sysctls */
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
-	ixlv_add_sysctls(sc);
+	ixlv_add_device_sysctls(sc);
 
 	/* We want AQ enabled early for init */
 	ixlv_enable_adminq_irq(hw);
@@ -1270,33 +1270,42 @@ ixlv_if_update_admin_status(if_ctx_t ctx)
 		ixlv_enable_adminq_irq(hw);
 }
 
+static int
+ixlv_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int count __unused)
+{
+	struct ixlv_sc *sc = arg;
+
+	if (ifma->ifma_addr->sa_family != AF_LINK)
+		return (0);
+	ixlv_add_mac_filter(sc, 
+	    (u8*)LLADDR((struct sockaddr_dl *) ifma->ifma_addr),
+	    IXL_FILTER_MC);
+	return (1);
+}
+
 static void
 ixlv_if_multi_set(if_ctx_t ctx)
 {
-	// struct ixlv_sc *sc = iflib_get_softc(ctx);
-	// struct ixl_vsi *vsi = &sc->vsi;
-	// struct i40e_hw		*hw = vsi->hw;
-	// int			mcnt = 0, flags;
+	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	int mcnt = 0;
 
-	IOCTL_DEBUGOUT("ixl_if_multi_set: begin");
+	IOCTL_DEBUGOUT("ixlv_if_multi_set: begin");
 
-	// TODO: Implement
-#if 0
 	mcnt = if_multiaddr_count(iflib_get_ifp(ctx), MAX_MULTICAST_ADDR);
-	/* delete existing MC filters */
-	ixlv_del_multi(vsi);
-
 	if (__predict_false(mcnt == MAX_MULTICAST_ADDR)) {
+		// Delete MC filters
+		ixlv_init_multi(sc);
 		// Set promiscuous mode (multicast)
-		// TODO: This needs to get handled somehow
-#if 0
-		ixl_vc_enqueue(&sc->vc_mgr, &sc->add_vlan_cmd,
-		    IXLV_FLAG_AQ_CONFIGURE_PROMISC, ixl_init_cmd_complete, sc);
-#endif
+		//ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
+		device_printf(sc->dev, "%s: Not yet\n", __func__);
 		return;
 	}
+
+	/* delete existing MC filters */
+	ixlv_init_multi(sc);
+
 	/* (re-)install filters for all mcast addresses */
-	mcnt = if_multi_apply(iflib_get_ifp(ctx), ixl_mc_filter_apply, vsi);
+	mcnt = if_multi_apply(iflib_get_ifp(ctx), ixlv_mc_filter_apply, sc);
 	
 	if (mcnt > 0)
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
@@ -1417,9 +1426,20 @@ static void
 ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
+	struct i40e_hw *hw = &sc->hw;
+	u32 val;
 
 	if (qid != 0)
 		return;
+
+	/* Check for when PF triggers a VF reset */
+	val = rd32(hw, I40E_VFGEN_RSTAT) &
+	    I40E_VFGEN_RSTAT_VFR_STATE_MASK;
+	if (val != VIRTCHNL_VFR_VFACTIVE
+	    && val != VIRTCHNL_VFR_COMPLETED) {
+		ixlv_dbg_info(sc, "reset in progress! (%d)", val);
+		return;
+	}
 
 	/* Fire off the adminq task */
 	iflib_admin_intr_deferred(ctx);
@@ -1834,35 +1854,52 @@ ixlv_disable_queue_irq(struct i40e_hw *hw, int id)
 	rd32(hw, I40E_VFGEN_RSTAT);
 }
 
+static void
+ixlv_configure_tx_itr(struct ixlv_sc *sc)
+{
+	struct i40e_hw		*hw = &sc->hw;
+	struct ixl_vsi		*vsi = &sc->vsi;
+	struct ixl_tx_queue	*que = vsi->tx_queues;
+
+	vsi->tx_itr_setting = sc->tx_itr;
+
+	for (int i = 0; i < vsi->num_tx_queues; i++, que++) {
+		struct tx_ring	*txr = &que->txr;
+
+		wr32(hw, I40E_VFINT_ITRN1(IXL_TX_ITR, i),
+		    vsi->tx_itr_setting);
+		txr->itr = vsi->tx_itr_setting;
+		txr->latency = IXL_AVE_LATENCY;
+	}
+}
+
+static void
+ixlv_configure_rx_itr(struct ixlv_sc *sc)
+{
+	struct i40e_hw		*hw = &sc->hw;
+	struct ixl_vsi		*vsi = &sc->vsi;
+	struct ixl_rx_queue	*que = vsi->rx_queues;
+
+	vsi->rx_itr_setting = sc->rx_itr;
+
+	for (int i = 0; i < vsi->num_rx_queues; i++, que++) {
+		struct rx_ring 	*rxr = &que->rxr;
+
+		wr32(hw, I40E_VFINT_ITRN1(IXL_RX_ITR, i),
+		    vsi->rx_itr_setting);
+		rxr->itr = vsi->rx_itr_setting;
+		rxr->latency = IXL_AVE_LATENCY;
+	}
+}
+
 /*
  * Get initial ITR values from tunable values.
  */
 static void
 ixlv_configure_itr(struct ixlv_sc *sc)
 {
-	struct i40e_hw		*hw = &sc->hw;
-	struct ixl_vsi		*vsi = &sc->vsi;
-	struct ixl_rx_queue	*rx_que = vsi->rx_queues;
-
-	vsi->rx_itr_setting = ixlv_rx_itr;
-	//vsi->tx_itr_setting = ixlv_tx_itr;
-
-	for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++) {
-		struct rx_ring 	*rxr = &rx_que->rxr;
-
-		wr32(hw, I40E_VFINT_ITRN1(IXL_RX_ITR, i),
-		    vsi->rx_itr_setting);
-		rxr->itr = vsi->rx_itr_setting;
-		rxr->latency = IXL_AVE_LATENCY;
-
-#if 0
-		struct tx_ring	*txr = &que->txr;
-		wr32(hw, I40E_VFINT_ITRN1(IXL_TX_ITR, i),
-		    vsi->tx_itr_setting);
-		txr->itr = vsi->tx_itr_setting;
-		txr->latency = IXL_AVE_LATENCY;
-#endif
-	}
+	ixlv_configure_tx_itr(sc);
+	ixlv_configure_rx_itr(sc);
 }
 
 /*
@@ -2069,22 +2106,17 @@ ixlv_msix_que(void *arg)
 	return (FILTER_SCHEDULE_THREAD);
 }
 
-#if 0
 /*********************************************************************
  *  Multicast Initialization
  *
  *  This routine is called by init to reset a fresh state.
  *
  **********************************************************************/
-
 static void
-ixlv_init_multi(struct ixl_vsi *vsi)
+ixlv_init_multi(struct ixlv_sc *sc)
 {
 	struct ixlv_mac_filter *f;
-	struct ixlv_sc	*sc = vsi->back;
-	int			mcnt = 0;
-
-	IOCTL_DBG_IF(vsi->ifp, "begin");
+	int mcnt = 0;
 
 	/* First clear any multicast filters */
 	SLIST_FOREACH(f, sc->mac_filters, next) {
@@ -2342,42 +2374,83 @@ ixlv_del_mac_filter(struct ixlv_sc *sc, u8 *macaddr)
 	return (0);
 }
 
+/*
+ * Re-uses the name from the PF driver.
+ */
 static void
-ixlv_add_sysctls(struct ixlv_sc *sc)
+ixlv_add_device_sysctls(struct ixlv_sc *sc)
 {
 	device_t dev = sc->dev;
-	struct ixl_vsi *vsi = &sc->vsi;
-	struct i40e_eth_stats *es = &vsi->eth_stats;
+	// struct ixl_vsi *vsi = &sc->vsi;
 
 	struct sysctl_ctx_list *ctx = device_get_sysctl_ctx(dev);
-	struct sysctl_oid *tree = device_get_sysctl_tree(dev);
-	struct sysctl_oid_list *child = SYSCTL_CHILDREN(tree);
+	struct sysctl_oid_list *ctx_list =
+	    SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
 
-	struct sysctl_oid *vsi_node; // *queue_node;
-	struct sysctl_oid_list *vsi_list; // *queue_list;
+	struct sysctl_oid *debug_node;
+	struct sysctl_oid_list *debug_list;
 
-#define QUEUE_NAME_LEN 32
-	//char queue_namebuf[QUEUE_NAME_LEN];
+	SYSCTL_ADD_PROC(ctx, ctx_list,
+	    OID_AUTO, "current_speed", CTLTYPE_STRING | CTLFLAG_RD,
+	    sc, 0, ixlv_sysctl_current_speed, "A", "Current Port Speed");
+
+	SYSCTL_ADD_PROC(ctx, ctx_list,
+	    OID_AUTO, "tx_itr", CTLTYPE_INT | CTLFLAG_RW,
+	    sc, 0, ixlv_sysctl_tx_itr, "I",
+	    "Immediately set TX ITR value for all queues");
+
+	SYSCTL_ADD_PROC(ctx, ctx_list,
+	    OID_AUTO, "rx_itr", CTLTYPE_INT | CTLFLAG_RW,
+	    sc, 0, ixlv_sysctl_rx_itr, "I",
+	    "Immediately set RX ITR value for all queues");
+
+	/* Add sysctls meant to print debug information, but don't list them
+	 * in "sysctl -a" output. */
+	debug_node = SYSCTL_ADD_NODE(ctx, ctx_list,
+	    OID_AUTO, "debug", CTLFLAG_RD | CTLFLAG_SKIP, NULL, "Debug Sysctls");
+	debug_list = SYSCTL_CHILDREN(debug_node);
+
+	SYSCTL_ADD_UINT(ctx, debug_list,
+	    OID_AUTO, "shared_debug_mask", CTLFLAG_RW,
+	    &sc->hw.debug_mask, 0, "Shared code debug message level");
+
+	SYSCTL_ADD_UINT(ctx, debug_list,
+	    OID_AUTO, "core_debug_mask", CTLFLAG_RW,
+	    &sc->dbg_mask, 0, "Non-shared code debug message level");
 
 #if 0
-	struct ixl_queue *queues = vsi->queues;
-	struct tX_ring *txr;
-	struct rx_ring *rxr;
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "filter_list", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_sw_filter_list, "A", "SW Filter List");
+
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "rss_key", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_hkey, "A", "View RSS key");
+
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "rss_lut", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_hlut, "A", "View RSS lookup table");
+
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "rss_hena", CTLTYPE_ULONG | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_hena, "LU", "View enabled packet types for RSS");
+
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
+	    pf, 0, ixl_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
 #endif
 
-	/* Driver statistics sysctls */
-	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "watchdog_events",
-			CTLFLAG_RD, &sc->watchdog_events,
-			"Watchdog timeouts");
-	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "admin_irq",
-			CTLFLAG_RD, &sc->admin_irq,
-			"Admin Queue IRQ Handled");
+#if 0
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "dynamic_rx_itr", CTLFLAG_RW,
+	    &sc->dynamic_rx_itr, 0, "Enable dynamic RX ITR");
 
-	SYSCTL_ADD_PROC(ctx, child, OID_AUTO, "current_speed",
-			CTLTYPE_STRING | CTLFLAG_RD,
-			sc, 0, ixlv_sysctl_current_speed,
-			"A", "Current Port Speed");
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
+	    &sc->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
+#endif
 
+#if 0
 	/* VSI statistics sysctls */
 	vsi_node = SYSCTL_ADD_NODE(ctx, child, OID_AUTO, "vsi",
 				   CTLFLAG_RD, NULL, "VSI-specific statistics");
@@ -2412,6 +2485,7 @@ ixlv_add_sysctls(struct ixlv_sc *sc)
 				entry->description);
 		entry++;
 	}
+#endif
 
 #if 0
 	/* Queue sysctls */
@@ -2573,7 +2647,102 @@ ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS)
 static void
 ixlv_save_tunables(struct ixlv_sc *sc)
 {
+	device_t dev = sc->dev;
+
+	/* Save tunable information */
 	sc->dbg_mask = ixlv_core_debug_mask;
 	sc->hw.debug_mask = ixlv_shared_debug_mask;
 	sc->vsi.enable_head_writeback = !!(ixlv_enable_head_writeback);
+
+	if (ixlv_tx_itr < 0 || ixlv_tx_itr > IXL_MAX_ITR) {
+		device_printf(dev, "Invalid tx_itr value of %d set!\n",
+		    ixlv_tx_itr);
+		device_printf(dev, "tx_itr must be between %d and %d, "
+		    "inclusive\n",
+		    0, IXL_MAX_ITR);
+		device_printf(dev, "Using default value of %d instead\n",
+		    IXL_ITR_4K);
+		sc->tx_itr = IXL_ITR_4K;
+	} else
+		sc->tx_itr = ixlv_tx_itr;
+
+	if (ixlv_rx_itr < 0 || ixlv_rx_itr > IXL_MAX_ITR) {
+		device_printf(dev, "Invalid rx_itr value of %d set!\n",
+		    ixlv_rx_itr);
+		device_printf(dev, "rx_itr must be between %d and %d, "
+		    "inclusive\n",
+		    0, IXL_MAX_ITR);
+		device_printf(dev, "Using default value of %d instead\n",
+		    IXL_ITR_8K);
+		sc->rx_itr = IXL_ITR_8K;
+	} else
+		sc->rx_itr = ixlv_rx_itr;
+}
+
+/*
+ * Used to set the Tx ITR value for all of the VF's queues.
+ * Writes to the ITR registers immediately.
+ */
+static int
+ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	device_t dev = sc->dev;
+	int requested_tx_itr;
+	int error = 0;
+
+	requested_tx_itr = sc->tx_itr;
+	error = sysctl_handle_int(oidp, &requested_tx_itr, 0, req);
+	if ((error) || (req->newptr == NULL))
+		return (error);
+	if (sc->dynamic_tx_itr) {
+		device_printf(dev,
+		    "Cannot set TX itr value while dynamic TX itr is enabled\n");
+		    return (EINVAL);
+	}
+	if (requested_tx_itr < 0 || requested_tx_itr > IXL_MAX_ITR) {
+		device_printf(dev,
+		    "Invalid TX itr value; value must be between 0 and %d\n",
+		        IXL_MAX_ITR);
+		return (EINVAL);
+	}
+
+	sc->tx_itr = requested_tx_itr;
+	ixlv_configure_tx_itr(sc);
+
+	return (error);
+}
+
+/*
+ * Used to set the Rx ITR value for all of the VF's queues.
+ * Writes to the ITR registers immediately.
+ */
+static int
+ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	device_t dev = sc->dev;
+	int requested_rx_itr;
+	int error = 0;
+
+	requested_rx_itr = sc->rx_itr;
+	error = sysctl_handle_int(oidp, &requested_rx_itr, 0, req);
+	if ((error) || (req->newptr == NULL))
+		return (error);
+	if (sc->dynamic_rx_itr) {
+		device_printf(dev,
+		    "Cannot set RX itr value while dynamic RX itr is enabled\n");
+		    return (EINVAL);
+	}
+	if (requested_rx_itr < 0 || requested_rx_itr > IXL_MAX_ITR) {
+		device_printf(dev,
+		    "Invalid RX itr value; value must be between 0 and %d\n",
+		        IXL_MAX_ITR);
+		return (EINVAL);
+	}
+
+	sc->rx_itr = requested_rx_itr;
+	ixlv_configure_rx_itr(sc);
+
+	return (error);
 }

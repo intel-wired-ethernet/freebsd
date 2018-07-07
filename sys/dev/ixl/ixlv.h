@@ -138,13 +138,18 @@ struct ixlv_sc {
 	struct ifmedia		media;
 	struct callout		timer;
 	int			msix;
-	//int			pf_version;
 	struct virtchnl_version_info	version;
 	int			if_flags;
 	enum ixl_dbg_mask	dbg_mask;
 
 	bool				link_up;
 	enum virtchnl_link_speed	link_speed;
+
+	/* Tunable settings */
+	int			tx_itr;
+	int			rx_itr;
+	int			dynamic_tx_itr;
+	int			dynamic_rx_itr;
 
 	/* Filter lists */
 	struct mac_list		*mac_filters;
@@ -156,7 +161,8 @@ struct ixlv_sc {
 	/* Admin queue task flags */
 	u32			aq_wait_count;
 
-	struct ixl_vc_mgr	vc_mgr;
+	/* VC command sleep channels */
+	struct ixl_vc_cmd	config_promisc_cmd;
 	struct ixl_vc_cmd	add_mac_cmd;
 	struct ixl_vc_cmd	del_mac_cmd;
 	struct ixl_vc_cmd	config_queues_cmd;
@@ -180,6 +186,7 @@ struct ixlv_sc {
 	u64			watchdog_events;
 	u64			admin_irq;
 
+	/* Buffer used for reading AQ responses */
 	u8			aq_buffer[IXL_AQ_BUF_SZ];
 };
 
