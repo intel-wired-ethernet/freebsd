@@ -32,7 +32,6 @@
 ******************************************************************************/
 /*$FreeBSD$*/
 
-
 #ifndef _IXL_H_
 #define _IXL_H_
 
@@ -86,12 +85,6 @@
 #include <vm/vm.h>
 #include <vm/pmap.h>
 #include <machine/clock.h>
-#if 0
-// DEBUG
-#include <sys/pciio.h>
-#include <dev/pci/pci_iov_private.h>
-// END DEBUG
-#endif
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcireg.h>
 #include <sys/proc.h>
@@ -213,16 +206,6 @@
 
 #define IXL_RX_CTX_BASE_UNITS	128
 #define IXL_TX_CTX_BASE_UNITS	128
-
-#if 0
-#define IXL_VPINT_LNKLSTN_REG(hw, vector, vf_num) \
-	I40E_VPINT_LNKLSTN(((vector) - 1) + \
-	    (((hw)->func_caps.num_msix_vectors_vf - 1) * (vf_num)))
-
-#define IXL_VFINT_DYN_CTLN_REG(hw, vector, vf_num) \
-	I40E_VFINT_DYN_CTLN(((vector) - 1) + \
-	    (((hw)->func_caps.num_msix_vectors_vf - 1) * (vf_num)))
-#endif
 
 #define IXL_PF_PCI_CIAA_VF_DEVICE_STATUS	0xAA
 
