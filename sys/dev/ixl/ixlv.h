@@ -141,6 +141,7 @@ struct ixlv_sc {
 	struct virtchnl_version_info	version;
 	int			if_flags;
 	enum ixl_dbg_mask	dbg_mask;
+	u16			promisc_flags;
 
 	bool				link_up;
 	enum virtchnl_link_speed	link_speed;
@@ -241,11 +242,11 @@ void	ixlv_del_vlans(struct ixlv_sc *);
 void	ixlv_update_stats_counters(struct ixlv_sc *,
 		    struct i40e_eth_stats *);
 void	ixlv_update_link_status(struct ixlv_sc *);
-int	ixlv_get_default_rss_key(u32 *, bool);
-int	ixlv_config_rss_key(struct ixlv_sc *);
-int	ixlv_set_rss_hena(struct ixlv_sc *);
-int	ixlv_config_rss_lut(struct ixlv_sc *);
-int	ixlv_config_promisc_mode(struct ixlv_sc *);
+void	ixlv_get_default_rss_key(u32 *, bool);
+void	ixlv_config_rss_key(struct ixlv_sc *);
+void	ixlv_set_rss_hena(struct ixlv_sc *);
+void	ixlv_config_rss_lut(struct ixlv_sc *);
+void	ixlv_config_promisc_mode(struct ixlv_sc *);
 
 void	*ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op);
 int	ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request);

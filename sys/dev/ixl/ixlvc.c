@@ -574,6 +574,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) { /* Should not happen... */
 		ixlv_dbg_vc(sc, "%s: cnt == 0, exiting...\n", __func__);
+		wakeup_one(&sc->add_mac_cmd);
 		return;
 	}
 
@@ -584,6 +585,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	if (a == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
+		wakeup_one(&sc->add_mac_cmd);
 		return;
 	}
 	a->vsi_id = sc->vsi.id;
@@ -608,7 +610,6 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	    VIRTCHNL_OP_ADD_ETH_ADDR, (u8 *)a, len);
 	/* add stats? */
 	free(a, M_DEVBUF);
-	return;
 }
 
 /*
@@ -631,6 +632,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) {
 		ixlv_dbg_vc(sc, "%s: cnt == 0, exiting...\n", __func__);
+		wakeup_one(&sc->del_mac_cmd);
 		return;
 	}
 
@@ -641,6 +643,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	if (d == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
+		wakeup_one(&sc->del_mac_cmd);
 		return;
 	}
 	d->vsi_id = sc->vsi.id;
@@ -663,7 +666,6 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	    VIRTCHNL_OP_DEL_ETH_ADDR, (u8 *)d, len);
 	/* add stats? */
 	free(d, M_DEVBUF);
-	return;
 }
 
 /*
@@ -697,7 +699,7 @@ ixlv_request_stats(struct ixlv_sc *sc)
 	error = ixlv_send_pf_msg(sc, VIRTCHNL_OP_GET_STATS,
 	    (u8 *)&vqs, sizeof(vqs));
 	if (error)
-		ixlv_dbg_vc(sc, "Error sending stats request to PF: %d\n", error);
+		device_printf(sc->dev, "Error sending stats request to PF: %d\n", error);
 }
 
 /*
@@ -831,6 +833,18 @@ ixlv_config_rss_lut(struct ixlv_sc *sc)
 	free(rss_lut_msg, M_IXLV);
 }
 
+void
+ixlv_config_promisc_mode(struct ixlv_sc *sc)
+{
+	struct virtchnl_promisc_info pinfo;
+
+	pinfo.vsi_id = sc->vsi_res->vsi_id;
+	pinfo.flags = sc->promisc_flags;
+
+	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE,
+	    (u8 *)&pinfo, sizeof(pinfo));
+}
+
 /*
 ** ixlv_vc_completion
 **
@@ -844,7 +858,6 @@ ixlv_vc_completion(struct ixlv_sc *sc,
     enum virtchnl_status_code v_retval, u8 *msg, u16 msglen)
 {
 	device_t	dev = sc->dev;
-	//struct ixl_vsi	*vsi = &sc->vsi;
 
 	if (v_opcode != VIRTCHNL_OP_GET_STATS)
 		ixlv_dbg_vc(sc, "%s: opcode %s\n", __func__,
@@ -976,8 +989,8 @@ ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 		ixlv_config_rss_lut(sc);
 		break;
 
-	case VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE:
-		device_printf(sc->dev, "Promisc mode not implemented\n");
+	case IXLV_FLAG_AQ_CONFIGURE_PROMISC:
+		ixlv_config_promisc_mode(sc);
 		break;
 	}
 }
@@ -1010,8 +1023,10 @@ ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op)
 		return (&sc->get_rss_hena_caps_cmd);
 	case IXLV_FLAG_AQ_CONFIG_RSS_LUT:
 		return (&sc->config_rss_lut_cmd);
+	case IXLV_FLAG_AQ_CONFIGURE_PROMISC:
+		return (&sc->config_promisc_cmd);
 	default:
-		device_printf(sc->dev, "Op %b has no chan!\n", op, IXLV_FLAGS);
+		device_printf(sc->dev, "Op %b has no wake chan!\n", op, IXLV_FLAGS);
 		return (NULL);
 	}
 }

@@ -1261,6 +1261,7 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 
 	ixl_process_adminq(pf, &pending);
 	ixl_update_link_status(pf);
+	ixl_update_stats_counters(pf);
 	
 	/*
 	 * If there are still messages to process, reschedule ourselves.
@@ -1494,32 +1495,11 @@ ixl_if_promisc_set(if_ctx_t ctx, int flags)
 static void
 ixl_if_timer(if_ctx_t ctx, uint16_t qid)
 {
-	struct ixl_pf			*pf = iflib_get_softc(ctx);
-	//struct i40e_hw		*hw = &pf->hw;
-	//struct ixl_tx_queue	*que = &vsi->tx_queues[qid];
- #if 0
-	u32			mask;
-
-	/*
-	** Check status of the queues
-	*/
-	mask = (I40E_PFINT_DYN_CTLN_INTENA_MASK |
-		I40E_PFINT_DYN_CTLN_SWINT_TRIG_MASK);
- 
-	/* If queue param has outstanding work, trigger sw irq */
-	// TODO: TX queues in iflib don't use HW interrupts; does this do anything?
-	if (que->busy)
-		wr32(hw, I40E_PFINT_DYN_CTLN(que->txr.me), mask);
-#endif
-
 	if (qid != 0)
 		return;
 
 	/* Fire off the adminq task */
 	iflib_admin_intr_deferred(ctx);
-
-	/* Update stats */
-	ixl_update_stats_counters(pf);
 }
 
 static void

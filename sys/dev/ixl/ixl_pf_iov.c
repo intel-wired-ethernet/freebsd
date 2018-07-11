@@ -1004,7 +1004,7 @@ ixl_vf_disable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 				continue;
 			/* Warn if this queue is already marked as disabled */
 			if (!ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, true)) {
-				device_printf(pf->dev, "VF %d: TX ring %d is already disabled!\n",
+				ixl_dbg(pf, IXL_DBG_IOV, "VF %d: TX ring %d is already disabled!\n",
 				    vf->vf_num, i);
 				continue;
 			}
@@ -1030,7 +1030,7 @@ ixl_vf_disable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 				continue;
 			/* Warn if this queue is already marked as disabled */
 			if (!ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, false)) {
-				device_printf(pf->dev, "VF %d: RX ring %d is already disabled!\n",
+				ixl_dbg(pf, IXL_DBG_IOV, "VF %d: RX ring %d is already disabled!\n",
 				    vf->vf_num, i);
 				continue;
 			}
@@ -1293,6 +1293,7 @@ ixl_vf_config_promisc_msg(struct ixl_pf *pf, struct ixl_vf *vf,
     void *msg, uint16_t msg_size)
 {
 	struct virtchnl_promisc_info *info;
+	struct i40e_hw *hw = &pf->hw;
 	enum i40e_status_code code;
 
 	if (msg_size != sizeof(*info)) {
@@ -1314,19 +1315,25 @@ ixl_vf_config_promisc_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 		return;
 	}
 
-	code = i40e_aq_set_vsi_unicast_promiscuous(&pf->hw, info->vsi_id,
+	code = i40e_aq_set_vsi_unicast_promiscuous(hw, vf->vsi.seid,
 	    info->flags & FLAG_VF_UNICAST_PROMISC, NULL, TRUE);
 	if (code != I40E_SUCCESS) {
+		device_printf(pf->dev, "i40e_aq_set_vsi_unicast_promiscuous (seid %d) failed: status %s,"
+		    " error %s\n", vf->vsi.seid, i40e_stat_str(hw, code),
+		    i40e_aq_str(hw, hw->aq.asq_last_status));
 		i40e_send_vf_nack(pf, vf,
-		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE, code);
+		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE, I40E_ERR_PARAM);
 		return;
 	}
 
-	code = i40e_aq_set_vsi_multicast_promiscuous(&pf->hw, info->vsi_id,
+	code = i40e_aq_set_vsi_multicast_promiscuous(hw, vf->vsi.seid,
 	    info->flags & FLAG_VF_MULTICAST_PROMISC, NULL);
 	if (code != I40E_SUCCESS) {
+		device_printf(pf->dev, "i40e_aq_set_vsi_multicast_promiscuous (seid %d) failed: status %s,"
+		    " error %s\n", vf->vsi.seid, i40e_stat_str(hw, code),
+		    i40e_aq_str(hw, hw->aq.asq_last_status));
 		i40e_send_vf_nack(pf, vf,
-		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE, code);
+		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE, I40E_ERR_PARAM);
 		return;
 	}
 

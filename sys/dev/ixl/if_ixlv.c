@@ -595,6 +595,7 @@ ixlv_if_resume(if_ctx_t ctx)
 	return (0);
 }
 
+#if 0
 /*
 ** To do a reinit on the VF is unfortunately more complicated
 ** than a physical device, we must have the PF more or less
@@ -620,7 +621,7 @@ ixlv_reinit_locked(struct ixlv_sc *sc)
 
 	error = ixlv_reset(sc);
 
-	INIT_DBG_IF(ifp, "VF was reset");
+	ixlv_dbg_info(sc, "VF was reset\n");
 
 	/* set the state in case we went thru RESET */
 	sc->init_state = IXLV_RUNNING;
@@ -663,6 +664,7 @@ ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
 
 	return (error);
 }
+#endif
 
 int
 ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
@@ -681,16 +683,35 @@ ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 	return (error);
 }
 
+static void
+ixlv_init_queues(struct ixl_vsi *vsi)
+{
+	if_softc_ctx_t scctx = vsi->shared;
+	struct ixl_tx_queue *tx_que = vsi->tx_queues;
+	struct ixl_rx_queue *rx_que = vsi->rx_queues;
+	struct rx_ring *rxr;
+
+	for (int i = 0; i < vsi->num_tx_queues; i++, tx_que++)
+		ixl_init_tx_ring(vsi, tx_que);
+
+	for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++) {
+		rxr = &rx_que->rxr;
+
+		if (scctx->isc_max_frame_size <= MCLBYTES)
+			rxr->mbuf_sz = MCLBYTES;
+		else
+			rxr->mbuf_sz = MJUMPAGESIZE;
+	}
+}
+
 void
 ixlv_if_init(if_ctx_t ctx)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &sc->vsi;
-	if_softc_ctx_t scctx = vsi->shared;
 	struct i40e_hw *hw = &sc->hw;
 	struct ifnet *ifp = iflib_get_ifp(ctx);
-	struct ixl_tx_queue *tx_que = vsi->tx_queues;
-	struct ixl_rx_queue *rx_que = vsi->rx_queues;
+	u8 tmpaddr[ETHER_ADDR_LEN];
 	int error = 0;
 
 	INIT_DBG_IF(ifp, "begin");
@@ -708,8 +729,9 @@ ixlv_if_init(if_ctx_t ctx)
 		goto init_done;
 #endif
 
-	/* Remove existing MAC filter if new MAC addr is set */
-	if (bcmp(IF_LLADDR(ifp), hw->mac.addr, ETHER_ADDR_LEN) != 0) {
+	bcopy(IF_LLADDR(ifp), tmpaddr, ETHER_ADDR_LEN);
+	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&
+	    (i40e_validate_mac_addr(tmpaddr) == I40E_SUCCESS)) {
 		error = ixlv_del_mac_filter(sc, hw->mac.addr);
 		if (error == 0)
 			ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DEL_MAC_FILTER);
@@ -725,19 +747,8 @@ ixlv_if_init(if_ctx_t ctx)
 	/* Setup vlan's if needed */
 	// ixlv_setup_vlan_filters(sc);
 
-	// TODO: Functionize
 	/* Prepare the queues for operation */
-	for (int i = 0; i < vsi->num_tx_queues; i++, tx_que++) {
-		ixl_init_tx_ring(vsi, tx_que);
-	}
-	for (int i = 0; i < vsi->num_rx_queues; i++, rx_que++) {
-		struct rx_ring 		*rxr = &rx_que->rxr;
-
-		if (scctx->isc_max_frame_size <= MCLBYTES)
-			rxr->mbuf_sz = MCLBYTES;
-		else
-			rxr->mbuf_sz = MJUMPAGESIZE;
-	}
+	ixlv_init_queues(vsi);
 
 	/* Set initial ITR values */
 	ixlv_configure_itr(sc);
@@ -1394,32 +1405,25 @@ ixlv_if_media_change(if_ctx_t ctx)
 	return (ENODEV);
 }
 
-// TODO: Rework
 static int
 ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
-	struct ixl_vsi *vsi = &sc->vsi;
 	struct ifnet	*ifp = iflib_get_ifp(ctx);
-	struct i40e_hw	*hw = vsi->hw;
-	int		err;
-	bool		uni = FALSE, multi = FALSE;
+
+	sc->promisc_flags = 0;
 
 	if (flags & IFF_ALLMULTI ||
 		if_multiaddr_count(ifp, MAX_MULTICAST_ADDR) == MAX_MULTICAST_ADDR)
-		multi = TRUE;
+		sc->promisc_flags |= FLAG_VF_MULTICAST_PROMISC;
 	if (flags & IFF_PROMISC)
 		sc->promisc_flags |= FLAG_VF_UNICAST_PROMISC;
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
 
-	err = i40e_aq_set_vsi_unicast_promiscuous(hw,
-	    vsi->seid, uni, NULL, false);
-	if (err)
-		return (err);
-	err = i40e_aq_set_vsi_multicast_promiscuous(hw,
-	    vsi->seid, multi, NULL);
-	return (err);
+	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
+
+	return (0);
 }
 
 static void
@@ -1453,7 +1457,7 @@ ixlv_if_vlan_register(if_ctx_t ctx, u16 vtag)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &sc->vsi;
-	//struct i40e_hw	*hw = vsi->hw;
+	struct ixlv_vlan_filter	*v;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
 		return;
@@ -1472,7 +1476,8 @@ ixlv_if_vlan_unregister(if_ctx_t ctx, u16 vtag)
 {
 	struct ixlv_sc *sc = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &sc->vsi;
-	//struct i40e_hw	*hw = vsi->hw;
+	struct ixlv_vlan_filter	*v;
+	int			i = 0;
 
 	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
 		return;
@@ -1645,81 +1650,6 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	ifmedia_add(vsi->media, IFM_ETHER | IFM_AUTO, 0, NULL);
 	ifmedia_set(vsi->media, IFM_ETHER | IFM_AUTO);
 }
-
-#if 0
-/*
-** This routine is run via an vlan config EVENT,
-** it enables us to use the HW Filter table since
-** we can get the vlan id. This just creates the
-** entry in the soft version of the VFTA, init will
-** repopulate the real table.
-*/
-static void
-ixlv_register_vlan(void *arg, struct ifnet *ifp, u16 vtag)
-{
-	struct ixl_vsi		*vsi = arg;
-	struct ixlv_sc		*sc = vsi->back;
-	struct ixlv_vlan_filter	*v;
-
-
-	if (ifp->if_softc != arg)   /* Not our event */
-		return;
-
-	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
-		return;
-
-	/* Sanity check - make sure it doesn't already exist */
-	SLIST_FOREACH(v, sc->vlan_filters, next) {
-		if (v->vlan == vtag)
-			return;
-	}
-
-	mtx_lock(&sc->mtx);
-	++vsi->num_vlans;
-	v = malloc(sizeof(struct ixlv_vlan_filter), M_DEVBUF, M_NOWAIT | M_ZERO);
-	SLIST_INSERT_HEAD(sc->vlan_filters, v, next);
-	v->vlan = vtag;
-	v->flags = IXL_FILTER_ADD;
-	ixl_vc_enqueue(&sc->vc_mgr, &sc->add_vlan_cmd,
-	    IXLV_FLAG_AQ_ADD_VLAN_FILTER, ixl_init_cmd_complete, sc);
-	mtx_unlock(&sc->mtx);
-	return;
-}
-
-/*
-** This routine is run via an vlan
-** unconfig EVENT, remove our entry
-** in the soft vfta.
-*/
-static void
-ixlv_unregister_vlan(void *arg, struct ifnet *ifp, u16 vtag)
-{
-	struct ixl_vsi		*vsi = arg;
-	struct ixlv_sc		*sc = vsi->back;
-	struct ixlv_vlan_filter	*v;
-	int			i = 0;
-	
-	if (ifp->if_softc != arg)
-		return;
-
-	if ((vtag == 0) || (vtag > 4095))	/* Invalid */
-		return;
-
-	mtx_lock(&sc->mtx);
-	SLIST_FOREACH(v, sc->vlan_filters, next) {
-		if (v->vlan == vtag) {
-			v->flags = IXL_FILTER_DEL;
-			++i;
-			--vsi->num_vlans;
-		}
-	}
-	if (i)
-		ixl_vc_enqueue(&sc->vc_mgr, &sc->del_vlan_cmd,
-		    IXLV_FLAG_AQ_DEL_VLAN_FILTER, ixl_init_cmd_complete, sc);
-	mtx_unlock(&sc->mtx);
-	return;
-}
-#endif
 
 /*
 ** Get a new filter and add it to the mac filter list.
