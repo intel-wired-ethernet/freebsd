@@ -121,6 +121,7 @@ static void	ixlv_configure_itr(struct ixlv_sc *sc);
 static int	ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static void	ixlv_save_tunables(struct ixlv_sc *);
@@ -2348,11 +2349,11 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    OID_AUTO, "core_debug_mask", CTLFLAG_RW,
 	    &sc->dbg_mask, 0, "Non-shared code debug message level");
 
-#if 0
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "filter_list", CTLTYPE_STRING | CTLFLAG_RD,
-	    pf, 0, ixl_sysctl_sw_filter_list, "A", "SW Filter List");
+	    sc, 0, ixlv_sysctl_sw_filter_list, "A", "SW Filter List");
 
+#if 0
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "rss_key", CTLTYPE_STRING | CTLFLAG_RD,
 	    pf, 0, ixl_sysctl_hkey, "A", "View RSS key");
@@ -2674,5 +2675,64 @@ ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS)
 	sc->rx_itr = requested_rx_itr;
 	ixlv_configure_rx_itr(sc);
 
+	return (error);
+}
+
+static int
+ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	struct ixlv_mac_filter *f;
+	struct ixlv_vlan_filter *v;
+	device_t dev = sc->dev;
+	int ftl_len, ftl_counter = 0, error = 0;
+	struct sbuf *buf;
+
+	buf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+	if (!buf) {
+		device_printf(dev, "Could not allocate sbuf for output.\n");
+		return (ENOMEM);
+	}
+
+	sbuf_printf(buf, "\n");
+
+	/* Print MAC filters */
+	sbuf_printf(buf, "MAC Filters:\n");
+	ftl_len = 0;
+	SLIST_FOREACH(f, sc->mac_filters, next)
+		ftl_len++;
+	if (ftl_len < 1)
+		sbuf_printf(buf, "(none)\n");
+	else {
+		SLIST_FOREACH(f, sc->mac_filters, next) {
+			sbuf_printf(buf,
+			    MAC_FORMAT ", flags %#06x\n",
+			    MAC_FORMAT_ARGS(f->macaddr), f->flags);
+		}
+	}
+
+	/* Print VLAN filters */
+	sbuf_printf(buf, "VLAN Filters:\n");
+	ftl_len = 0;
+	SLIST_FOREACH(v, sc->vlan_filters, next)
+		ftl_len++;
+	if (ftl_len < 1)
+		sbuf_printf(buf, "(none)");
+	else {
+		SLIST_FOREACH(v, sc->vlan_filters, next) {
+			sbuf_printf(buf,
+			    "%d, flags %#06x",
+			    v->vlan, v->flags);
+			/* don't print '\n' for last entry */
+			if (++ftl_counter != ftl_len)
+				sbuf_printf(buf, "\n");
+		}
+	}
+
+	error = sbuf_finish(buf);
+	if (error)
+		device_printf(dev, "Error finishing sbuf: %d\n", error);
+
+	sbuf_delete(buf);
 	return (error);
 }
