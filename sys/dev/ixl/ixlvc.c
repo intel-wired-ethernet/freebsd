@@ -40,8 +40,6 @@
 
 #include "ixl.h"
 #include "ixlv.h"
-#include "i40e_prototype.h"
-
 
 /* busy wait delay in msec */
 #define IXLV_BUSY_WAIT_DELAY 10
