@@ -286,6 +286,9 @@
 #define IXL_SET_NOPROTO(vsi, count)	(vsi)->noproto = (count)
 #endif
 
+/* For stats sysctl naming */
+#define QUEUE_NAME_LEN 32
+
 #define IXL_DEV_ERR(_dev, _format, ...) \
 	device_printf(_dev, "%s: " _format " (%s:%d)\n", __func__, ##__VA_ARGS__, __FILE__, __LINE__)
 
@@ -554,4 +557,5 @@ void		ixl_add_vsi_sysctls(device_t dev, struct ixl_vsi *vsi,
 void		ixl_add_sysctls_eth_stats(struct sysctl_ctx_list *ctx,
 		    struct sysctl_oid_list *child,
 		    struct i40e_eth_stats *eth_stats);
+void		ixl_add_queues_sysctls(device_t dev, struct ixl_vsi *vsi);
 #endif /* _IXL_H_ */

@@ -240,9 +240,6 @@ MALLOC_DECLARE(M_IXL);
 /* Debug printing */
 #define ixl_dbg(pf, m, s, ...)	ixl_debug_core(pf->dev, pf->dbg_mask, m, s, ##__VA_ARGS__)
 
-/* For stats sysctl naming */
-#define QUEUE_NAME_LEN 32
-
 /* PF-only function declarations */
 int	ixl_setup_interface(device_t, struct ixl_pf *);
 void	ixl_print_nvm_cmd(device_t, struct i40e_nvm_access *);

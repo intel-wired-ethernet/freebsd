@@ -2319,13 +2319,12 @@ ixlv_del_mac_filter(struct ixlv_sc *sc, u8 *macaddr)
 static void
 ixlv_add_device_sysctls(struct ixlv_sc *sc)
 {
+	struct ixl_vsi *vsi = &sc->vsi;
 	device_t dev = sc->dev;
-	// struct ixl_vsi *vsi = &sc->vsi;
 
 	struct sysctl_ctx_list *ctx = device_get_sysctl_ctx(dev);
 	struct sysctl_oid_list *ctx_list =
 	    SYSCTL_CHILDREN(device_get_sysctl_tree(dev));
-
 	struct sysctl_oid *debug_node;
 	struct sysctl_oid_list *debug_list;
 
@@ -2352,8 +2351,6 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
 	    &sc->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
 #endif
-
-	ixl_add_vsi_sysctls(dev, &sc->vsi, ctx, "vsi");
 
 	/* Add sysctls meant to print debug information, but don't list them
 	 * in "sysctl -a" output. */
@@ -2391,109 +2388,10 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
 	    sc, 0, ixlv_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
 
-#if 0
-	/* VSI statistics sysctls */
-	vsi_node = SYSCTL_ADD_NODE(ctx, child, OID_AUTO, "vsi",
-				   CTLFLAG_RD, NULL, "VSI-specific statistics");
-	vsi_list = SYSCTL_CHILDREN(vsi_node);
+	/* Add stats sysctls */
+	ixl_add_vsi_sysctls(dev, vsi, ctx, "vsi");
+	ixl_add_queues_sysctls(dev, vsi);
 
-	struct ixl_sysctl_info ctls[] =
-	{
-		{&es->rx_bytes, "good_octets_rcvd", "Good Octets Received"},
-		{&es->rx_unicast, "ucast_pkts_rcvd",
-			"Unicast Packets Received"},
-		{&es->rx_multicast, "mcast_pkts_rcvd",
-			"Multicast Packets Received"},
-		{&es->rx_broadcast, "bcast_pkts_rcvd",
-			"Broadcast Packets Received"},
-		{&es->rx_discards, "rx_discards", "Discarded RX packets"},
-		{&es->rx_unknown_protocol, "rx_unknown_proto", "RX unknown protocol packets"},
-		{&es->tx_bytes, "good_octets_txd", "Good Octets Transmitted"},
-		{&es->tx_unicast, "ucast_pkts_txd", "Unicast Packets Transmitted"},
-		{&es->tx_multicast, "mcast_pkts_txd",
-			"Multicast Packets Transmitted"},
-		{&es->tx_broadcast, "bcast_pkts_txd",
-			"Broadcast Packets Transmitted"},
-		{&es->tx_errors, "tx_errors", "TX packet errors"},
-		// end
-		{0,0,0}
-	};
-	struct ixl_sysctl_info *entry = ctls;
-	while (entry->stat != NULL)
-	{
-		SYSCTL_ADD_QUAD(ctx, child, OID_AUTO, entry->name,
-				CTLFLAG_RD, entry->stat,
-				entry->description);
-		entry++;
-	}
-#endif
-
-#if 0
-	/* Queue sysctls */
-	for (int q = 0; q < vsi->num_queues; q++) {
-		snprintf(queue_namebuf, QUEUE_NAME_LEN, "que%d", q);
-		queue_node = SYSCTL_ADD_NODE(ctx, vsi_list, OID_AUTO, queue_namebuf,
-					     CTLFLAG_RD, NULL, "Queue Name");
-		queue_list = SYSCTL_CHILDREN(queue_node);
-
-		txr = &(queues[q].txr);
-		rxr = &(queues[q].rxr);
-
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "mbuf_defrag_failed",
-				CTLFLAG_RD, &(queues[q].mbuf_defrag_failed),
-				"m_defrag() failed");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "dropped",
-				CTLFLAG_RD, &(queues[q].dropped_pkts),
-				"Driver dropped packets");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "irqs",
-				CTLFLAG_RD, &(queues[q].irqs),
-				"irqs on this queue");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "tso_tx",
-				CTLFLAG_RD, &(queues[q].tso),
-				"TSO");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "tx_dmamap_failed",
-				CTLFLAG_RD, &(queues[q].tx_dmamap_failed),
-				"Driver tx dma failure in xmit");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "no_desc_avail",
-				CTLFLAG_RD, &(txr->no_desc),
-				"Queue No Descriptor Available");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "tx_packets",
-				CTLFLAG_RD, &(txr->total_packets),
-				"Queue Packets Transmitted");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "tx_bytes",
-				CTLFLAG_RD, &(txr->tx_bytes),
-				"Queue Bytes Transmitted");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "rx_packets",
-				CTLFLAG_RD, &(rxr->rx_packets),
-				"Queue Packets Received");
-		SYSCTL_ADD_QUAD(ctx, queue_list, OID_AUTO, "rx_bytes",
-				CTLFLAG_RD, &(rxr->rx_bytes),
-				"Queue Bytes Received");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "rx_itr",
-				CTLFLAG_RD, &(rxr->itr), 0,
-				"Queue Rx ITR Interval");
-		SYSCTL_ADD_UINT(ctx, queue_list, OID_AUTO, "tx_itr",
-				CTLFLAG_RD, &(txr->itr), 0,
-				"Queue Tx ITR Interval");
-
-#ifdef IXL_DEBUG
-		/* Examine queue state */
-		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qtx_head", 
-				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
-				sizeof(struct ixl_queue),
-				ixlv_sysctl_qtx_tail_handler, "IU",
-				"Queue Transmit Descriptor Tail");
-		SYSCTL_ADD_PROC(ctx, queue_list, OID_AUTO, "qrx_head", 
-				CTLTYPE_UINT | CTLFLAG_RD, &queues[q],
-				sizeof(struct ixl_queue),
-				ixlv_sysctl_qrx_tail_handler, "IU",
-				"Queue Receive Descriptor Tail");
-		SYSCTL_ADD_INT(ctx, queue_list, OID_AUTO, "watchdog_timer",
-				CTLFLAG_RD, &(txr.watchdog_timer), 0,
-				"Ticks before watchdog event is triggered");
-#endif
-	}
-#endif
 }
 
 static void
