@@ -1174,10 +1174,14 @@ ixlv_if_queues_free(if_ctx_t ctx)
 	}
 }
 
-#if 0
 static int
 ixlv_check_aq_errors(struct ixlv_sc *sc)
 {
+	struct i40e_hw *hw = &sc->hw;
+	device_t dev = sc->dev;
+	u32 reg, oldreg;
+	u8 aq_error = false;
+
 	/* check for Admin queue errors */
 	oldreg = reg = rd32(hw, hw->aq.arq.len);
 	if (reg & I40E_VF_ARQLEN1_ARQVFE_MASK) {
@@ -1217,27 +1221,30 @@ ixlv_check_aq_errors(struct ixlv_sc *sc)
 	if (oldreg != reg)
 		wr32(hw, hw->aq.asq.len, reg);
 
-#if 0
 	if (aq_error) {
 		/* Need to reset adapter */
-		device_printf(dev, "WARNING: Resetting!\n");
-		sc->init_state = IXLV_RESET_REQUIRED;
+		//device_printf(dev, "WARNING: Resetting!\n");
+		//sc->init_state = IXLV_RESET_REQUIRED;
 		ixlv_stop(sc);
-		ixlv_init_locked(sc);
+		//ixlv_init_locked(sc);
 	}
-#endif
 
+	return (aq_error ? EIO : 0);
 }
-#endif
 
-static int
+static enum i40e_status_code
 ixlv_process_adminq(struct ixlv_sc *sc, u16 *pending)
 {
 	enum i40e_status_code status = I40E_SUCCESS;
 	struct i40e_arq_event_info event;
 	struct i40e_hw *hw = &sc->hw;
 	struct virtchnl_msg *v_msg;
-	u32 loop = 0, reg;
+	int error = 0, loop = 0;
+	u32 reg;
+
+	error = ixlv_check_aq_errors(sc);
+	if (error)
+		return (I40E_ERR_ADMIN_QUEUE_CRITICAL_ERROR);
 
 	event.buf_len = IXL_AQ_BUF_SZ;
         event.msg_buf = sc->aq_buffer;
