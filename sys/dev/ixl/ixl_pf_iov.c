@@ -1846,13 +1846,13 @@ int
 ixl_if_iov_vf_add(if_ctx_t ctx, uint16_t vfnum, const nvlist_t *params)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
+	device_t dev = pf->dev;
 	char sysctl_name[QUEUE_NAME_LEN];
 	struct ixl_vf *vf;
 	const void *mac;
 	size_t size;
 	int error;
 	int vf_num_queues;
-
 
 	vf = &pf->vfs[vfnum];
 	vf->vf_num = vfnum;
@@ -1896,7 +1896,7 @@ ixl_if_iov_vf_add(if_ctx_t ctx, uint16_t vfnum, const nvlist_t *params)
 out:
 	if (error == 0) {
 		snprintf(sysctl_name, sizeof(sysctl_name), "vf%d", vfnum);
-		ixl_add_vsi_sysctls(pf, &vf->vsi, &vf->ctx, sysctl_name);
+		ixl_add_vsi_sysctls(dev, &vf->vsi, &vf->ctx, sysctl_name);
 	}
 
 	return (error);

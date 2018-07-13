@@ -284,7 +284,6 @@ void	ixl_stat_update32(struct i40e_hw *, u32, bool,
 		    u64 *, u64 *);
 
 void	ixl_stop(struct ixl_pf *);
-void	ixl_add_vsi_sysctls(struct ixl_pf *pf, struct ixl_vsi *vsi, struct sysctl_ctx_list *ctx, const char *sysctl_name);
 int	ixl_get_hw_capabilities(struct ixl_pf *);
 void	ixl_link_up_msg(struct ixl_pf *);
 void    ixl_update_link_status(struct ixl_pf *);

@@ -1506,23 +1506,6 @@ ixl_set_queue_tx_itr(struct ixl_tx_queue *que)
 	return;
 }
 
-void
-ixl_add_vsi_sysctls(struct ixl_pf *pf, struct ixl_vsi *vsi,
-    struct sysctl_ctx_list *ctx, const char *sysctl_name)
-{
-	struct sysctl_oid *tree;
-	struct sysctl_oid_list *child;
-	struct sysctl_oid_list *vsi_list;
-
-	tree = device_get_sysctl_tree(pf->dev);
-	child = SYSCTL_CHILDREN(tree);
-	vsi->vsi_node = SYSCTL_ADD_NODE(ctx, child, OID_AUTO, sysctl_name,
-				   CTLFLAG_RD, NULL, "VSI Number");
-	vsi_list = SYSCTL_CHILDREN(vsi->vsi_node);
-
-	ixl_add_sysctls_eth_stats(ctx, vsi_list, &vsi->eth_stats);
-}
-
 #ifdef IXL_DEBUG
 /**
  * ixl_sysctl_qtx_tail_handler
@@ -1664,7 +1647,7 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 			CTLFLAG_RD, &pf->admin_irq,
 			"Admin Queue IRQ Handled");
 
-	ixl_add_vsi_sysctls(pf, &pf->vsi, ctx, "pf");
+	ixl_add_vsi_sysctls(dev, &pf->vsi, ctx, "pf");
 	vsi_list = SYSCTL_CHILDREN(pf->vsi.vsi_node);
 
 	/* Queue statistics */
@@ -1737,41 +1720,6 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 
 	/* MAC stats */
 	ixl_add_sysctls_mac_stats(ctx, child, pf_stats);
-}
-
-void
-ixl_add_sysctls_eth_stats(struct sysctl_ctx_list *ctx,
-	struct sysctl_oid_list *child,
-	struct i40e_eth_stats *eth_stats)
-{
-	struct ixl_sysctl_info ctls[] =
-	{
-		{&eth_stats->rx_bytes, "good_octets_rcvd", "Good Octets Received"},
-		{&eth_stats->rx_unicast, "ucast_pkts_rcvd",
-			"Unicast Packets Received"},
-		{&eth_stats->rx_multicast, "mcast_pkts_rcvd",
-			"Multicast Packets Received"},
-		{&eth_stats->rx_broadcast, "bcast_pkts_rcvd",
-			"Broadcast Packets Received"},
-		{&eth_stats->rx_discards, "rx_discards", "Discarded RX packets"},
-		{&eth_stats->tx_bytes, "good_octets_txd", "Good Octets Transmitted"},
-		{&eth_stats->tx_unicast, "ucast_pkts_txd", "Unicast Packets Transmitted"},
-		{&eth_stats->tx_multicast, "mcast_pkts_txd",
-			"Multicast Packets Transmitted"},
-		{&eth_stats->tx_broadcast, "bcast_pkts_txd",
-			"Broadcast Packets Transmitted"},
-		// end
-		{0,0,0}
-	};
-
-	struct ixl_sysctl_info *entry = ctls;
-	while (entry->stat != 0)
-	{
-		SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, entry->name,
-				CTLFLAG_RD, entry->stat,
-				entry->description);
-		entry++;
-	}
 }
 
 void

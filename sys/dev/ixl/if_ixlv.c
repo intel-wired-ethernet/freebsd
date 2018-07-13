@@ -122,6 +122,7 @@ static int	ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static void	ixlv_save_tunables(struct ixlv_sc *);
@@ -2342,6 +2343,18 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    sc, 0, ixlv_sysctl_rx_itr, "I",
 	    "Immediately set RX ITR value for all queues");
 
+#if 0
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "dynamic_rx_itr", CTLFLAG_RW,
+	    &sc->dynamic_rx_itr, 0, "Enable dynamic RX ITR");
+
+	SYSCTL_ADD_INT(ctx, ctx_list,
+	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
+	    &sc->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
+#endif
+
+	ixl_add_vsi_sysctls(dev, &sc->vsi, ctx, "vsi");
+
 	/* Add sysctls meant to print debug information, but don't list them
 	 * in "sysctl -a" output. */
 	debug_node = SYSCTL_ADD_NODE(ctx, ctx_list,
@@ -2372,21 +2385,11 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "rss_hena", CTLTYPE_ULONG | CTLFLAG_RD,
 	    pf, 0, ixl_sysctl_hena, "LU", "View enabled packet types for RSS");
+#endif
 
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
-	    pf, 0, ixl_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
-#endif
-
-#if 0
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "dynamic_rx_itr", CTLFLAG_RW,
-	    &sc->dynamic_rx_itr, 0, "Enable dynamic RX ITR");
-
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
-	    &sc->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
-#endif
+	    sc, 0, ixlv_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
 
 #if 0
 	/* VSI statistics sysctls */
@@ -2741,5 +2744,45 @@ ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS)
 		device_printf(dev, "Error finishing sbuf: %d\n", error);
 
 	sbuf_delete(buf);
+	return (error);
+}
+
+/*
+ * Print out mapping of TX queue indexes and Rx queue indexes
+ * to MSI-X vectors.
+ */
+static int
+ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	struct ixl_vsi *vsi = &sc->vsi;
+	device_t dev = sc->dev;
+	struct sbuf *buf;
+	int error = 0;
+
+	struct ixl_rx_queue *rx_que = vsi->rx_queues;
+	struct ixl_tx_queue *tx_que = vsi->tx_queues;
+
+	buf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+	if (!buf) {
+		device_printf(dev, "Could not allocate sbuf for output.\n");
+		return (ENOMEM);
+	}
+
+	sbuf_cat(buf, "\n");
+	for (int i = 0; i < vsi->num_rx_queues; i++) {
+		rx_que = &vsi->rx_queues[i];
+		sbuf_printf(buf, "(rxq %3d): %d\n", i, rx_que->msix);
+	}
+	for (int i = 0; i < vsi->num_tx_queues; i++) {
+		tx_que = &vsi->tx_queues[i];
+		sbuf_printf(buf, "(txq %3d): %d\n", i, tx_que->msix);
+	}
+
+	error = sbuf_finish(buf);
+	if (error)
+		device_printf(dev, "Error finishing sbuf: %d\n", error);
+	sbuf_delete(buf);
+
 	return (error);
 }

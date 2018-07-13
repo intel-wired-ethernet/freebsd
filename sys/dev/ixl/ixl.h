@@ -549,4 +549,9 @@ const char *	i40e_vc_stat_str(struct i40e_hw *hw,
 void		ixl_init_tx_rsqs(struct ixl_vsi *vsi);
 void		ixl_init_tx_cidx(struct ixl_vsi *vsi);
 u64		ixl_max_vc_speed_to_value(u8 link_speeds);
+void		ixl_add_vsi_sysctls(device_t dev, struct ixl_vsi *vsi,
+		    struct sysctl_ctx_list *ctx, const char *sysctl_name);
+void		ixl_add_sysctls_eth_stats(struct sysctl_ctx_list *ctx,
+		    struct sysctl_oid_list *child,
+		    struct i40e_eth_stats *eth_stats);
 #endif /* _IXL_H_ */
