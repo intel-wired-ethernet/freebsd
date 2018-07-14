@@ -123,6 +123,7 @@ static int	ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_vf_reset(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static void	ixlv_save_tunables(struct ixlv_sc *);
@@ -1605,6 +1606,7 @@ ixlv_reset(struct ixlv_sc *sc)
 		return(error);
 	}
 
+	ixlv_enable_adminq_irq(hw);
 	return (0);
 }
 
@@ -2390,6 +2392,10 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
 	    sc, 0, ixlv_sysctl_queue_interrupt_table, "A", "View MSI-X indices for TX/RX queues");
 
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "do_vf_reset", CTLTYPE_INT | CTLFLAG_WR,
+	    sc, 0, ixlv_sysctl_vf_reset, "A", "Request a VF reset from PF");
+
 	/* Add stats sysctls */
 	ixl_add_vsi_sysctls(dev, vsi, ctx, "vsi");
 	ixl_add_queues_sysctls(dev, vsi);
@@ -2683,6 +2689,22 @@ ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS)
 	if (error)
 		device_printf(dev, "Error finishing sbuf: %d\n", error);
 	sbuf_delete(buf);
+
+	return (error);
+}
+
+static int
+ixlv_sysctl_vf_reset(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	int do_reset = 0, error = 0;
+
+	error = sysctl_handle_int(oidp, &do_reset, 0, req);
+	if ((error) || (req->newptr == NULL))
+		return (error);
+
+	if (do_reset == 1)
+		ixlv_reset(sc);
 
 	return (error);
 }
