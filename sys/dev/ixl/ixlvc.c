@@ -275,7 +275,7 @@ out:
 **
 ** Request that the PF set up our queues.
 */
-void
+int
 ixlv_configure_queues(struct ixlv_sc *sc)
 {
 	device_t		dev = sc->dev;
@@ -298,8 +298,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 	vqci = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
 	if (!vqci) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
-		wakeup_one(&sc->config_queues_cmd);
-		return;
+		return (ENOMEM);
 	}
 	vqci->vsi_id = sc->vsi_res->vsi_id;
 	vqci->num_queue_pairs = pairs;
@@ -338,6 +337,8 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_VSI_QUEUES,
 			   (u8 *)vqci, len);
 	free(vqci, M_DEVBUF);
+
+	return (0);
 }
 
 /*
@@ -345,7 +346,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 **
 ** Request that the PF enable all of our queues.
 */
-void
+int
 ixlv_enable_queues(struct ixlv_sc *sc)
 {
 	struct virtchnl_queue_select vqs;
@@ -357,6 +358,7 @@ ixlv_enable_queues(struct ixlv_sc *sc)
 	vqs.rx_queues = vqs.tx_queues;
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_ENABLE_QUEUES,
 			   (u8 *)&vqs, sizeof(vqs));
+	return (0);
 }
 
 /*
@@ -364,7 +366,7 @@ ixlv_enable_queues(struct ixlv_sc *sc)
 **
 ** Request that the PF disable all of our queues.
 */
-void
+int
 ixlv_disable_queues(struct ixlv_sc *sc)
 {
 	struct virtchnl_queue_select vqs;
@@ -376,6 +378,7 @@ ixlv_disable_queues(struct ixlv_sc *sc)
 	vqs.rx_queues = vqs.tx_queues;
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_DISABLE_QUEUES,
 			   (u8 *)&vqs, sizeof(vqs));
+	return (0);
 }
 
 /*
@@ -384,7 +387,7 @@ ixlv_disable_queues(struct ixlv_sc *sc)
 ** Request that the PF map queues to interrupt vectors. Misc causes, including
 ** admin queue, are always mapped to vector 0.
 */
-void
+int
 ixlv_map_queues(struct ixlv_sc *sc)
 {
 	struct virtchnl_irq_map_info *vm;
@@ -406,7 +409,7 @@ ixlv_map_queues(struct ixlv_sc *sc)
 	vm = malloc(len, M_DEVBUF, M_NOWAIT);
 	if (!vm) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
-		return;
+		return (ENOMEM);
 	}
 
 	vm->num_vectors = scctx->isc_vectors;
@@ -432,6 +435,8 @@ ixlv_map_queues(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_IRQ_MAP,
 	    (u8 *)vm, len);
 	free(vm, M_DEVBUF);
+
+	return (0);
 }
 
 /*
@@ -439,10 +444,10 @@ ixlv_map_queues(struct ixlv_sc *sc)
 ** to be added, then create the data to hand to the AQ
 ** for handling.
 */
-void
+int
 ixlv_add_vlans(struct ixlv_sc *sc)
 {
-	struct virtchnl_vlan_filter_list	*v;
+	struct virtchnl_vlan_filter_list *v;
 	struct ixlv_vlan_filter *f, *ftmp;
 	device_t	dev = sc->dev;
 	int		len, i = 0, cnt = 0;
@@ -453,9 +458,8 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 			cnt++;
 	}
 
-	if (!cnt) {  /* no work... */
-		return;
-	}
+	if (!cnt) /* no work... */
+		return (ENOENT);
 
 	len = sizeof(struct virtchnl_vlan_filter_list) +
 	      (cnt * sizeof(u16));
@@ -463,14 +467,14 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 	if (len > IXL_AQ_BUF_SZ) {
 		device_printf(dev, "%s: Exceeded Max AQ Buf size\n",
 			__func__);
-		return;
+		return (EFBIG);
 	}
 
 	v = malloc(len, M_DEVBUF, M_NOWAIT);
 	if (!v) {
 		device_printf(dev, "%s: unable to allocate memory\n",
 			__func__);
-		return;
+		return (ENOMEM);
 	}
 
 	v->vsi_id = sc->vsi_res->vsi_id;
@@ -490,6 +494,7 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_ADD_VLAN, (u8 *)v, len);
 	free(v, M_DEVBUF);
 	/* add stats? */
+	return (0);
 }
 
 /*
@@ -497,12 +502,12 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 ** to be removed, then create the data to hand to the AQ
 ** for handling.
 */
-void
+int
 ixlv_del_vlans(struct ixlv_sc *sc)
 {
-	device_t	dev = sc->dev;
 	struct virtchnl_vlan_filter_list *v;
 	struct ixlv_vlan_filter *f, *ftmp;
+	device_t dev = sc->dev;
 	int len, i = 0, cnt = 0;
 
 	/* Get count of VLAN filters to delete */
@@ -511,9 +516,8 @@ ixlv_del_vlans(struct ixlv_sc *sc)
 			cnt++;
 	}
 
-	if (!cnt) {  /* no work... */
-		return;
-	}
+	if (!cnt) /* no work... */
+		return (ENOENT);
 
 	len = sizeof(struct virtchnl_vlan_filter_list) +
 	      (cnt * sizeof(u16));
@@ -521,14 +525,14 @@ ixlv_del_vlans(struct ixlv_sc *sc)
 	if (len > IXL_AQ_BUF_SZ) {
 		device_printf(dev, "%s: Exceeded Max AQ Buf size\n",
 			__func__);
-		return;
+		return (EFBIG);
 	}
 
 	v = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
 	if (!v) {
 		device_printf(dev, "%s: unable to allocate memory\n",
 			__func__);
-		return;
+		return (ENOMEM);
 	}
 
 	v->vsi_id = sc->vsi_res->vsi_id;
@@ -549,6 +553,7 @@ ixlv_del_vlans(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_DEL_VLAN, (u8 *)v, len);
 	free(v, M_DEVBUF);
 	/* add stats? */
+	return (0);
 }
 
 
@@ -557,13 +562,13 @@ ixlv_del_vlans(struct ixlv_sc *sc)
 ** table and creates an Admin Queue call to create
 ** the filters in the hardware.
 */
-void
+int
 ixlv_add_ether_filters(struct ixlv_sc *sc)
 {
 	struct virtchnl_ether_addr_list *a;
 	struct ixlv_mac_filter	*f;
-	device_t			dev = sc->dev;
-	int				len, j = 0, cnt = 0;
+	device_t dev = sc->dev;
+	int len, j = 0, cnt = 0;
 
 	/* Get count of MAC addresses to add */
 	SLIST_FOREACH(f, sc->mac_filters, next) {
@@ -572,8 +577,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) { /* Should not happen... */
 		ixlv_dbg_vc(sc, "%s: cnt == 0, exiting...\n", __func__);
-		wakeup_one(&sc->add_mac_cmd);
-		return;
+		return (ENOENT);
 	}
 
 	len = sizeof(struct virtchnl_ether_addr_list) +
@@ -583,8 +587,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	if (a == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
-		wakeup_one(&sc->add_mac_cmd);
-		return;
+		return (ENOMEM);
 	}
 	a->vsi_id = sc->vsi.id;
 	a->num_elements = cnt;
@@ -608,6 +611,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	    VIRTCHNL_OP_ADD_ETH_ADDR, (u8 *)a, len);
 	/* add stats? */
 	free(a, M_DEVBUF);
+	return (0);
 }
 
 /*
@@ -615,13 +619,13 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 ** sc MAC filter list and creates an Admin Queue call
 ** to delete those filters in the hardware.
 */
-void
+int
 ixlv_del_ether_filters(struct ixlv_sc *sc)
 {
 	struct virtchnl_ether_addr_list *d;
-	device_t			dev = sc->dev;
-	struct ixlv_mac_filter	*f, *f_temp;
-	int				len, j = 0, cnt = 0;
+	struct ixlv_mac_filter *f, *f_temp;
+	device_t dev = sc->dev;
+	int len, j = 0, cnt = 0;
 
 	/* Get count of MAC addresses to delete */
 	SLIST_FOREACH(f, sc->mac_filters, next) {
@@ -630,8 +634,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	}
 	if (cnt == 0) {
 		ixlv_dbg_vc(sc, "%s: cnt == 0, exiting...\n", __func__);
-		wakeup_one(&sc->del_mac_cmd);
-		return;
+		return (ENOENT);
 	}
 
 	len = sizeof(struct virtchnl_ether_addr_list) +
@@ -641,8 +644,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	if (d == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
-		wakeup_one(&sc->del_mac_cmd);
-		return;
+		return (ENOMEM);
 	}
 	d->vsi_id = sc->vsi.id;
 	d->num_elements = cnt;
@@ -664,13 +666,14 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	    VIRTCHNL_OP_DEL_ETH_ADDR, (u8 *)d, len);
 	/* add stats? */
 	free(d, M_DEVBUF);
+	return (0);
 }
 
 /*
 ** ixlv_request_reset
 ** Request that the PF reset this VF. No response is expected.
 */
-void
+int
 ixlv_request_reset(struct ixlv_sc *sc)
 {
 	/*
@@ -680,13 +683,14 @@ ixlv_request_reset(struct ixlv_sc *sc)
 	*/
 	wr32(&sc->hw, I40E_VFGEN_RSTAT, VIRTCHNL_VFR_INPROGRESS);
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_RESET_VF, NULL, 0);
+	return (0);
 }
 
 /*
 ** ixlv_request_stats
 ** Request the statistics for this VF's VSI from PF.
 */
-void
+int
 ixlv_request_stats(struct ixlv_sc *sc)
 {
 	struct virtchnl_queue_select vqs;
@@ -698,6 +702,8 @@ ixlv_request_stats(struct ixlv_sc *sc)
 	    (u8 *)&vqs, sizeof(vqs));
 	if (error)
 		device_printf(sc->dev, "Error sending stats request to PF: %d\n", error);
+	
+	return (0);
 }
 
 /*
@@ -736,7 +742,7 @@ ixlv_update_stats_counters(struct ixlv_sc *sc, struct i40e_eth_stats *es)
 	vsi->eth_stats = *es;
 }
 
-void
+int
 ixlv_config_rss_key(struct ixlv_sc *sc)
 {
 	struct virtchnl_rss_key *rss_key_msg;
@@ -756,7 +762,7 @@ ixlv_config_rss_key(struct ixlv_sc *sc)
 	rss_key_msg = malloc(msg_len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (rss_key_msg == NULL) {
 		device_printf(sc->dev, "Unable to allocate msg memory for RSS key msg.\n");
-		return;
+		return (ENOMEM);
 	}
 
 	rss_key_msg->vsi_id = sc->vsi_res->vsi_id;
@@ -770,9 +776,10 @@ ixlv_config_rss_key(struct ixlv_sc *sc)
 			  (u8 *)rss_key_msg, msg_len);
 
 	free(rss_key_msg, M_IXLV);
+	return (0);
 }
 
-void
+int
 ixlv_set_rss_hena(struct ixlv_sc *sc)
 {
 	struct virtchnl_rss_hena hena;
@@ -785,9 +792,10 @@ ixlv_set_rss_hena(struct ixlv_sc *sc)
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_SET_RSS_HENA,
 			  (u8 *)&hena, sizeof(hena));
+	return (0);
 }
 
-void
+int
 ixlv_config_rss_lut(struct ixlv_sc *sc)
 {
 	struct virtchnl_rss_lut *rss_lut_msg;
@@ -801,7 +809,7 @@ ixlv_config_rss_lut(struct ixlv_sc *sc)
 	rss_lut_msg = malloc(msg_len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (rss_lut_msg == NULL) {
 		device_printf(sc->dev, "Unable to allocate msg memory for RSS lut msg.\n");
-		return;
+		return (ENOMEM);
 	}
 
 	rss_lut_msg->vsi_id = sc->vsi_res->vsi_id;
@@ -829,9 +837,10 @@ ixlv_config_rss_lut(struct ixlv_sc *sc)
 			  (u8 *)rss_lut_msg, msg_len);
 
 	free(rss_lut_msg, M_IXLV);
+	return (0);
 }
 
-void
+int
 ixlv_config_promisc_mode(struct ixlv_sc *sc)
 {
 	struct virtchnl_promisc_info pinfo;
@@ -841,6 +850,7 @@ ixlv_config_promisc_mode(struct ixlv_sc *sc)
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE,
 	    (u8 *)&pinfo, sizeof(pinfo));
+	return (0);
 }
 
 /*
@@ -938,59 +948,49 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 	}
 }
 
-void
+int
 ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 {
 
 	switch (request) {
 	case IXLV_FLAG_AQ_MAP_VECTORS:
-		ixlv_map_queues(sc);
-		break;
+		return ixlv_map_queues(sc);
 
 	case IXLV_FLAG_AQ_ADD_MAC_FILTER:
-		ixlv_add_ether_filters(sc);
-		break;
+		return ixlv_add_ether_filters(sc);
 
 	case IXLV_FLAG_AQ_ADD_VLAN_FILTER:
-		ixlv_add_vlans(sc);
-		break;
+		return ixlv_add_vlans(sc);
 
 	case IXLV_FLAG_AQ_DEL_MAC_FILTER:
-		ixlv_del_ether_filters(sc);
-		break;
+		return ixlv_del_ether_filters(sc);
 
 	case IXLV_FLAG_AQ_DEL_VLAN_FILTER:
-		ixlv_del_vlans(sc);
-		break;
+		return ixlv_del_vlans(sc);
 
 	case IXLV_FLAG_AQ_CONFIGURE_QUEUES:
-		ixlv_configure_queues(sc);
-		break;
+		return ixlv_configure_queues(sc);
 
 	case IXLV_FLAG_AQ_DISABLE_QUEUES:
-		ixlv_disable_queues(sc);
-		break;
+		return ixlv_disable_queues(sc);
 
 	case IXLV_FLAG_AQ_ENABLE_QUEUES:
-		ixlv_enable_queues(sc);
-		break;
+		return ixlv_enable_queues(sc);
 
 	case IXLV_FLAG_AQ_CONFIG_RSS_KEY:
-		ixlv_config_rss_key(sc);
-		break;
+		return ixlv_config_rss_key(sc);
 
 	case IXLV_FLAG_AQ_SET_RSS_HENA:
-		ixlv_set_rss_hena(sc);
-		break;
+		return ixlv_set_rss_hena(sc);
 
 	case IXLV_FLAG_AQ_CONFIG_RSS_LUT:
-		ixlv_config_rss_lut(sc);
-		break;
+		return ixlv_config_rss_lut(sc);
 
 	case IXLV_FLAG_AQ_CONFIGURE_PROMISC:
-		ixlv_config_promisc_mode(sc);
-		break;
+		return ixlv_config_promisc_mode(sc);
 	}
+
+	return (0);
 }
 
 void *

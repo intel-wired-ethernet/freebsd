@@ -223,30 +223,30 @@ int	ixlv_send_vf_config_msg(struct ixlv_sc *);
 int	ixlv_get_vf_config(struct ixlv_sc *);
 void	ixlv_init(void *);
 int	ixlv_reinit_locked(struct ixlv_sc *);
-void	ixlv_configure_queues(struct ixlv_sc *);
-void	ixlv_enable_queues(struct ixlv_sc *);
-void	ixlv_disable_queues(struct ixlv_sc *);
-void	ixlv_map_queues(struct ixlv_sc *);
+int	ixlv_configure_queues(struct ixlv_sc *);
+int	ixlv_enable_queues(struct ixlv_sc *);
+int	ixlv_disable_queues(struct ixlv_sc *);
+int	ixlv_map_queues(struct ixlv_sc *);
 void	ixlv_enable_intr(struct ixl_vsi *);
 void	ixlv_disable_intr(struct ixl_vsi *);
-void	ixlv_add_ether_filters(struct ixlv_sc *);
-void	ixlv_del_ether_filters(struct ixlv_sc *);
-void	ixlv_request_stats(struct ixlv_sc *);
-void	ixlv_request_reset(struct ixlv_sc *);
+int	ixlv_add_ether_filters(struct ixlv_sc *);
+int	ixlv_del_ether_filters(struct ixlv_sc *);
+int	ixlv_request_stats(struct ixlv_sc *);
+int	ixlv_request_reset(struct ixlv_sc *);
 void	ixlv_vc_completion(struct ixlv_sc *,
 	enum virtchnl_ops, enum virtchnl_status_code,
 	u8 *, u16);
-void	ixlv_add_ether_filter(struct ixlv_sc *);
-void	ixlv_add_vlans(struct ixlv_sc *);
-void	ixlv_del_vlans(struct ixlv_sc *);
+int	ixlv_add_ether_filter(struct ixlv_sc *);
+int	ixlv_add_vlans(struct ixlv_sc *);
+int	ixlv_del_vlans(struct ixlv_sc *);
 void	ixlv_update_stats_counters(struct ixlv_sc *,
 		    struct i40e_eth_stats *);
 void	ixlv_update_link_status(struct ixlv_sc *);
-void	ixlv_get_default_rss_key(u32 *, bool);
-void	ixlv_config_rss_key(struct ixlv_sc *);
-void	ixlv_set_rss_hena(struct ixlv_sc *);
-void	ixlv_config_rss_lut(struct ixlv_sc *);
-void	ixlv_config_promisc_mode(struct ixlv_sc *);
+int	ixlv_get_default_rss_key(u32 *, bool);
+int	ixlv_config_rss_key(struct ixlv_sc *);
+int	ixlv_set_rss_hena(struct ixlv_sc *);
+int	ixlv_config_rss_lut(struct ixlv_sc *);
+int	ixlv_config_promisc_mode(struct ixlv_sc *);
 
 void	*ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op);
 int	ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request);

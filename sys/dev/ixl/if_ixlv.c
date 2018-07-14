@@ -674,7 +674,9 @@ ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 	if_ctx_t ctx = sc->vsi.ctx;
 	int error = 0;
 
-	ixl_vc_send_cmd(sc, op);
+	error = ixl_vc_send_cmd(sc, op);
+	if (error != 0)
+		return (error);
 
 	ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
 	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), 0, "ixlvc", IXLV_AQ_TIMEOUT);
