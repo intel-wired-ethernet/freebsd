@@ -655,7 +655,7 @@ ixl_vf_config_rx_queue(struct ixl_pf *pf, struct ixl_vf *vf,
 	rxq.tphwdesc_ena = 1;
 	rxq.tphdata_ena = 1;
 	rxq.tphhead_ena = 1;
-	rxq.lrxqthresh = 2;
+	rxq.lrxqthresh = 1;
 	rxq.prefena = 1;
 
 	status = i40e_set_lan_rx_queue_context(hw, global_queue_num, &rxq);
