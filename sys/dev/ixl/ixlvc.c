@@ -307,7 +307,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 	pairs = max(vsi->num_tx_queues, vsi->num_rx_queues);
 	len = sizeof(struct virtchnl_vsi_queue_config_info) +
 		       (sizeof(struct virtchnl_queue_pair_info) * pairs);
-	vqci = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	vqci = malloc(len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (!vqci) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
 		return (ENOMEM);
@@ -348,7 +348,7 @@ ixlv_configure_queues(struct ixlv_sc *sc)
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_VSI_QUEUES,
 			   (u8 *)vqci, len);
-	free(vqci, M_DEVBUF);
+	free(vqci, M_IXLV);
 
 	return (0);
 }
@@ -418,7 +418,7 @@ ixlv_map_queues(struct ixlv_sc *sc)
 
 	len = sizeof(struct virtchnl_irq_map_info) +
 	      (scctx->isc_vectors * sizeof(struct virtchnl_vector_map));
-	vm = malloc(len, M_DEVBUF, M_NOWAIT);
+	vm = malloc(len, M_IXLV, M_NOWAIT);
 	if (!vm) {
 		device_printf(dev, "%s: unable to allocate memory\n", __func__);
 		return (ENOMEM);
@@ -446,7 +446,7 @@ ixlv_map_queues(struct ixlv_sc *sc)
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_CONFIG_IRQ_MAP,
 	    (u8 *)vm, len);
-	free(vm, M_DEVBUF);
+	free(vm, M_IXLV);
 
 	return (0);
 }
@@ -482,7 +482,7 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 		return (EFBIG);
 	}
 
-	v = malloc(len, M_DEVBUF, M_NOWAIT);
+	v = malloc(len, M_IXLV, M_NOWAIT);
 	if (!v) {
 		device_printf(dev, "%s: unable to allocate memory\n",
 			__func__);
@@ -504,7 +504,7 @@ ixlv_add_vlans(struct ixlv_sc *sc)
 	}
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_ADD_VLAN, (u8 *)v, len);
-	free(v, M_DEVBUF);
+	free(v, M_IXLV);
 	/* add stats? */
 	return (0);
 }
@@ -540,7 +540,7 @@ ixlv_del_vlans(struct ixlv_sc *sc)
 		return (EFBIG);
 	}
 
-	v = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	v = malloc(len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (!v) {
 		device_printf(dev, "%s: unable to allocate memory\n",
 			__func__);
@@ -556,14 +556,14 @@ ixlv_del_vlans(struct ixlv_sc *sc)
                         bcopy(&f->vlan, &v->vlan_id[i], sizeof(u16));
                         i++;
                         SLIST_REMOVE(sc->vlan_filters, f, ixlv_vlan_filter, next);
-                        free(f, M_DEVBUF);
+                        free(f, M_IXLV);
                 }
                 if (i == cnt)
                         break;
 	}
 
 	ixlv_send_pf_msg(sc, VIRTCHNL_OP_DEL_VLAN, (u8 *)v, len);
-	free(v, M_DEVBUF);
+	free(v, M_IXLV);
 	/* add stats? */
 	return (0);
 }
@@ -595,7 +595,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	len = sizeof(struct virtchnl_ether_addr_list) +
 	    (cnt * sizeof(struct virtchnl_ether_addr));
 
-	a = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	a = malloc(len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (a == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
@@ -619,11 +619,13 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	}
 	DDPRINTF(dev, "len %d, j %d, cnt %d",
 	    len, j, cnt);
-	ixlv_send_pf_msg(sc,
+
+	enum i40e_status_code status;
+	status = ixlv_send_pf_msg(sc,
 	    VIRTCHNL_OP_ADD_ETH_ADDR, (u8 *)a, len);
 	/* add stats? */
-	free(a, M_DEVBUF);
-	return (0);
+	free(a, M_IXLV);
+	return (status);
 }
 
 /*
@@ -652,7 +654,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	len = sizeof(struct virtchnl_ether_addr_list) +
 	    (cnt * sizeof(struct virtchnl_ether_addr));
 
-	d = malloc(len, M_DEVBUF, M_NOWAIT | M_ZERO);
+	d = malloc(len, M_IXLV, M_NOWAIT | M_ZERO);
 	if (d == NULL) {
 		device_printf(dev, "%s: Failed to get memory for "
 		    "virtchnl_ether_addr_list\n", __func__);
@@ -669,7 +671,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 			    MAC_FORMAT_ARGS(f->macaddr));
 			j++;
 			SLIST_REMOVE(sc->mac_filters, f, ixlv_mac_filter, next);
-			free(f, M_DEVBUF);
+			free(f, M_IXLV);
 		}
 		if (j == cnt)
 			break;
@@ -677,7 +679,7 @@ ixlv_del_ether_filters(struct ixlv_sc *sc)
 	ixlv_send_pf_msg(sc,
 	    VIRTCHNL_OP_DEL_ETH_ADDR, (u8 *)d, len);
 	/* add stats? */
-	free(d, M_DEVBUF);
+	free(d, M_IXLV);
 	return (0);
 }
 
