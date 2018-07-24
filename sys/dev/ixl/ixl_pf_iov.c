@@ -205,6 +205,13 @@ ixl_vf_setup_vsi(struct ixl_pf *pf, struct ixl_vf *vf)
 	if (error != 0)
 		return (error);
 
+	/* Let VF receive broadcast Ethernet frames */
+	error = i40e_aq_set_vsi_broadcast(hw, vf->vsi.seid, TRUE, NULL);
+	if (error)
+		device_printf(pf->dev, "Error configuring VF VSI for broadcast promiscuous\n");
+	/* Re-add VF's MAC/VLAN filters to its VSI */
+	ixl_reconfigure_filters(&vf->vsi);
+	/* Reset stats? */
 	vf->vsi.hw_filters_add = 0;
 	vf->vsi.hw_filters_del = 0;
 
