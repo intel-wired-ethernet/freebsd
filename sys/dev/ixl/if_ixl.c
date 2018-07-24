@@ -1569,9 +1569,9 @@ ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt)
 static void
 ixl_if_vflr_handle(if_ctx_t ctx)
 {
-	IXL_DEV_ERR(iflib_get_dev(ctx), "");
+	struct ixl_pf *pf = iflib_get_softc(ctx);
 
-	// TODO: call ixl_handle_vflr()
+	ixl_handle_vflr(pf);
 }
 
 static int
