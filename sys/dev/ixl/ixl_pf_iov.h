@@ -57,7 +57,7 @@ int		ixl_if_iov_vf_add(if_ctx_t ctx, uint16_t vfnum, const nvlist_t *params);
  */
 void		ixl_initialize_sriov(struct ixl_pf *pf);
 void		ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event);
-void		ixl_handle_vflr(void *arg, int pending);
+void		ixl_handle_vflr(struct ixl_pf *pf);
 void		ixl_broadcast_link_state(struct ixl_pf *pf);
 
 #endif /* _IXL_PF_IOV_H_ */

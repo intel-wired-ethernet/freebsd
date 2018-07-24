@@ -378,12 +378,16 @@ ixl_reset_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	hw = &pf->hw;
 
+	ixl_dbg(pf, IXL_DBG_IOV, "Resetting VF-%d\n", vf->vf_num);
+
 	vfrtrig = rd32(hw, I40E_VPGEN_VFRTRIG(vf->vf_num));
 	vfrtrig |= I40E_VPGEN_VFRTRIG_VFSWR_MASK;
 	wr32(hw, I40E_VPGEN_VFRTRIG(vf->vf_num), vfrtrig);
 	ixl_flush(hw);
 
 	ixl_reinit_vf(pf, vf);
+
+	ixl_dbg(pf, IXL_DBG_IOV, "Resetting VF-%d done.\n", vf->vf_num);
 }
 
 static void
@@ -1640,19 +1644,25 @@ ixl_handle_vf_msg(struct ixl_pf *pf, struct i40e_arq_event_info *event)
 
 /* Handle any VFs that have reset themselves via a Function Level Reset(FLR). */
 void
-ixl_handle_vflr(void *arg, int pending)
+ixl_handle_vflr(struct ixl_pf *pf)
 {
-	struct ixl_pf *pf;
 	struct ixl_vf *vf;
 	struct i40e_hw *hw;
 	uint16_t global_vf_num;
 	uint32_t vflrstat_index, vflrstat_mask, vflrstat, icr0;
 	int i;
 
-	pf = arg;
 	hw = &pf->hw;
 
-	/* TODO: May need to lock this */
+	ixl_dbg(pf, IXL_DBG_IOV, "%s: begin\n", __func__);
+
+	/* Re-enable VFLR interrupt cause so driver doesn't miss a
+	 * reset interrupt for another VF */
+	icr0 = rd32(hw, I40E_PFINT_ICR0_ENA);
+	icr0 |= I40E_PFINT_ICR0_ENA_VFLR_MASK;
+	wr32(hw, I40E_PFINT_ICR0_ENA, icr0);
+	ixl_flush(hw);
+
 	for (i = 0; i < pf->num_vfs; i++) {
 		global_vf_num = hw->func_caps.vf_base_id + i;
 
@@ -1667,17 +1677,12 @@ ixl_handle_vflr(void *arg, int pending)
 			wr32(hw, I40E_GLGEN_VFLRSTAT(vflrstat_index),
 			    vflrstat_mask);
 
+			ixl_dbg(pf, IXL_DBG_IOV, "Reinitializing VF-%d\n", i);
 			ixl_reinit_vf(pf, vf);
+			ixl_dbg(pf, IXL_DBG_IOV, "Reinitializing VF-%d done\n", i);
 		}
 	}
 
-	atomic_clear_32(&pf->state, IXL_PF_STATE_VF_RESET_REQ);
-	icr0 = rd32(hw, I40E_PFINT_ICR0_ENA);
-	icr0 |= I40E_PFINT_ICR0_ENA_VFLR_MASK;
-	wr32(hw, I40E_PFINT_ICR0_ENA, icr0);
-	ixl_flush(hw);
-
-	// IXL_PF_UNLOCK()
 }
 
 static int
