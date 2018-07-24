@@ -1776,7 +1776,6 @@ ixlv_disable_intr(struct ixl_vsi *vsi)
         struct i40e_hw *hw = vsi->hw;
         struct ixl_rx_queue *que = vsi->rx_queues;
 
-	// ixlv_disable_adminq_irq(hw);
 	for (int i = 0; i < vsi->num_rx_queues; i++, que++)
 		ixlv_disable_queue_irq(hw, que->rxr.me);
 }
@@ -2023,42 +2022,6 @@ ixlv_set_queue_tx_itr(struct ixl_tx_queue *que)
 }
 #endif
 
-#if 0
-/*
-**
-** MSIX Interrupt Handlers and Tasklets
-**
-*/
-static void
-ixlv_handle_que(void *context, int pending)
-{
-	struct ixl_queue *que = context;
-	struct ixl_vsi *vsi = que->vsi;
-	struct i40e_hw  *hw = vsi->hw;
-	struct tx_ring  *txr = &que->txr;
-	struct ifnet    *ifp = vsi->ifp;
-	bool		more;
-
-	if (ifp->if_drv_flags & IFF_DRV_RUNNING) {
-		more = ixl_rxeof(que, IXL_RX_LIMIT);
-		mtx_lock(&txr->mtx);
-		ixl_txeof(que);
-		if (!drbr_empty(ifp, txr->br))
-			ixl_mq_start_locked(ifp, txr);
-		mtx_unlock(&txr->mtx);
-		if (more) {
-			taskqueue_enqueue(que->tq, &que->task);
-			return;
-		}
-	}
-
-	/* Reenable this interrupt - hmmm */
-	ixlv_enable_queue_irq(hw, que->me);
-	return;
-}
-#endif
-
-
 static int
 ixlv_msix_que(void *arg)
 {
@@ -2262,33 +2225,6 @@ ixlv_config_rss(struct ixlv_sc *sc)
 		device_printf(sc->dev, "VF does not support RSS capability sent by PF.\n");
 }
 
-#if 0
-/*
-** This routine refreshes vlan filters, called by init
-** it scans the filter table and then updates the AQ
-*/
-static void
-ixlv_setup_vlan_filters(struct ixlv_sc *sc)
-{
-	struct ixl_vsi			*vsi = &sc->vsi;
-	struct ixlv_vlan_filter	*f;
-	int				cnt = 0;
-
-	if (vsi->num_vlans == 0)
-		return;
-	/*
-	** Scan the filter table for vlan entries,
-	** and if found call for the AQ update.
-	*/
-	SLIST_FOREACH(f, sc->vlan_filters, next)
-                if (f->flags & IXL_FILTER_ADD)
-			cnt++;
-	if (cnt > 0)
-		ixl_vc_enqueue(&sc->vc_mgr, &sc->add_vlan_cmd,
-		    IXLV_FLAG_AQ_ADD_VLAN_FILTER, ixl_init_cmd_complete, sc);
-}
-#endif
-
 /*
 ** This routine adds new MAC filters to the sc's list;
 ** these are later added in hardware by sending a virtual
@@ -2396,20 +2332,6 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "filter_list", CTLTYPE_STRING | CTLFLAG_RD,
 	    sc, 0, ixlv_sysctl_sw_filter_list, "A", "SW Filter List");
-
-#if 0
-	SYSCTL_ADD_PROC(ctx, debug_list,
-	    OID_AUTO, "rss_key", CTLTYPE_STRING | CTLFLAG_RD,
-	    pf, 0, ixl_sysctl_hkey, "A", "View RSS key");
-
-	SYSCTL_ADD_PROC(ctx, debug_list,
-	    OID_AUTO, "rss_lut", CTLTYPE_STRING | CTLFLAG_RD,
-	    pf, 0, ixl_sysctl_hlut, "A", "View RSS lookup table");
-
-	SYSCTL_ADD_PROC(ctx, debug_list,
-	    OID_AUTO, "rss_hena", CTLTYPE_ULONG | CTLFLAG_RD,
-	    pf, 0, ixl_sysctl_hena, "LU", "View enabled packet types for RSS");
-#endif
 
 	SYSCTL_ADD_PROC(ctx, debug_list,
 	    OID_AUTO, "queue_interrupt_table", CTLTYPE_STRING | CTLFLAG_RD,
