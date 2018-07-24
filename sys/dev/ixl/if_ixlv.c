@@ -1245,11 +1245,14 @@ ixlv_check_aq_errors(struct ixlv_sc *sc)
 		wr32(hw, hw->aq.asq.len, reg);
 
 	if (aq_error) {
-		/* Need to reset adapter */
-		//device_printf(dev, "WARNING: Resetting!\n");
-		//sc->init_state = IXLV_RESET_REQUIRED;
+		device_printf(dev, "WARNING: Stopping VF!\n");
+		/*
+		 * A VF reset might not be enough to fix a problem here;
+		 * a PF reset could be required.
+		 */
+		sc->init_state = IXLV_RESET_REQUIRED;
 		ixlv_stop(sc);
-		//ixlv_init_locked(sc);
+		ixlv_request_reset(sc);
 	}
 
 	return (aq_error ? EIO : 0);
