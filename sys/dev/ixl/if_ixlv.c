@@ -1613,6 +1613,7 @@ ixlv_reset(struct ixlv_sc *sc)
 		    __func__);
 		return (error);
 	}
+	pci_enable_busmaster(dev);
 
 	error = i40e_shutdown_adminq(hw);
 	if (error) {
@@ -1625,7 +1626,7 @@ ixlv_reset(struct ixlv_sc *sc)
 	if (error) {
 		device_printf(dev, "%s: init_adminq failed: %d\n",
 		    __func__, error);
-		return(error);
+		return (error);
 	}
 
 	ixlv_enable_adminq_irq(hw);
