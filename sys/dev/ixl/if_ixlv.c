@@ -1338,18 +1338,18 @@ ixlv_if_multi_set(if_ctx_t ctx)
 
 	mcnt = if_multiaddr_count(iflib_get_ifp(ctx), MAX_MULTICAST_ADDR);
 	if (__predict_false(mcnt == MAX_MULTICAST_ADDR)) {
-		// Delete MC filters
+		/* Delete MC filters and enable mulitcast promisc instead */
 		ixlv_init_multi(sc);
-		// Set promiscuous mode (multicast)
-		//ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
+		sc->promisc_flags |= FLAG_VF_MULTICAST_PROMISC;
+		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
 		device_printf(sc->dev, "%s: Not yet\n", __func__);
 		return;
 	}
 
-	/* delete existing MC filters */
+	/* If there aren't too many filters, delete existing MC filters */
 	ixlv_init_multi(sc);
 
-	/* (re-)install filters for all mcast addresses */
+	/* And (re-)install filters for all mcast addresses */
 	mcnt = if_multi_apply(iflib_get_ifp(ctx), ixlv_mc_filter_apply, sc);
 	
 	if (mcnt > 0)
