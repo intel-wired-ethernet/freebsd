@@ -6474,6 +6474,13 @@ iflib_add_device_sysctl_post(if_ctx_t ctx)
 
 }
 
+void
+iflib_request_reset(if_ctx_t ctx)
+{
+
+	ctx->ifc_flags |= IFC_DO_RESET;
+}
+
 #ifndef __NO_STRICT_ALIGNMENT
 static struct mbuf *
 iflib_fixup_rx(struct mbuf *m)
