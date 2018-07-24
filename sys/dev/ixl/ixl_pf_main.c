@@ -2487,14 +2487,12 @@ end:
 	ixl_flush(hw);
 }
 
-/* This only enables HW interrupts for the RX queues */
 void
 ixl_enable_intr(struct ixl_vsi *vsi)
 {
 	struct i40e_hw		*hw = vsi->hw;
 	struct ixl_rx_queue	*que = vsi->rx_queues;
 
-	// TODO: Check iflib interrupt mode instead?
 	if (vsi->shared->isc_intr == IFLIB_INTR_MSIX) {
 		for (int i = 0; i < vsi->num_rx_queues; i++, que++)
 			ixl_enable_queue(hw, que->rxr.me);
@@ -3223,12 +3221,6 @@ ixl_add_device_sysctls(struct ixl_pf *pf)
 		    OID_AUTO, "read_i2c_diag_data", CTLTYPE_STRING | CTLFLAG_RD,
 		    pf, 0, ixl_sysctl_read_i2c_diag_data, "A", "Dump selected diagnostic data from FW");
 	}
-
-#ifdef PCI_IOV
-	SYSCTL_ADD_UINT(ctx, debug_list,
-	    OID_AUTO, "vc_debug_level", CTLFLAG_RW, &pf->vc_debug_lvl,
-	    0, "PF/VF Virtual Channel debug level");
-#endif
 }
 
 /*
