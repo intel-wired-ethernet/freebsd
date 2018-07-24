@@ -45,7 +45,7 @@ ixl_pf_qmgr_init(struct ixl_pf_qmgr *qmgr, u16 num_queues)
 
 	qmgr->num_queues = num_queues;
 	qmgr->qinfo = malloc(num_queues * sizeof(struct ixl_pf_qmgr_qinfo),
-	    M_IXL, M_ZERO | M_WAITOK);
+	    M_IXL, M_ZERO | M_NOWAIT);
 	if (qmgr->qinfo == NULL)
 		return ENOMEM;
 
