@@ -542,8 +542,10 @@ ixl_msix_adminq(void *arg)
 	++pf->admin_irq;
 
 	reg = rd32(hw, I40E_PFINT_ICR0);
-	// For masking off interrupt causes that need to be handled before
-	// they can be re-enabled
+	/*
+	 * For masking off interrupt causes that need to be handled before
+	 * they can be re-enabled
+	 */
 	mask = rd32(hw, I40E_PFINT_ICR0_ENA);
 
 	/* Check on the cause */
@@ -622,11 +624,12 @@ ixl_msix_adminq(void *arg)
 #ifdef PCI_IOV
 	if (reg & I40E_PFINT_ICR0_VFLR_MASK) {
 		mask &= ~I40E_PFINT_ICR0_ENA_VFLR_MASK;
-		atomic_set_32(&pf->state, IXL_PF_STATE_VF_RESET_REQ);
-		do_task = TRUE;
+		iflib_iov_intr_deferred(pf->vsi.ctx);
 	}
 #endif
+
 	wr32(hw, I40E_PFINT_ICR0_ENA, mask);
+	ixl_enable_intr0(hw);
 
 	if (do_task)
 		return (FILTER_SCHEDULE_THREAD);
