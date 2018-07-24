@@ -3897,44 +3897,72 @@ ixl_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS)
 	struct ixl_pf *pf = (struct ixl_pf *)arg1;
 	struct ixl_vsi *vsi = &pf->vsi;
 	struct ixl_mac_filter *f;
-	char *buf, *buf_i;
+	device_t dev = pf->dev;
+	int error = 0, ftl_len = 0, ftl_counter = 0;
 
-	int error = 0;
-	int ftl_len = 0;
-	int ftl_counter = 0;
-	int buf_len = 0;
-	int entry_len = 42;
+	struct sbuf *buf;
 
-	SLIST_FOREACH(f, &vsi->ftl, next) {
+	buf = sbuf_new_for_sysctl(NULL, NULL, 128, req);
+	if (!buf) {
+		device_printf(dev, "Could not allocate sbuf for output.\n");
+		return (ENOMEM);
+	}
+
+	sbuf_printf(buf, "\n");
+
+	/* Print MAC filters */
+	sbuf_printf(buf, "PF Filters:\n");
+	SLIST_FOREACH(f, &vsi->ftl, next)
 		ftl_len++;
-	}
 
-	if (ftl_len < 1) {
-		sysctl_handle_string(oidp, "(none)", 6, req);
-		return (0);
-	}
-
-	buf_len = sizeof(char) * (entry_len + 1) * ftl_len + 2;
-	buf = buf_i = malloc(buf_len, M_DEVBUF, M_WAITOK);
-
-	sprintf(buf_i++, "\n");
-	SLIST_FOREACH(f, &vsi->ftl, next) {
-		sprintf(buf_i,
-		    MAC_FORMAT ", vlan %4d, flags %#06x",
-		    MAC_FORMAT_ARGS(f->macaddr), f->vlan, f->flags);
-		buf_i += entry_len;
-		/* don't print '\n' for last entry */
-		if (++ftl_counter != ftl_len) {
-			sprintf(buf_i, "\n");
-			buf_i++;
+	if (ftl_len < 1)
+		sbuf_printf(buf, "(none)\n");
+	else {
+		SLIST_FOREACH(f, &vsi->ftl, next) {
+			sbuf_printf(buf,
+			    MAC_FORMAT ", vlan %4d, flags %#06x",
+			    MAC_FORMAT_ARGS(f->macaddr), f->vlan, f->flags);
+			/* don't print '\n' for last entry */
+			if (++ftl_counter != ftl_len)
+				sbuf_printf(buf, "\n");
 		}
 	}
 
-	error = sysctl_handle_string(oidp, buf, strlen(buf), req);
+#ifdef PCI_IOV
+	/* TODO: Give each VF its own filter list sysctl */
+	struct ixl_vf *vf;
+	if (pf->num_vfs > 0) {
+		sbuf_printf(buf, "\n\n");
+		for (int i = 0; i < pf->num_vfs; i++) {
+			vf = &pf->vfs[i];
+			if (!(vf->vf_flags & VF_FLAG_ENABLED))
+				continue;
+
+			vsi = &vf->vsi;
+			ftl_len = 0, ftl_counter = 0;
+			sbuf_printf(buf, "VF-%d Filters:\n", vf->vf_num);
+			SLIST_FOREACH(f, &vsi->ftl, next)
+				ftl_len++;
+
+			if (ftl_len < 1)
+				sbuf_printf(buf, "(none)\n");
+			else {
+				SLIST_FOREACH(f, &vsi->ftl, next) {
+					sbuf_printf(buf,
+					    MAC_FORMAT ", vlan %4d, flags %#06x\n",
+					    MAC_FORMAT_ARGS(f->macaddr), f->vlan, f->flags);
+				}
+			}
+		}
+	}
+#endif
+
+	error = sbuf_finish(buf);
 	if (error)
-		printf("sysctl error: %d\n", error);
-	free(buf, M_DEVBUF);
-	return error;
+		device_printf(dev, "Error finishing sbuf: %d\n", error);
+	sbuf_delete(buf);
+
+	return (error);
 }
 
 #define IXL_SW_RES_SIZE 0x14
