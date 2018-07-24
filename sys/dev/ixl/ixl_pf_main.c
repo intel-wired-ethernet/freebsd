@@ -2168,7 +2168,7 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	MPASS(cnt > 0);
 
 	pf = vsi->back;
-	dev = iflib_get_dev(vsi->ctx);
+	dev = vsi->dev;
 	hw = &pf->hw;
 
 	a = malloc(sizeof(struct i40e_aqc_add_macvlan_element_data) * cnt,
@@ -2232,7 +2232,7 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 
 	pf = vsi->back;
 	hw = &pf->hw;
-	dev = iflib_get_dev(vsi->ctx);
+	dev = vsi->dev;
 
 	d = malloc(sizeof(struct i40e_aqc_remove_macvlan_element_data) * cnt,
 	    M_DEVBUF, M_NOWAIT | M_ZERO);
