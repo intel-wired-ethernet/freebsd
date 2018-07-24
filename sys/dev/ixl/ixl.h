@@ -415,16 +415,15 @@ struct ixl_vsi {
 	if_ctx_t		ctx;
 	if_softc_ctx_t		shared;
 	struct ifnet		*ifp;
-	//device_t		dev;
+	device_t		dev;
 	struct i40e_hw		*hw;
 	struct ifmedia		*media;
-#define num_rx_queues	shared->isc_nrxqsets
-#define num_tx_queues	shared->isc_ntxqsets
+
+	int			num_rx_queues;
+	int			num_tx_queues;
 
 	void 			*back;
 	enum i40e_vsi_type	type;
-	// TODO: Remove?
-	u64			que_mask;
 	int			id;
 	u32			rx_itr_setting;
 	u32			tx_itr_setting;

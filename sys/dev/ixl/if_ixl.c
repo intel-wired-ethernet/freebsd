@@ -137,9 +137,9 @@ static device_method_t ixl_methods[] = {
 	DEVMETHOD(device_detach, iflib_device_detach),
 	DEVMETHOD(device_shutdown, iflib_device_shutdown),
 #ifdef PCI_IOV
-	DEVMETHOD(pci_iov_init, ixl_iov_init),
-	DEVMETHOD(pci_iov_uninit, ixl_iov_uninit),
-	DEVMETHOD(pci_iov_add_vf, ixl_add_vf),
+	DEVMETHOD(pci_iov_init, iflib_device_iov_init),
+	DEVMETHOD(pci_iov_uninit, iflib_device_iov_uninit),
+	DEVMETHOD(pci_iov_add_vf, iflib_device_iov_add_vf),
 #endif
 	DEVMETHOD_END
 };
@@ -185,9 +185,14 @@ static device_method_t ixl_if_methods[] = {
 	DEVMETHOD(ifdi_vlan_register, ixl_if_vlan_register),
 	DEVMETHOD(ifdi_vlan_unregister, ixl_if_vlan_unregister),
 	DEVMETHOD(ifdi_get_counter, ixl_if_get_counter),
-	DEVMETHOD(ifdi_vflr_handle, ixl_if_vflr_handle),
 	DEVMETHOD(ifdi_i2c_req, ixl_if_i2c_req),
 	DEVMETHOD(ifdi_priv_ioctl, ixl_if_priv_ioctl),
+#ifdef PCI_IOV
+	DEVMETHOD(ifdi_iov_init, ixl_if_iov_init),
+	DEVMETHOD(ifdi_iov_uninit, ixl_if_iov_uninit),
+	DEVMETHOD(ifdi_iov_vf_add, ixl_if_iov_vf_add),
+	DEVMETHOD(ifdi_vflr_handle, ixl_if_vflr_handle),
+#endif
 	// ifdi_led_func
 	// ifdi_debug
 	DEVMETHOD_END
@@ -391,6 +396,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	/* Allocate, clear, and link in our primary soft structure */
 	dev = iflib_get_dev(ctx);
 	pf = iflib_get_softc(ctx);
+
 	vsi = &pf->vsi;
 	vsi->back = pf;
 	pf->dev = dev;
@@ -400,7 +406,7 @@ ixl_if_attach_pre(if_ctx_t ctx)
 	** Note this assumes we have a single embedded VSI,
 	** this could be enhanced later to allocate multiple
 	*/
-	//vsi->dev = pf->dev;
+	vsi->dev = pf->dev;
 	vsi->hw = &pf->hw;
 	vsi->id = 0;
 	vsi->num_vlans = 0;
@@ -587,6 +593,10 @@ ixl_if_attach_post(if_ctx_t ctx)
 	vsi->ifp = iflib_get_ifp(ctx);
 	hw = &pf->hw;
 
+	/* Save off determined number of queues for interface */
+	vsi->num_rx_queues = vsi->shared->isc_nrxqsets;
+	vsi->num_tx_queues = vsi->shared->isc_ntxqsets;
+
 	/* Setup OS network interface / ifnet */
 	if (ixl_setup_interface(dev, pf)) {
 		device_printf(dev, "interface setup failed!\n");
@@ -694,6 +704,10 @@ err:
 	return (error);
 }
 
+/**
+ * XXX: iflib always ignores the return value of detach()
+ * -> This means that this isn't allowed to fail
+ */
 static int
 ixl_if_detach(if_ctx_t ctx)
 {
@@ -702,7 +716,7 @@ ixl_if_detach(if_ctx_t ctx)
 	struct i40e_hw *hw = &pf->hw;
 	device_t dev = pf->dev;
 	enum i40e_status_code	status;
-#if defined(PCI_IOV) || defined(IXL_IW)
+#ifdef IXL_IW
 	int			error;
 #endif
 
@@ -1066,12 +1080,11 @@ ixl_if_tx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int ntxq
 	struct ixl_vsi *vsi = &pf->vsi;
 	if_softc_ctx_t scctx = vsi->shared;
 	struct ixl_tx_queue *que;
-	// int i;
 	int i, j, error = 0;
 
-	MPASS(vsi->num_tx_queues > 0);
+	MPASS(vsi->shared->isc_ntxqsets > 0);
 	MPASS(ntxqs == 1);
-	MPASS(vsi->num_tx_queues == ntxqsets);
+	MPASS(vsi->shared->isc_ntxqsets == ntxqsets);
 
 	/* Allocate queue structure memory */
 	if (!(vsi->tx_queues =
@@ -1118,9 +1131,9 @@ ixl_if_rx_queues_alloc(if_ctx_t ctx, caddr_t *vaddrs, uint64_t *paddrs, int nrxq
 	struct ixl_rx_queue *que;
 	int i, error = 0;
 
-	MPASS(vsi->num_rx_queues > 0);
+	MPASS(vsi->shared->isc_nrxqsets > 0);
 	MPASS(nrxqs == 1);
-	MPASS(vsi->num_rx_queues == nrxqsets);
+	MPASS(vsi->shared->isc_nrxqsets == nrxqsets);
 
 	/* Allocate queue structure memory */
 	if (!(vsi->rx_queues =
@@ -1278,9 +1291,11 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 	if (pf->state & IXL_PF_STATE_MDD_PENDING)
 		ixl_handle_mdd_event(pf);
 
+#if 0
 #ifdef PCI_IOV
 	if (pf->state & IXL_PF_STATE_VF_RESET_REQ)
 		iflib_iov_intr_deferred(ctx);
+#endif
 #endif
 
 	ixl_process_adminq(pf, &pending);
