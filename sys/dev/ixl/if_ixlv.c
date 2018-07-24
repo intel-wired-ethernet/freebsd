@@ -1738,20 +1738,20 @@ ixlv_msix_adminq(void *arg)
 	++sc->admin_irq;
 
         reg = rd32(hw, I40E_VFINT_ICR01);
+	/*
+	 * For masking off interrupt causes that need to be handled before
+	 * they can be re-enabled
+	 */
         mask = rd32(hw, I40E_VFINT_ICR0_ENA1);
-
-#if 0
-	// TODO: Check if this is still necessary
-        reg = rd32(hw, I40E_VFINT_DYN_CTL01);
-        reg |= I40E_VFINT_DYN_CTL01_CLEARPBA_MASK;
-        wr32(hw, I40E_VFINT_DYN_CTL01, reg);
-#endif
 
 	/* Check on the cause */
 	if (reg & I40E_VFINT_ICR0_ADMINQ_MASK) {
-		// mask &= ~I40E_VFINT_ICR0_ENA_ADMINQ_MASK;
+		mask &= ~I40E_VFINT_ICR0_ENA_ADMINQ_MASK;
 		do_task = TRUE;
 	}
+
+	wr32(hw, I40E_VFINT_ICR0_ENA1, mask);
+	ixlv_enable_adminq_irq(hw);
 
 	if (do_task)
 		return (FILTER_SCHEDULE_THREAD);
