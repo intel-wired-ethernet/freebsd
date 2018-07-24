@@ -141,8 +141,7 @@ struct ixl_pf {
 	struct ixl_vf		*vfs;
 	int			num_vfs;
 	uint16_t		veb_seid;
-	struct task		vflr_task;
-	int			vc_debug_lvl;
+	struct if_irq		iov_irq;
 };
 
 /*

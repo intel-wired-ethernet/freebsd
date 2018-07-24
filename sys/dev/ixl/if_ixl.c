@@ -917,8 +917,8 @@ ixl_if_msix_intr_assign(if_ctx_t ctx, int msix)
 		    "Failed to register Admin Que handler");
 		return (err);
 	}
-	// TODO: Re-enable this at some point
-	// iflib_softirq_alloc_generic(ctx, rid, IFLIB_INTR_IOV, pf, 0, "ixl_iov");
+	/* Create soft IRQ for handling VFLRs */
+	iflib_softirq_alloc_generic(ctx, &pf->iov_irq, IFLIB_INTR_IOV, pf, 0, "iov");
 
 	/* Now set up the stations */
 	for (i = 0, vector = 1; i < vsi->shared->isc_nrxqsets; i++, vector++, rx_que++) {
