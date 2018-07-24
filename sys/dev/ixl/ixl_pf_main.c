@@ -2053,7 +2053,7 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 	hw = &pf->hw;
 
 	if (cnt < 1) {
-		device_printf(dev, "%s: cnt == 0\n", __func__);
+		ixl_dbg_info(pf, "ixl_add_hw_filters: cnt == 0\n");
 		return;
 	}
 
@@ -2083,6 +2083,9 @@ ixl_add_hw_filters(struct ixl_vsi *vsi, int flags, int cnt)
 			b->flags |= I40E_AQC_MACVLAN_ADD_PERFECT_MATCH;
 			f->flags &= ~IXL_FILTER_ADD;
 			j++;
+
+			ixl_dbg_filter(pf, "ADD: " MAC_FORMAT "\n",
+			    MAC_FORMAT_ARGS(f->macaddr));
 		}
 		if (j == cnt)
 			break;
@@ -2138,6 +2141,10 @@ ixl_del_hw_filters(struct ixl_vsi *vsi, int cnt)
 			} else {
 				e->vlan_tag = f->vlan;
 			}
+
+			ixl_dbg_filter(pf, "DEL: " MAC_FORMAT "\n",
+			    MAC_FORMAT_ARGS(f->macaddr));
+
 			/* delete entry from vsi list */
 			SLIST_REMOVE(&vsi->ftl, f, ixl_mac_filter, next);
 			free(f, M_DEVBUF);
