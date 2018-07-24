@@ -728,15 +728,27 @@ ixlv_if_init(if_ctx_t ctx)
 
 	MPASS(sx_xlocked(iflib_ctx_lock_get(ctx)));
 
+	error = ixlv_reset_complete(hw);
+	if (error) {
+		device_printf(sc->dev, "%s: VF reset failed\n",
+		    __func__);
+	}
+
+	if (!i40e_check_asq_alive(hw)) {
+		ixlv_dbg_info(sc, "ASQ is not alive, re-initializing AQ\n");
+		pci_enable_busmaster(sc->dev);
+		i40e_shutdown_adminq(hw);
+		i40e_init_adminq(hw);
+	}
+
 #if 0
-	/* Do a reinit first if an init has already been done */
 	if ((sc->init_state == IXLV_RUNNING) ||
 	    (sc->init_state == IXLV_RESET_REQUIRED) ||
 	    (sc->init_state == IXLV_RESET_PENDING))
 		error = ixlv_reinit_locked(sc);
 	/* Don't bother with init if we failed reinit */
 	if (error)
-		goto init_done;
+		return;
 #endif
 
 	bcopy(IF_LLADDR(ifp), tmpaddr, ETHER_ADDR_LEN);
@@ -784,10 +796,6 @@ ixlv_if_init(if_ctx_t ctx)
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ENABLE_QUEUES);
 
 	sc->init_state = IXLV_RUNNING;
-
-//init_done:
-	INIT_DBG_IF(ifp, "end");
-	return;
 }
 
 /*
