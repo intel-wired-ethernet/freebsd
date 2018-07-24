@@ -116,8 +116,6 @@ ixl_initialize_sriov(struct ixl_pf *pf)
 		    iov_error);
 	} else
 		device_printf(dev, "SR-IOV ready\n");
-
-	pf->vc_debug_lvl = 1;
 }
 
 

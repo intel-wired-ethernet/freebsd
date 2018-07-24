@@ -99,7 +99,6 @@ struct ixl_pf {
 	int			iw_msix;
 	bool			iw_enabled;
 #endif
-	int			if_flags;
 	u32			state;
 	u8			supported_speeds;
 
@@ -107,8 +106,6 @@ struct ixl_pf {
 	struct ixl_pf_qtag	qtag;
 
 	/* Tunable values */
-	bool			enable_msix;
-	int			max_queues;
 	bool			enable_tx_fc_filter;
 	int			dynamic_rx_itr;
 	int			dynamic_tx_itr;
@@ -122,7 +119,6 @@ struct ixl_pf {
 	bool			has_i2c;
 
 	/* Misc stats maintained by the driver */
-	u64			watchdog_events;
 	u64			admin_irq;
 
 	/* Statistics from hw */
