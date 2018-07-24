@@ -727,15 +727,8 @@ ixl_if_detach(if_ctx_t ctx)
 		error = ixl_iw_pf_detach(pf);
 		if (error == EBUSY) {
 			device_printf(dev, "iwarp in use; stop it first.\n");
-			return (error);
+			//return (error);
 		}
-	}
-#endif
-#ifdef PCI_IOV
-	error = pci_iov_detach(dev);
-	if (error != 0) {
-		device_printf(dev, "SR-IOV in use; detach first.\n");
-		return (error);
 	}
 #endif
 	/* Remove all previously allocated media types */
