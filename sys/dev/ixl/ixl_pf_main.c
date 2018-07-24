@@ -1987,8 +1987,8 @@ ixl_add_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 	else
 		vsi->num_macs++;
 
+	f->flags |= IXL_FILTER_USED;
 	ixl_add_hw_filters(vsi, f->flags, 1);
-	return;
 }
 
 void
