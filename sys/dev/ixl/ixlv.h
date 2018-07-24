@@ -88,18 +88,9 @@ static MALLOC_DEFINE(M_IXLV, "ixlv", "ixlv driver allocations");
 
 /* Driver state */
 enum ixlv_state_t {
-	IXLV_START,
-	IXLV_FAILED,
 	IXLV_RESET_REQUIRED,
 	IXLV_RESET_PENDING,
-	IXLV_VERSION_CHECK,
-	IXLV_GET_RESOURCES,
 	IXLV_INIT_READY,
-	IXLV_INIT_START,
-	IXLV_INIT_CONFIG,
-	IXLV_INIT_MAPPING,
-	IXLV_INIT_ENABLE,
-	IXLV_INIT_COMPLETE,
 	IXLV_RUNNING,
 };
 
@@ -130,16 +121,9 @@ struct ixlv_sc {
 	struct resource		*pci_mem;
 
 	enum ixlv_state_t	init_state;
-	int			init_in_progress;
-
-	// TODO: remove?
-	struct mtx		mtx;
 
 	struct ifmedia		media;
-	struct callout		timer;
-	int			msix;
 	struct virtchnl_version_info	version;
-	int			if_flags;
 	enum ixl_dbg_mask	dbg_mask;
 	u16			promisc_flags;
 
@@ -155,12 +139,6 @@ struct ixlv_sc {
 	/* Filter lists */
 	struct mac_list		*mac_filters;
 	struct vlan_list	*vlan_filters;
-
-	/* Promiscuous mode */
-	u32			promiscuous_flags;
-
-	/* Admin queue task flags */
-	u32			aq_wait_count;
 
 	/* VC command sleep channels */
 	struct ixl_vc_cmd	config_promisc_cmd;
@@ -184,7 +162,6 @@ struct ixlv_sc {
 	struct virtchnl_vsi_resource *vsi_res;
 
 	/* Misc stats maintained by the driver */
-	u64			watchdog_events;
 	u64			admin_irq;
 
 	/* Buffer used for reading AQ responses */
