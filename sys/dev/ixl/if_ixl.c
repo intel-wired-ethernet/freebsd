@@ -1250,13 +1250,6 @@ ixl_if_update_admin_status(if_ctx_t ctx)
 	if (pf->state & IXL_PF_STATE_MDD_PENDING)
 		ixl_handle_mdd_event(pf);
 
-#if 0
-#ifdef PCI_IOV
-	if (pf->state & IXL_PF_STATE_VF_RESET_REQ)
-		iflib_iov_intr_deferred(ctx);
-#endif
-#endif
-
 	ixl_process_adminq(pf, &pending);
 	ixl_update_link_status(pf);
 	ixl_update_stats_counters(pf);
