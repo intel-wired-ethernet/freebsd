@@ -65,15 +65,27 @@ ixlv_send_pf_msg(struct ixlv_sc *sc,
 		device_printf(dev, "Error validating msg to PF for op %d,"
 		    " msglen %d: error %d\n", op, len, val_err);
 
+	if (!i40e_check_asq_alive(hw)) {
+		if (op != VIRTCHNL_OP_GET_STATS)
+			device_printf(dev, "Unable to send opcode %s to PF, "
+			    "ASQ is not alive\n", ixl_vc_opcode_str(op));
+		return (0);
+	}
+
+	if (op != VIRTCHNL_OP_GET_STATS)
+		ixlv_dbg_vc(sc,
+		    "Sending msg (op=%s[%d]) to PF\n",
+		    ixl_vc_opcode_str(op), op);
+
 	status = i40e_aq_send_msg_to_pf(hw, op, I40E_SUCCESS, msg, len, NULL);
-	if (status)
+	if (status && op != VIRTCHNL_OP_GET_STATS)
 		device_printf(dev, "Unable to send opcode %s to PF, "
 		    "status %s, aq error %s\n",
 		    ixl_vc_opcode_str(op),
 		    i40e_stat_str(hw, status),
 		    i40e_aq_str(hw, hw->aq.asq_last_status));
 
-	return (0);
+	return (status);
 }
 
 /*
