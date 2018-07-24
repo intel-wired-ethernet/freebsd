@@ -673,20 +673,13 @@ ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
 #endif
 
 int
-ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
+ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
 {
-	if_ctx_t ctx = sc->vsi.ctx;
 	int error = 0;
 
 	error = ixl_vc_send_cmd(sc, op);
 	if (error != 0)
-		return (error);
-
-	ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
-	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), 0, "ixlvc", IXLV_AQ_TIMEOUT);
-
-	if (error == EWOULDBLOCK)
-		device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
+		ixlv_dbg_vc(sc, "Error sending %b: %d\n", op, IXLV_FLAGS, error);
 
 	return (error);
 }
@@ -1455,8 +1448,6 @@ ixlv_if_promisc_set(if_ctx_t ctx, int flags)
 
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
 
-	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
-
 	return (0);
 }
 
@@ -2095,12 +2086,11 @@ ixlv_update_link_status(struct ixlv_sc *sc)
 static void
 ixlv_stop(struct ixlv_sc *sc)
 {
-	//if_ctx_t ctx = sc->vsi.ctx;
 	struct ifnet *ifp;
 
 	ifp = sc->vsi.ifp;
 
-	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
+	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
 	ixlv_disable_intr(&sc->vsi);
 }
