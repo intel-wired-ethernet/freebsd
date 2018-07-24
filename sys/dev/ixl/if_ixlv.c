@@ -124,6 +124,7 @@ static int	ixlv_sysctl_current_speed(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_sw_filter_list(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS);
 static int	ixlv_sysctl_vf_reset(SYSCTL_HANDLER_ARGS);
+static int	ixlv_sysctl_vflr_reset(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static void	ixlv_save_tunables(struct ixlv_sc *);
@@ -2398,6 +2399,10 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    OID_AUTO, "do_vf_reset", CTLTYPE_INT | CTLFLAG_WR,
 	    sc, 0, ixlv_sysctl_vf_reset, "A", "Request a VF reset from PF");
 
+	SYSCTL_ADD_PROC(ctx, debug_list,
+	    OID_AUTO, "do_vflr_reset", CTLTYPE_INT | CTLFLAG_WR,
+	    sc, 0, ixlv_sysctl_vflr_reset, "A", "Request a VFLR reset from HW");
+
 	/* Add stats sysctls */
 	ixl_add_vsi_sysctls(dev, vsi, ctx, "vsi");
 	ixl_add_queues_sysctls(dev, vsi);
@@ -2695,6 +2700,7 @@ ixlv_sysctl_queue_interrupt_table(SYSCTL_HANDLER_ARGS)
 	return (error);
 }
 
+#define CTX_ACTIVE(ctx) ((if_getdrvflags(iflib_get_ifp(ctx)) & IFF_DRV_RUNNING))
 static int
 ixlv_sysctl_vf_reset(SYSCTL_HANDLER_ARGS)
 {
@@ -2705,8 +2711,35 @@ ixlv_sysctl_vf_reset(SYSCTL_HANDLER_ARGS)
 	if ((error) || (req->newptr == NULL))
 		return (error);
 
-	if (do_reset == 1)
+	if (do_reset == 1) {
 		ixlv_reset(sc);
+		if (CTX_ACTIVE(sc->vsi.ctx))
+			iflib_request_reset(sc->vsi.ctx);
+	}
 
 	return (error);
 }
+
+static int
+ixlv_sysctl_vflr_reset(SYSCTL_HANDLER_ARGS)
+{
+	struct ixlv_sc *sc = (struct ixlv_sc *)arg1;
+	device_t dev = sc->dev;
+	int do_reset = 0, error = 0;
+
+	error = sysctl_handle_int(oidp, &do_reset, 0, req);
+	if ((error) || (req->newptr == NULL))
+		return (error);
+
+	if (do_reset == 1) {
+		if (!pcie_flr(dev, max(pcie_get_max_completion_timeout(dev) / 1000, 10), true)) {
+			device_printf(dev, "PCIE FLR failed\n");
+			error = EIO;
+		}
+		else if (CTX_ACTIVE(sc->vsi.ctx))
+			iflib_request_reset(sc->vsi.ctx);
+	}
+
+	return (error);
+}
+#undef CTX_ACTIVE
