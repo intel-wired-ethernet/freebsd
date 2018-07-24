@@ -522,6 +522,8 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	bzero(&sc->vsi.eth_stats, sizeof(struct i40e_eth_stats));
 	ixlv_add_device_sysctls(sc);
 
+	sc->init_state = IXLV_INIT_READY;
+
 	/* We want AQ enabled early for init */
 	ixlv_enable_adminq_irq(hw);
 
