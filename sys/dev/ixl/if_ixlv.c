@@ -1475,7 +1475,7 @@ ixlv_if_timer(if_ctx_t ctx, uint16_t qid)
 	    I40E_VFGEN_RSTAT_VFR_STATE_MASK;
 	if (val != VIRTCHNL_VFR_VFACTIVE
 	    && val != VIRTCHNL_VFR_COMPLETED) {
-		ixlv_dbg_info(sc, "reset in progress! (%d)", val);
+		ixlv_dbg_info(sc, "reset in progress! (%d)\n", val);
 		return;
 	}
 
