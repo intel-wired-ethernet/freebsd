@@ -842,8 +842,6 @@ ixl_if_init(if_ctx_t ctx)
 		return;
 	}
 	
-	// TODO: Call iflib setup multicast filters here?
-	// It's called in ixgbe in D5213
 	ixl_if_multi_set(ctx);
 
 	/* Set up RSS */
