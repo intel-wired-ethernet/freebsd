@@ -233,7 +233,9 @@ MALLOC_DECLARE(M_IXL);
 	ixl_send_vf_nack_msg((pf), (vf), (op), (st), __FILE__, __LINE__)
 
 /* Debug printing */
-#define ixl_dbg(pf, m, s, ...)	ixl_debug_core(pf->dev, pf->dbg_mask, m, s, ##__VA_ARGS__)
+#define ixl_dbg(pf, m, s, ...) ixl_debug_core(pf->dev, pf->dbg_mask, m, s, ##__VA_ARGS__)
+#define ixl_dbg_info(pf, s, ...) ixl_debug_core(pf->dev, pf->dbg_mask, IXL_DBG_INFO, s, ##__VA_ARGS__)
+#define ixl_dbg_filter(pf, s, ...) ixl_debug_core(pf->dev, pf->dbg_mask, IXL_DBG_FILTER, s, ##__VA_ARGS__)
 
 /* PF-only function declarations */
 int	ixl_setup_interface(device_t, struct ixl_pf *);
