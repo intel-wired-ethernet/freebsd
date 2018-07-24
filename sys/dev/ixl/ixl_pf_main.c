@@ -1635,12 +1635,9 @@ ixl_add_hw_stats(struct ixl_pf *pf)
 	struct sysctl_oid_list *child = SYSCTL_CHILDREN(tree);
 
 	/* Driver statistics */
-	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "watchdog_events",
-			CTLFLAG_RD, &pf->watchdog_events,
-			"Watchdog timeouts");
 	SYSCTL_ADD_UQUAD(ctx, child, OID_AUTO, "admin_irq",
 			CTLFLAG_RD, &pf->admin_irq,
-			"Admin Queue IRQ Handled");
+			"Admin Queue IRQs received");
 
 	ixl_add_vsi_sysctls(dev, vsi, ctx, "pf");
 
