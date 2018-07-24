@@ -709,6 +709,8 @@ ixlv_init_queues(struct ixl_vsi *vsi)
 			rxr->mbuf_sz = MCLBYTES;
 		else
 			rxr->mbuf_sz = MJUMPAGESIZE;
+
+		wr32(vsi->hw, rxr->tail, 0);
 	}
 }
 
@@ -768,6 +770,12 @@ ixlv_if_init(if_ctx_t ctx)
 
 	/* Map vectors */
 	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_MAP_VECTORS);
+
+	/* Init SW TX ring indices */
+	if (vsi->enable_head_writeback)
+		ixl_init_tx_cidx(vsi);
+	else
+		ixl_init_tx_rsqs(vsi);
 
 	/* Configure promiscuous mode */
 	ixlv_if_promisc_set(ctx, if_getflags(ifp));
