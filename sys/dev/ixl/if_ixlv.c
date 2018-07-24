@@ -271,7 +271,7 @@ static struct if_shared_ctx ixlv_sctx_init = {
 	.isc_vendor_info = ixlv_vendor_info_array,
 	.isc_driver_version = IXLV_DRIVER_VERSION_STRING,
 	.isc_driver = &ixlv_if_driver,
-	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM | IFLIB_IS_VF | IFLIB_ADMIN_ALWAYS_RUN,
+	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM | IFLIB_IS_VF,
 
 	.isc_nrxd_min = {IXL_MIN_RING},
 	.isc_ntxd_min = {IXL_MIN_RING},
