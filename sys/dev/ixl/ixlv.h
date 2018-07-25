@@ -37,7 +37,6 @@
 #define _IXLV_H_
 
 #include "ixl.h"
-#include "ixlv_vc_mgr.h"
 
 #define IXLV_AQ_MAX_ERR		200
 #define IXLV_MAX_FILTERS	128
@@ -140,23 +139,6 @@ struct ixlv_sc {
 	struct mac_list		*mac_filters;
 	struct vlan_list	*vlan_filters;
 
-	/* VC command sleep channels */
-	struct ixl_vc_cmd	config_promisc_cmd;
-	struct ixl_vc_cmd	add_mac_cmd;
-	struct ixl_vc_cmd	del_mac_cmd;
-	struct ixl_vc_cmd	config_queues_cmd;
-	struct ixl_vc_cmd	map_vectors_cmd;
-	struct ixl_vc_cmd	enable_queues_cmd;
-	struct ixl_vc_cmd	disable_queues_cmd;
-	struct ixl_vc_cmd	add_vlan_cmd;
-	struct ixl_vc_cmd	del_vlan_cmd;
-	struct ixl_vc_cmd	add_multi_cmd;
-	struct ixl_vc_cmd	del_multi_cmd;
-	struct ixl_vc_cmd	config_rss_key_cmd;
-	struct ixl_vc_cmd	get_rss_hena_caps_cmd;
-	struct ixl_vc_cmd	set_rss_hena_cmd;
-	struct ixl_vc_cmd	config_rss_lut_cmd;
-
 	/* Virtual comm channel */
 	struct virtchnl_vf_resource *vf_res;
 	struct virtchnl_vsi_resource *vsi_res;
@@ -225,7 +207,6 @@ int	ixlv_set_rss_hena(struct ixlv_sc *);
 int	ixlv_config_rss_lut(struct ixlv_sc *);
 int	ixlv_config_promisc_mode(struct ixlv_sc *);
 
-void	*ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op);
 int	ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request);
 int	ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op);
 char	*ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);

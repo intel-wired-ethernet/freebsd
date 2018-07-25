@@ -161,6 +161,17 @@ i40e_destroy_spinlock(struct i40e_spinlock *lock)
 		mtx_destroy(&lock->mutex);
 }
 
+static inline int
+ixl_ms_scale(int x)
+{
+	if (hz == 1000)
+		return (x);
+	else if (hz > 1000)
+		return (x*(hz/1000));
+	else
+		return (max(1, x/(1000/hz)));
+}
+
 void
 i40e_msec_pause(int msecs)
 {
@@ -168,7 +179,7 @@ i40e_msec_pause(int msecs)
 		i40e_msec_delay(msecs);
 	else
 		// ERJ: (msecs * hz) could overflow
-		pause("ixl", (msecs * hz) / 1000);
+		pause("ixl", ixl_ms_scale(msecs));
 }
 
 /*

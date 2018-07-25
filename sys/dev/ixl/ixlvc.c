@@ -581,6 +581,7 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	struct ixlv_mac_filter	*f;
 	device_t dev = sc->dev;
 	int len, j = 0, cnt = 0;
+	enum i40e_status_code status;
 
 	/* Get count of MAC addresses to add */
 	SLIST_FOREACH(f, sc->mac_filters, next) {
@@ -620,7 +621,6 @@ ixlv_add_ether_filters(struct ixlv_sc *sc)
 	DDPRINTF(dev, "len %d, j %d, cnt %d",
 	    len, j, cnt);
 
-	enum i40e_status_code status;
 	status = ixlv_send_pf_msg(sc,
 	    VIRTCHNL_OP_ADD_ETH_ADDR, (u8 *)a, len);
 	/* add stats? */
@@ -930,7 +930,6 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 			device_printf(dev, "WARNING: Error adding VF mac filter!\n");
 			device_printf(dev, "WARNING: Device may not receive traffic!\n");
 		}
-		wakeup_one(&sc->add_mac_cmd);
 		break;
 	case VIRTCHNL_OP_DEL_ETH_ADDR:
 		break;
@@ -1005,40 +1004,4 @@ ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 	}
 
 	return (0);
-}
-
-void *
-ixl_vc_get_op_chan(struct ixlv_sc *sc, u32 op)
-{
-	switch (op) {
-	case IXLV_FLAG_AQ_ENABLE_QUEUES:
-		return (&sc->enable_queues_cmd);
-	case IXLV_FLAG_AQ_DISABLE_QUEUES:
-		return (&sc->disable_queues_cmd);
-	case IXLV_FLAG_AQ_ADD_MAC_FILTER:
-		return (&sc->add_mac_cmd);
-	case IXLV_FLAG_AQ_ADD_VLAN_FILTER:
-		return (&sc->add_vlan_cmd);
-	case IXLV_FLAG_AQ_DEL_MAC_FILTER:
-		return (&sc->del_mac_cmd);
-	case IXLV_FLAG_AQ_DEL_VLAN_FILTER:
-		return (&sc->del_vlan_cmd);
-	case IXLV_FLAG_AQ_CONFIGURE_QUEUES:
-		return (&sc->config_queues_cmd);
-	case IXLV_FLAG_AQ_MAP_VECTORS:
-		return (&sc->map_vectors_cmd);
-	case IXLV_FLAG_AQ_CONFIG_RSS_KEY:
-		return (&sc->config_rss_key_cmd);
-	case IXLV_FLAG_AQ_SET_RSS_HENA:
-		return (&sc->set_rss_hena_cmd);
-	case IXLV_FLAG_AQ_GET_RSS_HENA_CAPS:
-		return (&sc->get_rss_hena_caps_cmd);
-	case IXLV_FLAG_AQ_CONFIG_RSS_LUT:
-		return (&sc->config_rss_lut_cmd);
-	case IXLV_FLAG_AQ_CONFIGURE_PROMISC:
-		return (&sc->config_promisc_cmd);
-	default:
-		device_printf(sc->dev, "Op %b has no wake chan!\n", op, IXLV_FLAGS);
-		return (NULL);
-	}
 }

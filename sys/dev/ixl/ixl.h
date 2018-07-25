@@ -518,20 +518,6 @@ next_power_of_two(u32 n)
 	return (n);
 }
 
-#if 0
-#define ixl_us_scale(x)  max(1, (x/(1000000/hz)))
-static inline int
-ixl_ms_scale(int x)
-{
-	if (hz == 1000)
-		return (x);
-	else if (hz > 1000)
-		return (x*(hz/1000));
-	else
-		return (max(1, x/(1000/hz)));
-}
-#endif
-
 /*
  * Info for stats sysctls
  */
