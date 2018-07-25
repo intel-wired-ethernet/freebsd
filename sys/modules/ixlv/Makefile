@@ -10,8 +10,9 @@ SRCS    += if_ixlv.c ixlvc.c ixl_txrx.c i40e_osdep.c
 # Shared source
 SRCS    += i40e_common.c i40e_nvm.c i40e_adminq.c
 
-CFLAGS	+= -DINVARIANTS -DINVARIANTS_SUPPORT -DWITNESS
 # Debug messages / sysctls
 # CFLAGS += -DIXL_DEBUG
+# Enable asserts and other debugging facilities
+# CFLAGS += -DINVARIANTS -DINVARIANTS_SUPPORT -DWITNESS
 
 .include <bsd.kmod.mk>
