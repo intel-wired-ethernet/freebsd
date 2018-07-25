@@ -1649,15 +1649,9 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	struct ixl_vsi *vsi = &sc->vsi;
 	if_ctx_t ctx = vsi->ctx;
 	struct ifnet *ifp = iflib_get_ifp(ctx);
-	uint64_t cap;
 
 	INIT_DBG_DEV(dev, "begin");
 
-	/* initialize fast path functions */
-	cap = IXL_CAPS;
-	if_setifheaderlen(ifp, sizeof(struct ether_vlan_header));
-	if_setcapabilitiesbit(ifp, cap, 0);
-	if_setcapenable(ifp, if_getcapabilities(ifp));
 	vsi->shared->isc_max_frame_size =
 	    ifp->if_mtu + ETHER_HDR_LEN + ETHER_CRC_LEN
 	    + ETHER_VLAN_ENCAP_LEN;

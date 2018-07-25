@@ -1013,15 +1013,9 @@ ixl_setup_interface(device_t dev, struct ixl_pf *pf)
 	struct ifnet *ifp = iflib_get_ifp(ctx);
 	struct i40e_aq_get_phy_abilities_resp abilities;
 	enum i40e_status_code aq_error = 0;
-	uint64_t cap;
 
 	INIT_DBG_DEV(dev, "begin");
 
-	/* initialize fast path functions */
-	cap = IXL_CAPS;
-	if_setifheaderlen(ifp, sizeof(struct ether_vlan_header));
-	if_setcapabilitiesbit(ifp, cap, 0);
-	if_setcapenable(ifp, if_getcapabilities(ifp));
 	vsi->shared->isc_max_frame_size =
 	    ifp->if_mtu + ETHER_HDR_LEN + ETHER_CRC_LEN
 	    + ETHER_VLAN_ENCAP_LEN;
