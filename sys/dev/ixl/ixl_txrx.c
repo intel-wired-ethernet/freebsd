@@ -498,7 +498,6 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 #endif
 		processed += delta;
 		prev = cur;
-
 		rs_cidx = (rs_cidx + 1) & (ntxd-1);
 		if (rs_cidx == txr->tx_rs_pidx)
 			break;

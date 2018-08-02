@@ -891,7 +891,7 @@ ixl_if_stop(if_ctx_t ctx)
 #endif
 
 	ixl_disable_rings_intr(vsi);
-	ixl_disable_rings(vsi);
+	ixl_disable_rings(pf, vsi, &pf->qtag);
 }
 
 static int

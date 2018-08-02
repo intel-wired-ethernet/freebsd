@@ -423,7 +423,7 @@ ixl_reinit_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 	wr32(hw, I40E_VPGEN_VFRTRIG(vf->vf_num), vfrtrig);
 
 	if (vf->vsi.seid != 0)
-		ixl_disable_rings_vf(pf, vf);
+		ixl_disable_rings(pf, &vf->vsi, &vf->qtag);
 
 	ixl_vf_release_resources(pf, vf);
 	ixl_vf_setup_vsi(pf, vf);
