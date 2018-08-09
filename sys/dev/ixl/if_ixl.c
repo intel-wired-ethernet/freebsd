@@ -115,10 +115,11 @@ static void	 ixl_if_timer(if_ctx_t ctx, uint16_t qid);
 static void	 ixl_if_vlan_register(if_ctx_t ctx, u16 vtag);
 static void	 ixl_if_vlan_unregister(if_ctx_t ctx, u16 vtag);
 static uint64_t	 ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt);
-static void	 ixl_if_vflr_handle(if_ctx_t ctx);
-// static void	 ixl_if_link_intr_enable(if_ctx_t ctx);
 static int	 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req);
 static int	 ixl_if_priv_ioctl(if_ctx_t ctx, u_long command, caddr_t data);
+#ifdef PCI_IOV
+static void	 ixl_if_vflr_handle(if_ctx_t ctx);
+#endif
 
 /*** Other ***/
 static int	 ixl_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int);
@@ -1566,6 +1567,7 @@ ixl_if_get_counter(if_ctx_t ctx, ift_counter cnt)
 	}
 }
 
+#ifdef PCI_IOV
 static void
 ixl_if_vflr_handle(if_ctx_t ctx)
 {
@@ -1573,6 +1575,7 @@ ixl_if_vflr_handle(if_ctx_t ctx)
 
 	ixl_handle_vflr(pf);
 }
+#endif
 
 static int
 ixl_if_i2c_req(if_ctx_t ctx, struct ifi2creq *req)
