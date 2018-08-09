@@ -668,7 +668,7 @@ ixl_isc_rxd_pkt_get(void *arg, if_rxd_info_t ri)
 		MPASS((status & (1 << I40E_RX_DESC_STATUS_DD_SHIFT)) != 0);
 
 		ri->iri_len += plen;
-		rxr->bytes += plen;
+		rxr->rx_bytes += plen;
 
 		cur->wb.qword1.status_error_len = 0;
 		eop = (status & (1 << I40E_RX_DESC_STATUS_EOF_SHIFT));
