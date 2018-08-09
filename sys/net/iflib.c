@@ -182,7 +182,7 @@ struct iflib_ctx {
 	uint32_t ifc_if_flags;
 	uint32_t ifc_flags;
 	uint32_t ifc_max_fl_buf_size;
-	int ifc_in_detach;
+	uint32_t ifc_in_detach;
 
 	int ifc_link_state;
 	int ifc_link_irq;
@@ -260,7 +260,13 @@ iflib_get_flags(if_ctx_t ctx)
 void
 iflib_set_detach(if_ctx_t ctx)
 {
-	ctx->ifc_in_detach = 1;
+	atomic_store_rel_32(&ctx->ifc_in_detach, 1);
+}
+
+uint8_t
+iflib_in_detach(if_ctx_t ctx)
+{
+	return (atomic_load_acq_32(&ctx->ifc_in_detach) != 0);
 }
 
 void
@@ -3857,8 +3863,9 @@ _task_fn_admin(void *context)
 	ctx->ifc_flags &= ~(IFC_DO_RESET|IFC_DO_WATCHDOG);
 	STATE_UNLOCK(ctx);
 
-	if ((!running & !oactive) &&
-	    !(ctx->ifc_sctx->isc_flags & IFLIB_ADMIN_ALWAYS_RUN))
+	if ((!running & !oactive) && !(ctx->ifc_sctx->isc_flags & IFLIB_ADMIN_ALWAYS_RUN))
+		return;
+	if (iflib_in_detach(ctx))
 		return;
 
 	CTX_LOCK(ctx);
@@ -4990,8 +4997,9 @@ iflib_device_deregister(if_ctx_t ctx)
 	}
 #endif
 
+	iflib_set_detach(ctx);
+
 	CTX_LOCK(ctx);
-	ctx->ifc_in_detach = 1;
 	iflib_stop(ctx);
 	CTX_UNLOCK(ctx);
 
