@@ -6486,7 +6486,9 @@ void
 iflib_request_reset(if_ctx_t ctx)
 {
 
+	STATE_LOCK(ctx);
 	ctx->ifc_flags |= IFC_DO_RESET;
+	STATE_UNLOCK(ctx);
 }
 
 #ifndef __NO_STRICT_ALIGNMENT
