@@ -111,6 +111,7 @@ struct ixl_pf {
 	int			dynamic_tx_itr;
 	int			tx_itr;
 	int			rx_itr;
+	int			enable_vf_loopback;
 
 	bool			link_up;
 	int			advertised_speed;
@@ -216,6 +217,12 @@ struct ixl_pf {
 "\t2 - register read/write via I2CCMD register\n" \
 "\t3 - Use Admin Queue command (best)\n"	\
 "Using the Admin Queue is only supported on 710 devices with FW version 1.7 or higher"
+
+#define IXL_SYSCTL_HELP_VF_LOOPBACK		\
+"\nDetermines mode that embedded device switch will use when SR-IOV is initialized:\n"	\
+"\t0 - Disable (VEPA)\n"			\
+"\t1 - Enable (VEB)\n"				\
+"Enabling this will allow VFs in separate VMs to communicate over the hardware bridge."
 
 extern const char * const ixl_fc_string[6];
 

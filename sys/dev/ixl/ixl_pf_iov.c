@@ -77,6 +77,7 @@ static void	ixl_vf_del_vlan_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 static void	ixl_vf_config_promisc_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg, uint16_t msg_size);
 static void	ixl_vf_get_stats_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg, uint16_t msg_size);
 static int	ixl_vf_reserve_queues(struct ixl_pf *pf, struct ixl_vf *vf, int num_queues);
+static int	ixl_config_pf_vsi_loopback(struct ixl_pf *pf, bool enable);
 
 static int	ixl_adminq_err_to_errno(enum i40e_admin_queue_err err);
 
@@ -145,7 +146,9 @@ ixl_vf_alloc_vsi(struct ixl_pf *pf, struct ixl_vf *vf)
 	bzero(&vsi_ctx.info, sizeof(vsi_ctx.info));
 
 	vsi_ctx.info.valid_sections = htole16(I40E_AQ_VSI_PROP_SWITCH_VALID);
-	vsi_ctx.info.switch_id = htole16(0);
+	if (pf->enable_vf_loopback)
+		vsi_ctx.info.switch_id =
+		   htole16(I40E_AQ_VSI_SW_ID_FLAG_ALLOW_LB);
 
 	vsi_ctx.info.valid_sections |= htole16(I40E_AQ_VSI_PROP_SECURITY_VALID);
 	vsi_ctx.info.sec_flags = 0;
@@ -1742,6 +1745,37 @@ ixl_adminq_err_to_errno(enum i40e_admin_queue_err err)
 	}
 }
 
+static int
+ixl_config_pf_vsi_loopback(struct ixl_pf *pf, bool enable)
+{
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	struct ixl_vsi *vsi = &pf->vsi;
+	struct i40e_vsi_context	ctxt;
+	int error;
+
+	memset(&ctxt, 0, sizeof(ctxt));
+
+	ctxt.seid = vsi->seid;
+	if (pf->veb_seid != 0)
+		ctxt.uplink_seid = pf->veb_seid;
+	ctxt.pf_num = hw->pf_id;
+	ctxt.connection_type = IXL_VSI_DATA_PORT;
+
+	ctxt.info.valid_sections = htole16(I40E_AQ_VSI_PROP_SWITCH_VALID);
+	ctxt.info.switch_id = (enable) ?
+	    htole16(I40E_AQ_VSI_SW_ID_FLAG_ALLOW_LB) : 0;
+
+	/* error is set to 0 on success */
+	error = i40e_aq_update_vsi_params(hw, &ctxt, NULL);
+	if (error) {
+		device_printf(dev, "i40e_aq_update_vsi_params() failed, error %d,"
+		    " aq_error %d\n", error, hw->aq.asq_last_status);
+	}
+
+	return (error);
+}
+
 int
 ixl_if_iov_init(if_ctx_t ctx, uint16_t num_vfs, const nvlist_t *params)
 {
@@ -1765,6 +1799,11 @@ ixl_if_iov_init(if_ctx_t ctx, uint16_t num_vfs, const nvlist_t *params)
 	for (i = 0; i < num_vfs; i++)
 		sysctl_ctx_init(&pf->vfs[i].ctx);
 
+	/*
+	 * Add the VEB and ...
+	 * - do nothing: VEPA mode
+	 * - enable loopback mode on connected VSIs: VEB mode
+	 */
 	ret = i40e_aq_add_veb(hw, pf_vsi->uplink_seid, pf_vsi->seid,
 	    1, FALSE, &pf->veb_seid, FALSE, NULL);
 	if (ret != I40E_SUCCESS) {
@@ -1773,6 +1812,8 @@ ixl_if_iov_init(if_ctx_t ctx, uint16_t num_vfs, const nvlist_t *params)
 		    i40e_stat_str(hw, ret), i40e_aq_str(hw, error));
 		goto fail;
 	}
+	if (pf->enable_vf_loopback)
+		ixl_config_pf_vsi_loopback(pf, true);
 
 	pf->num_vfs = num_vfs;
 	return (0);
@@ -1811,6 +1852,9 @@ ixl_if_iov_uninit(if_ctx_t ctx)
 		i40e_aq_delete_element(hw, pf->veb_seid, NULL);
 		pf->veb_seid = 0;
 	}
+	/* Reset PF VSI loopback mode */
+	if (pf->enable_vf_loopback)
+		ixl_config_pf_vsi_loopback(pf, false);
 
 	vfs = pf->vfs;
 	num_vfs = pf->num_vfs;

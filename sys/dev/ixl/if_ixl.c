@@ -226,6 +226,13 @@ SYSCTL_INT(_hw_ixl, OID_AUTO, i2c_access_method, CTLFLAG_RDTUN,
     &ixl_i2c_access_method, 0,
     IXL_SYSCTL_HELP_I2C_METHOD);
 
+static int ixl_enable_vf_loopback = 1;
+TUNABLE_INT("hw.ixl.enable_vf_loopback",
+    &ixl_enable_vf_loopback);
+SYSCTL_INT(_hw_ixl, OID_AUTO, enable_vf_loopback, CTLFLAG_RDTUN,
+    &ixl_enable_vf_loopback, 0,
+    IXL_SYSCTL_HELP_VF_LOOPBACK);
+
 /*
  * Different method for processing TX descriptor
  * completion.
@@ -1623,6 +1630,7 @@ ixl_save_pf_tunables(struct ixl_pf *pf)
 	pf->dbg_mask = ixl_core_debug_mask;
 	pf->hw.debug_mask = ixl_shared_debug_mask;
 	pf->vsi.enable_head_writeback = !!(ixl_enable_head_writeback);
+	pf->enable_vf_loopback = !!(ixl_enable_vf_loopback);
 #if 0
 	pf->dynamic_rx_itr = ixl_dynamic_rx_itr;
 	pf->dynamic_tx_itr = ixl_dynamic_tx_itr;
