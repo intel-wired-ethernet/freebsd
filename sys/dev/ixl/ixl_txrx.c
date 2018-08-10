@@ -558,14 +558,6 @@ ixl_isc_rxd_available(void *arg, uint16_t rxqid, qidx_t idx, qidx_t budget)
 
 	nrxd = vsi->shared->isc_nrxd[0];
 
-	if (budget == 1) {
-		rxd = &rxr->rx_base[idx];
-		qword = le64toh(rxd->wb.qword1.status_error_len);
-		status = (qword & I40E_RXD_QW1_STATUS_MASK)
-			>> I40E_RXD_QW1_STATUS_SHIFT;
-		return !!(status & (1 << I40E_RX_DESC_STATUS_DD_SHIFT));
- 	}
-
 	for (cnt = 0, i = idx; cnt < nrxd - 1 && cnt <= budget;) {
 		rxd = &rxr->rx_base[i];
 		qword = le64toh(rxd->wb.qword1.status_error_len);
