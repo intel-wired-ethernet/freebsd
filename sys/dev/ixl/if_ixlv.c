@@ -1171,7 +1171,7 @@ ixlv_if_queues_free(if_ctx_t ctx)
 		struct ixl_tx_queue *que;
 		int i = 0;
 
-		for (i = 0, que = vsi->tx_queues; i < vsi->num_tx_queues; i++, que++) {
+		for (i = 0, que = vsi->tx_queues; i < vsi->shared->isc_ntxqsets; i++, que++) {
 			struct tx_ring *txr = &que->txr;
 			if (txr->tx_rsq != NULL) {
 				free(txr->tx_rsq, M_IXLV);
