@@ -2339,10 +2339,10 @@ static void
 ixlv_init_filters(struct ixlv_sc *sc)
 {
 	sc->mac_filters = malloc(sizeof(struct ixlv_mac_filter),
-	    M_IXLV, M_NOWAIT | M_ZERO);
+	    M_IXLV, M_WAITOK | M_ZERO);
 	SLIST_INIT(sc->mac_filters);
 	sc->vlan_filters = malloc(sizeof(struct ixlv_vlan_filter),
-	    M_IXLV, M_NOWAIT | M_ZERO);
+	    M_IXLV, M_WAITOK | M_ZERO);
 	SLIST_INIT(sc->vlan_filters);
 }
 

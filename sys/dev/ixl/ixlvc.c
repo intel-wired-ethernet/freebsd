@@ -125,11 +125,7 @@ ixlv_verify_api_ver(struct ixlv_sc *sc)
 	int retries = 0;
 
 	event.buf_len = IXL_AQ_BUF_SZ;
-	event.msg_buf = malloc(event.buf_len, M_IXLV, M_NOWAIT);
-	if (!event.msg_buf) {
-		err = ENOMEM;
-		goto out;
-	}
+	event.msg_buf = malloc(event.buf_len, M_IXLV, M_WAITOK);
 
 	for (;;) {
 		if (++retries > IXLV_AQ_MAX_ERR)
@@ -179,7 +175,6 @@ ixlv_verify_api_ver(struct ixlv_sc *sc)
 
 out_alloc:
 	free(event.msg_buf, M_IXLV);
-out:
 	return (err);
 }
 
@@ -232,11 +227,7 @@ ixlv_get_vf_config(struct ixlv_sc *sc)
 	len = sizeof(struct virtchnl_vf_resource) +
 	    sizeof(struct virtchnl_vsi_resource);
 	event.buf_len = len;
-	event.msg_buf = malloc(event.buf_len, M_IXLV, M_NOWAIT);
-	if (!event.msg_buf) {
-		err = ENOMEM;
-		goto out;
-	}
+	event.msg_buf = malloc(event.buf_len, M_IXLV, M_WAITOK);
 
 	for (;;) {
 		err = i40e_clean_arq_element(hw, &event, NULL);
@@ -278,7 +269,6 @@ ixlv_get_vf_config(struct ixlv_sc *sc)
 
 out_alloc:
 	free(event.msg_buf, M_IXLV);
-out:
 	return err;
 }
 
