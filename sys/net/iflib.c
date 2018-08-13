@@ -748,6 +748,7 @@ static void iflib_add_device_sysctl_post(if_ctx_t ctx);
 static void iflib_ifmp_purge(iflib_txq_t txq);
 static void _iflib_pre_assert(if_softc_ctx_t scctx);
 static void iflib_if_init_locked(if_ctx_t ctx);
+static void iflib_free_intr_mem(if_ctx_t ctx);
 #ifndef __NO_STRICT_ALIGNMENT
 static struct mbuf * iflib_fixup_rx(struct mbuf *m);
 #endif
@@ -4701,6 +4702,7 @@ fail_queues:
 	iflib_tx_structures_free(ctx);
 	iflib_rx_structures_free(ctx);
 fail:
+	iflib_free_intr_mem(ctx);
 	IFDI_DETACH(ctx);
 	CTX_UNLOCK(ctx);
 	return (err);
@@ -5040,17 +5042,7 @@ iflib_device_deregister(if_ctx_t ctx)
 	/* ether_ifdetach calls if_qflush - lock must be destroy afterwards*/
 	CTX_LOCK_DESTROY(ctx);
 	device_set_softc(ctx->ifc_dev, NULL);
-	if (ctx->ifc_softc_ctx.isc_intr != IFLIB_INTR_LEGACY) {
-		pci_release_msi(dev);
-	}
-	if (ctx->ifc_softc_ctx.isc_intr != IFLIB_INTR_MSIX) {
-		iflib_irq_free(ctx, &ctx->ifc_legacy_irq);
-	}
-	if (ctx->ifc_msix_mem != NULL) {
-		bus_release_resource(ctx->ifc_dev, SYS_RES_MEMORY,
-			ctx->ifc_softc_ctx.isc_msix_bar, ctx->ifc_msix_mem);
-		ctx->ifc_msix_mem = NULL;
-	}
+	iflib_free_intr_mem(ctx);
 
 	bus_generic_detach(dev);
 	if_free(ifp);
@@ -5063,6 +5055,22 @@ iflib_device_deregister(if_ctx_t ctx)
 	return (0);
 }
 
+static void
+iflib_free_intr_mem(if_ctx_t ctx)
+{
+
+	if (ctx->ifc_softc_ctx.isc_intr != IFLIB_INTR_LEGACY) {
+		pci_release_msi(ctx->ifc_dev);
+	}
+	if (ctx->ifc_softc_ctx.isc_intr != IFLIB_INTR_MSIX) {
+		iflib_irq_free(ctx, &ctx->ifc_legacy_irq);
+	}
+	if (ctx->ifc_msix_mem != NULL) {
+		bus_release_resource(ctx->ifc_dev, SYS_RES_MEMORY,
+			ctx->ifc_softc_ctx.isc_msix_bar, ctx->ifc_msix_mem);
+		ctx->ifc_msix_mem = NULL;
+	}
+}
 
 int
 iflib_device_detach(device_t dev)
