@@ -5579,6 +5579,9 @@ iflib_rx_structures_free(if_ctx_t ctx)
 	iflib_rxq_t rxq = ctx->ifc_rxqs;
 
 	for (int i = 0; i < ctx->ifc_softc_ctx.isc_nrxqsets; i++, rxq++) {
+#if defined(INET6) || defined(INET)
+		tcp_lro_free(&rxq->ifr_lc);
+#endif
 		iflib_rx_sds_free(rxq);
 	}
 }
