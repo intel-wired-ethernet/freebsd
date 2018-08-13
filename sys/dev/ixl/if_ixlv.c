@@ -443,7 +443,6 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	ixlv_dbg_init(sc, "Resource Acquisition complete\n");
 
 	/* If no mac address was assigned just make a random one */
-	// TODO: What if the PF doesn't allow us to set our own MAC?
 	if (!ixlv_check_ether_addr(hw->mac.addr)) {
 		u8 addr[ETHER_ADDR_LEN];
 		arc4rand(&addr, sizeof(addr), 0);
@@ -529,17 +528,8 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	ixlv_enable_adminq_irq(hw);
 
 	INIT_DBG_DEV(dev, "end");
+
 	return (error);
-// TODO: Check if any failures can happen above
-#if 0
-out:
-	free(sc->vf_res, M_DEVBUF);
-	i40e_shutdown_adminq(hw);
-	ixlv_free_pci_resources(sc);
-	ixlv_free_filters(sc);
-	INIT_DBG_DEV(dev, "end: error %d", error);
-	return (error);
-#endif
 }
 
 /**
