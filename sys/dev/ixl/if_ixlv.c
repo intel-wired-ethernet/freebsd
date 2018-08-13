@@ -1651,13 +1651,6 @@ ixlv_setup_interface(device_t dev, struct ixlv_sc *sc)
 	if_initbaudrate(ifp, IF_Gbps(40));
 #endif
 
-	/* Media types based on reported link speed over AdminQ */
-	ifmedia_add(vsi->media, IFM_ETHER | IFM_100_TX, 0, NULL);
-	ifmedia_add(vsi->media, IFM_ETHER | IFM_1000_T, 0, NULL);
-	ifmedia_add(vsi->media, IFM_ETHER | IFM_10G_SR, 0, NULL);
-	ifmedia_add(vsi->media, IFM_ETHER | IFM_25G_SR, 0, NULL);
-	ifmedia_add(vsi->media, IFM_ETHER | IFM_40G_SR4, 0, NULL);
-
 	ifmedia_add(vsi->media, IFM_ETHER | IFM_AUTO, 0, NULL);
 	ifmedia_set(vsi->media, IFM_ETHER | IFM_AUTO);
 }
