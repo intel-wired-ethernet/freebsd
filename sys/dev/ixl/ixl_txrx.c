@@ -297,6 +297,7 @@ ixl_tso_setup(struct tx_ring *txr, if_pkt_info_t pi)
 		pi->ipi_tso_segsz = IXL_MIN_TSO_MSS;
 	}
 	mss = pi->ipi_tso_segsz;
+	MPASS(mss <= IXL_MAX_TSO_MSS);
 
 	type_cmd_tso_mss = ((u64)type << I40E_TXD_CTX_QW1_DTYPE_SHIFT) |
 	    ((u64)cmd << I40E_TXD_CTX_QW1_CMD_SHIFT) |
@@ -338,9 +339,6 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	i = pi->ipi_pidx;
 
 	tx_intr = (pi->ipi_flags & IPI_TX_INTR);
-#if 0
-	device_printf(iflib_get_dev(vsi->ctx), "%s: tx_intr %d\n", __func__, tx_intr);
-#endif
 
 	/* Set up the TSO/CSUM offload */
 	if (pi->ipi_csum_flags & CSUM_OFFLOAD) {
@@ -362,6 +360,9 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 
 		txd = &txr->tx_base[i];
 		seglen = segs[j].ds_len;
+
+		MPASS(segs[j].ds_addr != 0x0);
+		MPASS(seglen != 0);
 
 		txd->buffer_addr = htole64(segs[j].ds_addr);
 		txd->cmd_type_offset_bsz =
@@ -400,6 +401,7 @@ ixl_isc_txd_flush(void *arg, uint16_t txqid, qidx_t pidx)
 	 * Advance the Transmit Descriptor Tail (Tdt), this tells the
 	 * hardware that this frame is available to transmit.
  	 */
+	MPASS(pidx < vsi->shared->isc_ntxd[0]);
 	wr32(vsi->hw, txr->tail, pidx);
 }
 

@@ -148,6 +148,7 @@
 #define IXL_MAX_TSO_SEGS	128
 #define IXL_SPARSE_CHAIN	7
 #define IXL_MIN_TSO_MSS		64
+#define IXL_MAX_TSO_MSS		9668
 #define IXL_MAX_DMA_SEG_SIZE	((16 * 1024) - 1)
 
 #define IXL_RSS_KEY_SIZE_REG		13
