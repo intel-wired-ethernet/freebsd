@@ -2357,6 +2357,153 @@ ixl_disable_rings(struct ixl_pf *pf, struct ixl_vsi *vsi, struct ixl_pf_qtag *qt
 	return (error);
 }
 
+static void
+ixl_handle_tx_mdd_event(struct ixl_pf *pf)
+{
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	struct ixl_vf *vf;
+	bool mdd_detected = false;
+	bool pf_mdd_detected = false;
+	bool vf_mdd_detected = false;
+	u16 vf_num, queue;
+	u8 pf_num, event;
+	u8 pf_mdet_num, vp_mdet_num;
+	u32 reg;
+
+	/* find what triggered the MDD event */
+	reg = rd32(hw, I40E_GL_MDET_TX);
+	if (reg & I40E_GL_MDET_TX_VALID_MASK) {
+		pf_num = (reg & I40E_GL_MDET_TX_PF_NUM_MASK) >>
+		    I40E_GL_MDET_TX_PF_NUM_SHIFT;
+		vf_num = (reg & I40E_GL_MDET_TX_VF_NUM_MASK) >>
+		    I40E_GL_MDET_TX_VF_NUM_SHIFT;
+		event = (reg & I40E_GL_MDET_TX_EVENT_MASK) >>
+		    I40E_GL_MDET_TX_EVENT_SHIFT;
+		queue = (reg & I40E_GL_MDET_TX_QUEUE_MASK) >>
+		    I40E_GL_MDET_TX_QUEUE_SHIFT;
+		wr32(hw, I40E_GL_MDET_TX, 0xffffffff);
+		mdd_detected = true;
+	}
+
+	if (!mdd_detected)
+		return;
+
+	reg = rd32(hw, I40E_PF_MDET_TX);
+	if (reg & I40E_PF_MDET_TX_VALID_MASK) {
+		wr32(hw, I40E_PF_MDET_TX, 0xFFFF);
+		pf_mdet_num = hw->pf_id;
+		pf_mdd_detected = true;
+	}
+
+	/* Check if MDD was caused by a VF */
+	for (int i = 0; i < pf->num_vfs; i++) {
+		vf = &(pf->vfs[i]);
+		reg = rd32(hw, I40E_VP_MDET_TX(i));
+		if (reg & I40E_VP_MDET_TX_VALID_MASK) {
+			wr32(hw, I40E_VP_MDET_TX(i), 0xFFFF);
+			vp_mdet_num = i;
+			vf->num_mdd_events++;
+			vf_mdd_detected = true;
+		}
+	}
+
+	/* Print out an error message */
+	if (vf_mdd_detected && pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d (PF-%d), vf number %d (VF-%d)\n",
+		    event, queue, pf_num, pf_mdet_num, vf_num, vp_mdet_num);
+	else if (vf_mdd_detected && !pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d, vf number %d (VF-%d)\n",
+		    event, queue, pf_num, vf_num, vp_mdet_num);
+	else if (!vf_mdd_detected && pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d (PF-%d)\n",
+		    event, queue, pf_num, pf_mdet_num);
+	/* Theoretically shouldn't happen */
+	else
+		device_printf(dev,
+		    "TX Malicious Driver Detection event (unknown)\n");
+}
+
+static void
+ixl_handle_rx_mdd_event(struct ixl_pf *pf)
+{
+	struct i40e_hw *hw = &pf->hw;
+	device_t dev = pf->dev;
+	struct ixl_vf *vf;
+	bool mdd_detected = false;
+	bool pf_mdd_detected = false;
+	bool vf_mdd_detected = false;
+	u16 queue;
+	u8 pf_num, event;
+	u8 pf_mdet_num, vp_mdet_num;
+	u32 reg;
+
+	/*
+	 * GL_MDET_RX doesn't contain VF number information, unlike
+	 * GL_MDET_TX.
+	 */
+	reg = rd32(hw, I40E_GL_MDET_RX);
+	if (reg & I40E_GL_MDET_RX_VALID_MASK) {
+		pf_num = (reg & I40E_GL_MDET_RX_FUNCTION_MASK) >>
+		    I40E_GL_MDET_RX_FUNCTION_SHIFT;
+		event = (reg & I40E_GL_MDET_RX_EVENT_MASK) >>
+		    I40E_GL_MDET_RX_EVENT_SHIFT;
+		queue = (reg & I40E_GL_MDET_RX_QUEUE_MASK) >>
+		    I40E_GL_MDET_RX_QUEUE_SHIFT;
+		wr32(hw, I40E_GL_MDET_RX, 0xffffffff);
+		mdd_detected = true;
+	}
+
+	if (!mdd_detected)
+		return;
+
+	reg = rd32(hw, I40E_PF_MDET_RX);
+	if (reg & I40E_PF_MDET_RX_VALID_MASK) {
+		wr32(hw, I40E_PF_MDET_RX, 0xFFFF);
+		pf_mdet_num = hw->pf_id;
+		pf_mdd_detected = true;
+	}
+
+	/* Check if MDD was caused by a VF */
+	for (int i = 0; i < pf->num_vfs; i++) {
+		vf = &(pf->vfs[i]);
+		reg = rd32(hw, I40E_VP_MDET_RX(i));
+		if (reg & I40E_VP_MDET_RX_VALID_MASK) {
+			wr32(hw, I40E_VP_MDET_RX(i), 0xFFFF);
+			vp_mdet_num = i;
+			vf->num_mdd_events++;
+			vf_mdd_detected = true;
+		}
+	}
+
+	/* Print out an error message */
+	if (vf_mdd_detected && pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d (PF-%d), (VF-%d)\n",
+		    event, queue, pf_num, pf_mdet_num, vp_mdet_num);
+	else if (vf_mdd_detected && !pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d, (VF-%d)\n",
+		    event, queue, pf_num, vp_mdet_num);
+	else if (!vf_mdd_detected && pf_mdd_detected)
+		device_printf(dev,
+		    "Malicious Driver Detection event %d"
+		    " on TX queue %d, pf number %d (PF-%d)\n",
+		    event, queue, pf_num, pf_mdet_num);
+	/* Theoretically shouldn't happen */
+	else
+		device_printf(dev,
+		    "RX Malicious Driver Detection event (unknown)\n");
+}
+
 /**
  * ixl_handle_mdd_event
  *
@@ -2367,93 +2514,15 @@ void
 ixl_handle_mdd_event(struct ixl_pf *pf)
 {
 	struct i40e_hw *hw = &pf->hw;
-	device_t dev = pf->dev;
-	struct ixl_vf *vf;
-	bool mdd_detected = false;
-	bool pf_mdd_detected = false;
-	bool vf_mdd_detected = false;
 	u32 reg;
 
-	/* find what triggered the MDD event */
-	reg = rd32(hw, I40E_GL_MDET_TX);
-	if (reg & I40E_GL_MDET_TX_VALID_MASK) {
-		u8 pf_num = (reg & I40E_GL_MDET_TX_PF_NUM_MASK) >>
-				I40E_GL_MDET_TX_PF_NUM_SHIFT;
-		u8 event = (reg & I40E_GL_MDET_TX_EVENT_MASK) >>
-				I40E_GL_MDET_TX_EVENT_SHIFT;
-		u16 queue = (reg & I40E_GL_MDET_TX_QUEUE_MASK) >>
-				I40E_GL_MDET_TX_QUEUE_SHIFT;
-		device_printf(dev,
-		    "Malicious Driver Detection event %d"
-		    " on TX queue %d, pf number %d\n",
-		    event, queue, pf_num);
-		wr32(hw, I40E_GL_MDET_TX, 0xffffffff);
-		mdd_detected = true;
-	}
-	reg = rd32(hw, I40E_GL_MDET_RX);
-	if (reg & I40E_GL_MDET_RX_VALID_MASK) {
-		u8 pf_num = (reg & I40E_GL_MDET_RX_FUNCTION_MASK) >>
-				I40E_GL_MDET_RX_FUNCTION_SHIFT;
-		u8 event = (reg & I40E_GL_MDET_RX_EVENT_MASK) >>
-				I40E_GL_MDET_RX_EVENT_SHIFT;
-		u16 queue = (reg & I40E_GL_MDET_RX_QUEUE_MASK) >>
-				I40E_GL_MDET_RX_QUEUE_SHIFT;
-		device_printf(dev,
-		    "Malicious Driver Detection event %d"
-		    " on RX queue %d, pf number %d\n",
-		    event, queue, pf_num);
-		wr32(hw, I40E_GL_MDET_RX, 0xffffffff);
-		mdd_detected = true;
-	}
+	/*
+	 * Handle both TX/RX because it's possible they could
+	 * both trigger in the same interrupt.
+	 */
+	ixl_handle_tx_mdd_event(pf);
+	ixl_handle_rx_mdd_event(pf);
 
-	if (mdd_detected) {
-		reg = rd32(hw, I40E_PF_MDET_TX);
-		if (reg & I40E_PF_MDET_TX_VALID_MASK) {
-			wr32(hw, I40E_PF_MDET_TX, 0xFFFF);
-			device_printf(dev,
-			    "MDD TX event is for this function!\n");
-			pf_mdd_detected = true;
-		}
-		reg = rd32(hw, I40E_PF_MDET_RX);
-		if (reg & I40E_PF_MDET_RX_VALID_MASK) {
-			wr32(hw, I40E_PF_MDET_RX, 0xFFFF);
-			device_printf(dev,
-			    "MDD RX event is for this function!\n");
-			pf_mdd_detected = true;
-		}
-	}
-
-	if (pf_mdd_detected) {
-		atomic_set_32(&pf->state, IXL_PF_STATE_PF_RESET_REQ);
-		goto end;
-	}
-
-	// Handle VF detection
-	for (int i = 0; i < pf->num_vfs && mdd_detected; i++) {
-		vf = &(pf->vfs[i]);
-		reg = rd32(hw, I40E_VP_MDET_TX(i));
-		if (reg & I40E_VP_MDET_TX_VALID_MASK) {
-			wr32(hw, I40E_VP_MDET_TX(i), 0xFFFF);
-			vf->num_mdd_events++;
-			device_printf(dev, "MDD TX event is for VF %d\n", i);
-			vf_mdd_detected = true;
-		}
-
-		reg = rd32(hw, I40E_VP_MDET_RX(i));
-		if (reg & I40E_VP_MDET_RX_VALID_MASK) {
-			wr32(hw, I40E_VP_MDET_RX(i), 0xFFFF);
-			vf->num_mdd_events++;
-			device_printf(dev, "MDD RX event is for VF %d\n", i);
-			vf_mdd_detected = true;
-		}
-
-		// TODO: Disable VF if there are too many MDD events from it
-	}
-
-	if (vf_mdd_detected)
-		atomic_set_32(&pf->state, IXL_PF_STATE_VF_RESET_REQ);
-
-end:
 	atomic_clear_32(&pf->state, IXL_PF_STATE_MDD_PENDING);
 
 	/* re-enable mdd interrupt cause */
