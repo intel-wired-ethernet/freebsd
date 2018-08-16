@@ -1188,6 +1188,20 @@ ixl_update_link_status(struct ixl_pf *pf)
 	}
 }
 
+static void
+ixl_handle_lan_overflow_event(struct ixl_pf *pf, struct i40e_arq_event_info *e)
+{
+	device_t dev = pf->dev;
+	u32 rxq_idx, qtx_ctl;
+
+	rxq_idx = (e->desc.params.external.param0 & I40E_PRTDCB_RUPTQ_RXQNUM_MASK) >>
+	    I40E_PRTDCB_RUPTQ_RXQNUM_SHIFT;
+	qtx_ctl = e->desc.params.external.param1;
+
+	device_printf(dev, "LAN overflow event: global rxq_idx %d\n", rxq_idx);
+	device_printf(dev, "LAN overflow event: QTX_CTL 0x%08x\n", qtx_ctl);
+}
+
 static int
 ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 {
@@ -1228,7 +1242,7 @@ ixl_process_adminq(struct ixl_pf *pf, u16 *pending)
 		 * aren't currently configured.
 		 */
 		case i40e_aqc_opc_event_lan_overflow:
-			device_printf(dev, "LAN overflow event\n");
+			ixl_handle_lan_overflow_event(pf, &event);
 			break;
 		default:
 			break;
