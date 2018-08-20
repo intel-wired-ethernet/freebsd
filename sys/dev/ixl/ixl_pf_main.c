@@ -2486,17 +2486,17 @@ ixl_handle_rx_mdd_event(struct ixl_pf *pf)
 	if (vf_mdd_detected && pf_mdd_detected)
 		device_printf(dev,
 		    "Malicious Driver Detection event %d"
-		    " on TX queue %d, pf number %d (PF-%d), (VF-%d)\n",
+		    " on RX queue %d, pf number %d (PF-%d), (VF-%d)\n",
 		    event, queue, pf_num, pf_mdet_num, vp_mdet_num);
 	else if (vf_mdd_detected && !pf_mdd_detected)
 		device_printf(dev,
 		    "Malicious Driver Detection event %d"
-		    " on TX queue %d, pf number %d, (VF-%d)\n",
+		    " on RX queue %d, pf number %d, (VF-%d)\n",
 		    event, queue, pf_num, vp_mdet_num);
 	else if (!vf_mdd_detected && pf_mdd_detected)
 		device_printf(dev,
 		    "Malicious Driver Detection event %d"
-		    " on TX queue %d, pf number %d (PF-%d)\n",
+		    " on RX queue %d, pf number %d (PF-%d)\n",
 		    event, queue, pf_num, pf_mdet_num);
 	/* Theoretically shouldn't happen */
 	else
