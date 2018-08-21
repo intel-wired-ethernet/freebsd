@@ -128,6 +128,10 @@ static int	ixlv_sysctl_vflr_reset(SYSCTL_HANDLER_ARGS);
 
 char *ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
 static void	ixlv_save_tunables(struct ixlv_sc *);
+static enum i40e_status_code
+    ixlv_process_adminq(struct ixlv_sc *, u16 *);
+static int	ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op);
+static int	ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op);
 
 /*********************************************************************
  *  FreeBSD Device Interface Entry Points
@@ -523,6 +527,7 @@ ixlv_if_attach_post(if_ctx_t ctx)
 	ixlv_add_device_sysctls(sc);
 
 	sc->init_state = IXLV_INIT_READY;
+	atomic_store_rel_32(&sc->queues_enabled, 0);
 
 	/* We want AQ enabled early for init */
 	ixlv_enable_adminq_irq(hw);
@@ -648,21 +653,30 @@ ixlv_reinit_locked(struct ixlv_sc *sc)
 	ixlv_enable_adminq_irq(hw);
 	return (error);
 }
+#endif
 
-int
-ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
+static int
+ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 {
 	int error = 0;
+	if_ctx_t ctx = sc->vsi.ctx;
 
 	error = ixl_vc_send_cmd(sc, op);
-	if (error != 0)
+	if (error != 0) {
 		ixlv_dbg_vc(sc, "Error sending %b: %d\n", op, IXLV_FLAGS, error);
+		return (error);
+	}
+
+	ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
+	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), PRI_MAX, "ixlvc", IXLV_AQ_TIMEOUT);
+
+	if (error == EWOULDBLOCK)
+		device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
 
 	return (error);
 }
-#endif
 
-int
+static int
 ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op)
 {
 	int error = 0;
@@ -749,9 +763,6 @@ ixlv_if_init(if_ctx_t ctx)
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
 	iflib_set_mac(ctx, hw->mac.addr);
 
-	/* Setup vlan's if needed */
-	// ixlv_setup_vlan_filters(sc);
-
 	/* Prepare the queues for operation */
 	ixlv_init_queues(vsi);
 
@@ -776,7 +787,7 @@ ixlv_if_init(if_ctx_t ctx)
 	ixlv_if_promisc_set(ctx, if_getflags(ifp));
 
 	/* Enable queues */
-	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ENABLE_QUEUES);
+	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_ENABLE_QUEUES);
 
 	sc->init_state = IXLV_RUNNING;
 }
@@ -1263,6 +1274,10 @@ ixlv_process_adminq(struct ixlv_sc *sc, u16 *pending)
 	/* clean and process any events */
 	do {
 		status = i40e_clean_arq_element(hw, &event, pending);
+		/*
+		 * Also covers normal case when i40e_clean_arq_element()
+		 * returns "I40E_ERR_ADMIN_QUEUE_NO_WORK"
+		 */
 		if (status)
 			break;
 		ixlv_vc_completion(sc, v_msg->v_opcode,
@@ -2067,9 +2082,10 @@ ixlv_stop(struct ixlv_sc *sc)
 
 	ifp = sc->vsi.ifp;
 
-	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
-
 	ixlv_disable_intr(&sc->vsi);
+
+	if (atomic_load_acq_32(&sc->queues_enabled))
+		ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 }
 
 static void

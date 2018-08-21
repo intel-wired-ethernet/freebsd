@@ -60,7 +60,7 @@
 #define IXLV_FLAG_AQ_GET_RSS_HENA_CAPS        (u32)(1 << 13)
 #define IXLV_FLAG_AQ_CONFIG_RSS_LUT          (u32)(1 << 14)
 
-/* printf %b arg */
+/* printf %b flag args */
 #define IXLV_FLAGS \
     "\20\1ENABLE_QUEUES\2DISABLE_QUEUES\3ADD_MAC_FILTER" \
     "\4ADD_VLAN_FILTER\5DEL_MAC_FILTER\6DEL_VLAN_FILTER" \
@@ -148,6 +148,11 @@ struct ixlv_sc {
 
 	/* Buffer used for reading AQ responses */
 	u8			aq_buffer[IXL_AQ_BUF_SZ];
+
+	/* State flag used in init/stop */
+	u32			queues_enabled;
+	u8			enable_queues_chan;
+	u8			disable_queues_chan;
 };
 
 /*
@@ -208,6 +213,6 @@ int	ixlv_config_rss_lut(struct ixlv_sc *);
 int	ixlv_config_promisc_mode(struct ixlv_sc *);
 
 int	ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request);
-int	ixlv_send_vc_msg(struct ixlv_sc *sc, u32 op);
 char	*ixlv_vc_speed_to_string(enum virtchnl_link_speed link_speed);
+void 	*ixl_vc_get_op_chan(struct ixlv_sc *sc, uint32_t request);
 #endif /* _IXLV_H_ */

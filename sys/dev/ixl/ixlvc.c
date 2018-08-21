@@ -930,8 +930,12 @@ ixlv_vc_completion(struct ixlv_sc *sc,
 	case VIRTCHNL_OP_DEL_VLAN:
 		break;
 	case VIRTCHNL_OP_ENABLE_QUEUES:
+		atomic_store_rel_32(&sc->queues_enabled, 1);
+		wakeup_one(&sc->enable_queues_chan);
 		break;
 	case VIRTCHNL_OP_DISABLE_QUEUES:
+		atomic_store_rel_32(&sc->queues_enabled, 0);
+		wakeup_one(&sc->disable_queues_chan);
 		break;
 	case VIRTCHNL_OP_CONFIG_VSI_QUEUES:
 		break;
@@ -994,4 +998,17 @@ ixl_vc_send_cmd(struct ixlv_sc *sc, uint32_t request)
 	}
 
 	return (0);
+}
+
+void *
+ixl_vc_get_op_chan(struct ixlv_sc *sc, uint32_t request)
+{
+	switch (request) {
+	case IXLV_FLAG_AQ_ENABLE_QUEUES:
+		return (&sc->enable_queues_chan);
+	case IXLV_FLAG_AQ_DISABLE_QUEUES:
+		return (&sc->disable_queues_chan);
+	default:
+		return (NULL);
+	}
 }
