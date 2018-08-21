@@ -142,6 +142,7 @@
 #define IXL_TX_ITR		1
 #define IXL_ITR_NONE		3
 #define IXL_QUEUE_EOL		0x7FF
+#define IXL_MIN_FRAME		17
 #define IXL_MAX_FRAME		9728
 #define IXL_MAX_TX_SEGS		8
 #define IXL_MAX_RX_SEGS		5

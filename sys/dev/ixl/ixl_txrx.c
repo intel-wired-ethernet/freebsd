@@ -249,6 +249,8 @@ ixl_tx_setup_offload(struct ixl_tx_queue *que,
 				*cmd |= I40E_TX_DESC_CMD_L4T_EOFT_TCP;
 				*off |= (pi->ipi_tcp_hlen >> 2) <<
 				    I40E_TX_DESC_LENGTH_L4_FC_LEN_SHIFT;
+				/* Check for NO_HEAD MDD event */
+				MPASS(pi->ipi_tcp_hlen != 0);
 			}
 			break;
 		case IPPROTO_UDP:
@@ -281,23 +283,36 @@ ixl_tso_setup(struct tx_ring *txr, if_pkt_info_t pi)
 	if_softc_ctx_t			scctx;
 	struct i40e_tx_context_desc	*TXD;
 	u32				cmd, mss, type, tsolen;
-	int				idx;
+	int				idx, total_hdr_len;
 	u64				type_cmd_tso_mss;
 
 	idx = pi->ipi_pidx;
 	TXD = (struct i40e_tx_context_desc *) &txr->tx_base[idx];
-	tsolen = pi->ipi_len - (pi->ipi_ehdrlen + pi->ipi_ip_hlen + pi->ipi_tcp_hlen);
+	total_hdr_len = pi->ipi_ehdrlen + pi->ipi_ip_hlen + pi->ipi_tcp_hlen;
+	tsolen = pi->ipi_len - total_hdr_len;
 	scctx = txr->que->vsi->shared;
 
 	type = I40E_TX_DESC_DTYPE_CONTEXT;
 	cmd = I40E_TX_CTX_DESC_TSO;
-	/* TSO MSS must not be less than 64 */
+	/*
+	 * TSO MSS must not be less than 64; this prevents a
+	 * BAD_LSO_MSS MDD event when the MSS is too small.
+	 */
 	if (pi->ipi_tso_segsz < IXL_MIN_TSO_MSS) {
 		txr->mss_too_small++;
 		pi->ipi_tso_segsz = IXL_MIN_TSO_MSS;
 	}
 	mss = pi->ipi_tso_segsz;
+
+	/* Check for BAD_LS0_MSS MDD event (mss too large) */
 	MPASS(mss <= IXL_MAX_TSO_MSS);
+	/* Check for NO_HEAD MDD event (header lengths are 0) */
+	MPASS(pi->ipi_ehdrlen != 0);
+	MPASS(pi->ipi_ip_hlen != 0);
+	/* Partial check for BAD_LSO_LEN MDD event */
+	MPASS(tsolen != 0);
+	/* Partial check for WRONG_SIZE MDD event (during TSO) */
+	MPASS(total_hdr_len + mss <= IXL_MAX_FRAME);
 
 	type_cmd_tso_mss = ((u64)type << I40E_TXD_CTX_QW1_DTYPE_SHIFT) |
 	    ((u64)cmd << I40E_TXD_CTX_QW1_CMD_SHIFT) |
@@ -333,8 +348,6 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	int             	i, j, mask, pidx_last;
 	u32			cmd, off, tx_intr;
 
-	// device_printf(iflib_get_dev(vsi->ctx), "%s: begin\n", __func__);
-
 	cmd = off = 0;
 	i = pi->ipi_pidx;
 
@@ -344,6 +357,7 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 	if (pi->ipi_csum_flags & CSUM_OFFLOAD) {
 		/* Set up the TSO context descriptor if required */
 		if (pi->ipi_csum_flags & CSUM_TSO) {
+			/* Prevent MAX_BUFF MDD event (for TSO) */
 			if (ixl_tso_detect_sparse(segs, nsegs, pi))
 				return (EFBIG);
 			i = ixl_tso_setup(txr, pi);
@@ -355,13 +369,19 @@ ixl_isc_txd_encap(void *arg, if_pkt_info_t pi)
 
 	cmd |= I40E_TX_DESC_CMD_ICRC;
 	mask = scctx->isc_ntxd[0] - 1;
+	/* Check for WRONG_SIZE MDD event */
+	MPASS(pi->ipi_len >= IXL_MIN_FRAME);
+#ifdef INVARIANTS
+	if (!(pi->ipi_csum_flags & CSUM_TSO))
+		MPASS(pi->ipi_len <= IXL_MAX_FRAME);
+#endif
 	for (j = 0; j < nsegs; j++) {
 		bus_size_t seglen;
 
 		txd = &txr->tx_base[i];
 		seglen = segs[j].ds_len;
 
-		MPASS(segs[j].ds_addr != 0x0);
+		/* Check for ZERO_BSIZE MDD event */
 		MPASS(seglen != 0);
 
 		txd->buffer_addr = htole64(segs[j].ds_addr);
@@ -401,6 +421,7 @@ ixl_isc_txd_flush(void *arg, uint16_t txqid, qidx_t pidx)
 	 * Advance the Transmit Descriptor Tail (Tdt), this tells the
 	 * hardware that this frame is available to transmit.
  	 */
+	/* Check for ENDLESS_TX MDD event */
 	MPASS(pidx < vsi->shared->isc_ntxd[0]);
 	wr32(vsi->hw, txr->tail, pidx);
 }
