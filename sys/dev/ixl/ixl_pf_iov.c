@@ -1318,8 +1318,8 @@ ixl_vf_config_promisc_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 		/*
 		 * Do the same thing as the Linux PF driver -- lie to the VF
 		 */
-		i40e_send_vf_nack(pf, vf,
-		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE, I40E_SUCCESS);
+		ixl_send_vf_ack(pf, vf,
+		    VIRTCHNL_OP_CONFIG_PROMISCUOUS_MODE);
 		return;
 	}
 
