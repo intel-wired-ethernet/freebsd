@@ -504,8 +504,13 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 	MPASS(cur != QIDX_INVALID);
 	is_done = ixl_is_tx_desc_done(txr, cur);
 
-	if (clear == false || !is_done)
-		return (0);
+	if (!is_done)
+		return (0)
+
+	/* If clear is false just let caller know that there
+	 * are descriptors to reclaim */
+	if (!clear)
+		return (1);
 
 	prev = txr->tx_cidx_processed;
 	ntxd = scctx->isc_ntxd[0];
