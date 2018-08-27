@@ -505,7 +505,7 @@ ixl_isc_txd_credits_update_dwb(void *arg, uint16_t txqid, bool clear)
 	is_done = ixl_is_tx_desc_done(txr, cur);
 
 	if (!is_done)
-		return (0)
+		return (0);
 
 	/* If clear is false just let caller know that there
 	 * are descriptors to reclaim */
