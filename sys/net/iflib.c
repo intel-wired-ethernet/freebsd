@@ -5051,6 +5051,7 @@ iflib_device_deregister(if_ctx_t ctx)
 	iflib_rx_structures_free(ctx);
 	if (ctx->ifc_flags & IFC_SC_ALLOCATED)
 		free(ctx->ifc_softc, M_IFLIB);
+	STATE_LOCK_DESTROY(ctx);
 	free(ctx, M_IFLIB);
 	return (0);
 }
