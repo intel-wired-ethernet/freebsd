@@ -182,7 +182,6 @@ struct iflib_ctx {
 	uint32_t ifc_if_flags;
 	uint32_t ifc_flags;
 	uint32_t ifc_max_fl_buf_size;
-	uint32_t ifc_in_detach;
 
 	int ifc_link_state;
 	int ifc_link_irq;
@@ -255,18 +254,6 @@ uint32_t
 iflib_get_flags(if_ctx_t ctx)
 {
 	return (ctx->ifc_flags);
-}
-
-void
-iflib_set_detach(if_ctx_t ctx)
-{
-	atomic_store_rel_32(&ctx->ifc_in_detach, 1);
-}
-
-uint8_t
-iflib_in_detach(if_ctx_t ctx)
-{
-	return (atomic_load_acq_32(&ctx->ifc_in_detach) != 0);
 }
 
 void
@@ -581,6 +568,13 @@ rxd_info_zero(if_rxd_info_t ri)
 #define CALLOUT_LOCK(txq)	mtx_lock(&txq->ift_mtx)
 #define CALLOUT_UNLOCK(txq) 	mtx_unlock(&txq->ift_mtx)
 
+void
+iflib_set_detach(if_ctx_t ctx)
+{
+	STATE_LOCK(ctx);
+	ctx->ifc_flags |= IFC_IN_DETACH;
+	STATE_UNLOCK(ctx);
+}
 
 /* Our boot-time initialization hook */
 static int	iflib_module_event_handler(module_t, int, void *);
@@ -2083,6 +2077,16 @@ __iflib_fl_refill_lt(if_ctx_t ctx, iflib_fl_t fl, int max)
 		_iflib_fl_refill(ctx, fl, min(max, reclaimable));
 }
 
+uint8_t
+iflib_in_detach(if_ctx_t ctx)
+{
+	bool in_detach;
+	STATE_LOCK(ctx);
+	in_detach = !!(ctx->ifc_flags & IFC_IN_DETACH);
+	STATE_UNLOCK(ctx);
+	return (in_detach);
+}
+
 static void
 iflib_fl_bufs_free(iflib_fl_t fl)
 {
@@ -2098,7 +2102,8 @@ iflib_fl_bufs_free(iflib_fl_t fl)
 			if (fl->ifl_sds.ifsd_map != NULL) {
 				bus_dmamap_t sd_map = fl->ifl_sds.ifsd_map[i];
 				bus_dmamap_unload(fl->ifl_desc_tag, sd_map);
-				if (fl->ifl_rxq->ifr_ctx->ifc_in_detach)
+				// XXX: Should this get moved out?
+				if (iflib_in_detach(fl->ifl_rxq->ifr_ctx))
 					bus_dmamap_destroy(fl->ifl_desc_tag, sd_map);
 			}
 			if (*sd_m != NULL) {
@@ -3853,7 +3858,7 @@ _task_fn_admin(void *context)
 	if_softc_ctx_t sctx = &ctx->ifc_softc_ctx;
 	iflib_txq_t txq;
 	int i;
-	bool oactive, running, do_reset, do_watchdog;
+	bool oactive, running, do_reset, do_watchdog, in_detach;
 	uint32_t reset_on = hz / 2;
 
 	STATE_LOCK(ctx);
@@ -3861,12 +3866,13 @@ _task_fn_admin(void *context)
 	oactive = (if_getdrvflags(ctx->ifc_ifp) & IFF_DRV_OACTIVE);
 	do_reset = (ctx->ifc_flags & IFC_DO_RESET);
 	do_watchdog = (ctx->ifc_flags & IFC_DO_WATCHDOG);
+	in_detach = (ctx->ifc_flags & IFC_IN_DETACH);
 	ctx->ifc_flags &= ~(IFC_DO_RESET|IFC_DO_WATCHDOG);
 	STATE_UNLOCK(ctx);
 
-	if ((!running & !oactive) && !(ctx->ifc_sctx->isc_flags & IFLIB_ADMIN_ALWAYS_RUN))
+	if ((!running && !oactive) && !(ctx->ifc_sctx->isc_flags & IFLIB_ADMIN_ALWAYS_RUN))
 		return;
-	if (iflib_in_detach(ctx))
+	if (in_detach)
 		return;
 
 	CTX_LOCK(ctx);
@@ -4999,7 +5005,9 @@ iflib_device_deregister(if_ctx_t ctx)
 	}
 #endif
 
-	iflib_set_detach(ctx);
+	STATE_LOCK(ctx);
+	ctx->ifc_flags |= IFC_IN_DETACH;
+	STATE_UNLOCK(ctx);
 
 	CTX_LOCK(ctx);
 	iflib_stop(ctx);
