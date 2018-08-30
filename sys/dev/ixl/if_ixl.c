@@ -818,12 +818,12 @@ ixl_if_init(if_ctx_t ctx)
 	/*
 	 * If the aq is dead here, it probably means something outside of the driver
 	 * did something to the adapter, like a PF reset.
-	 * So rebuild the driver's state here if that occurs.
+	 * So, rebuild the driver's state here if that occurs.
 	 */
 	if (!i40e_check_asq_alive(&pf->hw)) {
 		device_printf(dev, "Admin Queue is down; resetting...\n");
 		ixl_teardown_hw_structs(pf);
-		ixl_reset(pf);
+		ixl_rebuild_hw_structs_after_reset(pf);
 	}
 
 	/* Get the latest mac address... User might use a LAA */
@@ -850,6 +850,7 @@ ixl_if_init(if_ctx_t ctx)
 		return;
 	}
 	
+	/* Reconfigure multicast filters in HW */
 	ixl_if_multi_set(ctx);
 
 	/* Set up RSS */
@@ -871,6 +872,7 @@ ixl_if_init(if_ctx_t ctx)
 
 	i40e_aq_set_default_vsi(hw, vsi->seid, NULL);
 
+	/* Re-add configure filters to HW */
 	ixl_reconfigure_filters(vsi);
 
 #ifdef IXL_IW
@@ -1291,14 +1293,16 @@ ixl_if_multi_set(if_ctx_t ctx)
 {
 	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &pf->vsi;
-	struct i40e_hw		*hw = vsi->hw;
-	int			mcnt = 0, flags;
+	struct i40e_hw *hw = vsi->hw;
+	int mcnt = 0, flags;
+	int del_mcnt;
 
 	IOCTL_DEBUGOUT("ixl_if_multi_set: begin");
 
 	mcnt = if_multiaddr_count(iflib_get_ifp(ctx), MAX_MULTICAST_ADDR);
-	/* delete existing MC filters */
-	ixl_del_multi(vsi);
+	/* Delete filters for removed multicast addresses */
+	del_mcnt = ixl_del_multi(vsi);
+	vsi->num_macs -= del_mcnt;
 
 	if (__predict_false(mcnt == MAX_MULTICAST_ADDR)) {
 		i40e_aq_set_vsi_multicast_promiscuous(hw,
@@ -1306,13 +1310,17 @@ ixl_if_multi_set(if_ctx_t ctx)
 		return;
 	}
 	/* (re-)install filters for all mcast addresses */
+	/* XXX: This bypasses filter count tracking code! */
 	mcnt = if_multi_apply(iflib_get_ifp(ctx), ixl_mc_filter_apply, vsi);
 	
 	if (mcnt > 0) {
+		vsi->num_macs += mcnt;
 		flags = (IXL_FILTER_ADD | IXL_FILTER_USED | IXL_FILTER_MC);
 		ixl_add_hw_filters(vsi, flags, mcnt);
 	}
 
+	ixl_dbg_filter(pf, "%s: filter mac total: %d\n",
+	    __func__, vsi->num_macs);
 	IOCTL_DEBUGOUT("ixl_if_multi_set: end");
 }
 

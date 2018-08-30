@@ -339,6 +339,7 @@ ixl_teardown_hw_structs(struct ixl_pf *pf)
 		    "init: Admin Queue shutdown failure; status %s\n",
 		    i40e_stat_str(hw, status));
 
+	ixl_pf_qmgr_release(&pf->qmgr, &pf->qtag);
 err_out:
 	return (status);
 }
@@ -443,8 +444,7 @@ ixl_reset(struct ixl_pf *pf)
 err_out:
 	return (error);
 #endif
-	// TODO: Fix second parameter
-	ixl_rebuild_hw_structs_after_reset(pf, false);
+	ixl_rebuild_hw_structs_after_reset(pf);
 
 	/* The PF reset should have cleared any critical errors */
 	atomic_clear_32(&pf->state, IXL_PF_STATE_PF_CRIT_ERR);
@@ -691,7 +691,7 @@ ixl_add_multi(struct ixl_vsi *vsi)
 	IOCTL_DEBUGOUT("ixl_add_multi: end");
 }
 
-void
+int
 ixl_del_multi(struct ixl_vsi *vsi)
 {
 	struct ifnet		*ifp = vsi->ifp;
@@ -726,6 +726,8 @@ ixl_del_multi(struct ixl_vsi *vsi)
 
 	if (mcnt > 0)
 		ixl_del_hw_filters(vsi, mcnt);
+	
+	return (mcnt);
 }
 
 void
@@ -2797,7 +2799,7 @@ ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up)
 }
 
 int
-ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
+ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf)
 {
 	struct i40e_hw *hw = &pf->hw;
 	struct ixl_vsi *vsi = &pf->vsi;
@@ -2854,6 +2856,25 @@ ixl_rebuild_hw_structs_after_reset(struct ixl_pf *pf, bool is_up)
 	if (error) {
 		device_printf(dev, "ixl_rebuild_hw_structs_after_reset: ixl_switch_config() failed: %d\n",
 		     error);
+		error = EIO;
+		goto ixl_rebuild_hw_structs_after_reset_err;
+	}
+
+	error = i40e_aq_set_phy_int_mask(hw, IXL_DEFAULT_PHY_INT_MASK,
+	    NULL);
+        if (error) {
+		device_printf(dev, "init: i40e_aq_set_phy_mask() failed: err %d,"
+		    " aq_err %d\n", error, hw->aq.asq_last_status);
+		error = EIO;
+		goto ixl_rebuild_hw_structs_after_reset_err;
+	}
+
+	u8 set_fc_err_mask;
+	error = i40e_set_fc(hw, &set_fc_err_mask, true);
+	if (error) {
+		device_printf(dev, "init: setting link flow control failed; retcode %d,"
+		    " fc_err_mask 0x%02x\n", error, set_fc_err_mask);
+		error = EIO;
 		goto ixl_rebuild_hw_structs_after_reset_err;
 	}
 
@@ -2906,7 +2927,7 @@ ixl_handle_empr_reset(struct ixl_pf *pf)
 	ixl_dbg(pf, IXL_DBG_INFO,
 			"Reset wait count: %d\n", count);
 
-	ixl_rebuild_hw_structs_after_reset(pf, is_up);
+	ixl_rebuild_hw_structs_after_reset(pf);
 
 	atomic_clear_int(&pf->state, IXL_PF_STATE_ADAPTER_RESETTING);
 }

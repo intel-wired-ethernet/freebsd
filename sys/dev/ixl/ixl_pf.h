@@ -325,7 +325,7 @@ int	ixl_aq_get_link_status(struct ixl_pf *,
 int	ixl_handle_nvmupd_cmd(struct ixl_pf *, struct ifdrv *);
 void	ixl_handle_empr_reset(struct ixl_pf *);
 int	ixl_prepare_for_reset(struct ixl_pf *pf, bool is_up);
-int	ixl_rebuild_hw_structs_after_reset(struct ixl_pf *, bool is_up);
+int	ixl_rebuild_hw_structs_after_reset(struct ixl_pf *);
 
 void	ixl_set_queue_rx_itr(struct ixl_rx_queue *);
 void	ixl_set_queue_tx_itr(struct ixl_tx_queue *);
@@ -356,7 +356,7 @@ void	ixl_enable_intr(struct ixl_vsi *);
 void	ixl_disable_rings_intr(struct ixl_vsi *);
 void	ixl_set_promisc(struct ixl_vsi *);
 void	ixl_add_multi(struct ixl_vsi *);
-void	ixl_del_multi(struct ixl_vsi *);
+int	ixl_del_multi(struct ixl_vsi *);
 void	ixl_setup_vlan_filters(struct ixl_vsi *);
 void	ixl_init_filters(struct ixl_vsi *);
 void	ixl_add_hw_filters(struct ixl_vsi *, int, int);
