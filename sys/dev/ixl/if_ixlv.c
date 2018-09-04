@@ -162,6 +162,8 @@ MODULE_DEPEND(ixlv, pci, 1, 1, 1);
 MODULE_DEPEND(ixlv, ether, 1, 1, 1);
 MODULE_DEPEND(ixlv, iflib, 1, 1, 1);
 
+MALLOC_DEFINE(M_IXLV, "ixlv", "ixlv driver allocations");
+
 static device_method_t ixlv_if_methods[] = {
 	DEVMETHOD(ifdi_attach_pre, ixlv_if_attach_pre),
 	DEVMETHOD(ifdi_attach_post, ixlv_if_attach_post),

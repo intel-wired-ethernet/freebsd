@@ -83,7 +83,7 @@
     "\26ENCAP_CSUM" \
     "\27RX_ENCAP_CSUM"
 
-static MALLOC_DEFINE(M_IXLV, "ixlv", "ixlv driver allocations");
+MALLOC_DECLARE(M_IXLV);
 
 /* Driver state */
 enum ixlv_state_t {
