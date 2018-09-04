@@ -2281,10 +2281,10 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 static void
 ixlv_init_filters(struct ixlv_sc *sc)
 {
-	sc->mac_filters = malloc(sizeof(struct ixlv_mac_filter),
+	sc->mac_filters = malloc(sizeof(struct mac_list),
 	    M_IXLV, M_WAITOK | M_ZERO);
 	SLIST_INIT(sc->mac_filters);
-	sc->vlan_filters = malloc(sizeof(struct ixlv_vlan_filter),
+	sc->vlan_filters = malloc(sizeof(struct vlan_list),
 	    M_IXLV, M_WAITOK | M_ZERO);
 	SLIST_INIT(sc->vlan_filters);
 }
