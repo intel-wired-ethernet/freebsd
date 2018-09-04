@@ -2165,7 +2165,7 @@ ixlv_add_mac_filter(struct ixlv_sc *sc, u8 *macaddr, u16 flags)
 	/* Does one already exist? */
 	f = ixlv_find_mac_filter(sc, macaddr);
 	if (f != NULL) {
-		IDPRINTF(sc->vsi.ifp, "exists: " MAC_FORMAT,
+		ixlv_dbg_filter(sc, "exists: " MAC_FORMAT "\n",
 		    MAC_FORMAT_ARGS(macaddr));
 		return (EEXIST);
 	}
@@ -2173,12 +2173,12 @@ ixlv_add_mac_filter(struct ixlv_sc *sc, u8 *macaddr, u16 flags)
 	/* If not, get a new empty filter */
 	f = ixlv_get_mac_filter(sc);
 	if (f == NULL) {
-		if_printf(sc->vsi.ifp, "%s: no filters available!!\n",
+		device_printf(sc->dev, "%s: no filters available!!\n",
 		    __func__);
 		return (ENOMEM);
 	}
 
-	IDPRINTF(sc->vsi.ifp, "marked: " MAC_FORMAT,
+	ixlv_dbg_filter(sc, "marked: " MAC_FORMAT "\n",
 	    MAC_FORMAT_ARGS(macaddr));
 
 	bcopy(macaddr, f->macaddr, ETHER_ADDR_LEN);

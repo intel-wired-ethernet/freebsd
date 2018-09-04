@@ -171,10 +171,11 @@ ixlv_check_ether_addr(u8 *addr)
 }
 
 /* Debug printing */
-#define ixlv_dbg(sc, m, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, m, s, ##__VA_ARGS__)
+#define ixlv_dbg(sc, m, s, ...)		ixl_debug_core(sc->dev, sc->dbg_mask, m, s, ##__VA_ARGS__)
 #define ixlv_dbg_init(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_INIT, s, ##__VA_ARGS__)
 #define ixlv_dbg_info(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_INFO, s, ##__VA_ARGS__)
-#define ixlv_dbg_vc(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_VC, s, ##__VA_ARGS__)
+#define ixlv_dbg_vc(sc, s, ...)		ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_VC, s, ##__VA_ARGS__)
+#define ixlv_dbg_filter(sc, s, ...)	ixl_debug_core(sc->dev, sc->dbg_mask, IXLV_DBG_FILTER, s, ##__VA_ARGS__)
 
 /*
 ** VF Common function prototypes
