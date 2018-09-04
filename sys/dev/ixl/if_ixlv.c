@@ -1260,13 +1260,15 @@ static int
 ixlv_mc_filter_apply(void *arg, struct ifmultiaddr *ifma, int count __unused)
 {
 	struct ixlv_sc *sc = arg;
+	int error = 0;
 
 	if (ifma->ifma_addr->sa_family != AF_LINK)
 		return (0);
-	ixlv_add_mac_filter(sc, 
+	error = ixlv_add_mac_filter(sc,
 	    (u8*)LLADDR((struct sockaddr_dl *) ifma->ifma_addr),
 	    IXL_FILTER_MC);
-	return (1);
+
+	return (!error);
 }
 
 static void
@@ -1291,7 +1293,7 @@ ixlv_if_multi_set(if_ctx_t ctx)
 
 	/* And (re-)install filters for all mcast addresses */
 	mcnt = if_multi_apply(iflib_get_ifp(ctx), ixlv_mc_filter_apply, sc);
-	
+
 	if (mcnt > 0)
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
 }
