@@ -598,65 +598,6 @@ ixlv_if_resume(if_ctx_t ctx)
 	return (0);
 }
 
-#if 0
-/*
-** To do a reinit on the VF is unfortunately more complicated
-** than a physical device, we must have the PF more or less
-** completely recreate our memory, so many things that were
-** done only once at attach in traditional drivers now must be
-** redone at each reinitialization. This function does that
-** 'prelude' so we can then call the normal locked init code.
-*/
-int
-ixlv_reinit_locked(struct ixlv_sc *sc)
-{
-	struct i40e_hw		*hw = &sc->hw;
-	struct ixl_vsi		*vsi = &sc->vsi;
-	struct ifnet		*ifp = vsi->ifp;
-	struct ixlv_mac_filter  *mf, *mf_temp;
-	struct ixlv_vlan_filter	*vf;
-	int			error = 0;
-
-	INIT_DBG_IF(ifp, "begin");
-
-	if (ifp->if_drv_flags & IFF_DRV_RUNNING)
-		ixlv_stop(sc);
-
-	error = ixlv_reset(sc);
-
-	ixlv_dbg_info(sc, "VF was reset\n");
-
-	/* set the state in case we went thru RESET */
-	sc->init_state = IXLV_RUNNING;
-
-	/*
-	** Resetting the VF drops all filters from hardware;
-	** we need to mark them to be re-added in init.
-	*/
-	SLIST_FOREACH_SAFE(mf, sc->mac_filters, next, mf_temp) {
-		if (mf->flags & IXL_FILTER_DEL) {
-			SLIST_REMOVE(sc->mac_filters, mf,
-			    ixlv_mac_filter, next);
-			free(mf, M_DEVBUF);
-		} else
-			mf->flags |= IXL_FILTER_ADD;
-	}
-	if (vsi->num_vlans != 0)
-		SLIST_FOREACH(vf, sc->vlan_filters, next)
-			vf->flags = IXL_FILTER_ADD;
-	else { /* clean any stale filters */
-		while (!SLIST_EMPTY(sc->vlan_filters)) {
-			vf = SLIST_FIRST(sc->vlan_filters);
-			SLIST_REMOVE_HEAD(sc->vlan_filters, next);
-			free(vf, M_DEVBUF);
-		}
-	}
-
-	ixlv_enable_adminq_irq(hw);
-	return (error);
-}
-#endif
-
 static int
 ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 {
@@ -1342,7 +1283,6 @@ ixlv_if_multi_set(if_ctx_t ctx)
 		ixlv_init_multi(sc);
 		sc->promisc_flags |= FLAG_VF_MULTICAST_PROMISC;
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_CONFIGURE_PROMISC);
-		device_printf(sc->dev, "%s: Not yet\n", __func__);
 		return;
 	}
 
