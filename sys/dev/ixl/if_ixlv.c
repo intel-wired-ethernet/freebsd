@@ -706,6 +706,9 @@ ixlv_if_init(if_ctx_t ctx)
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
 	iflib_set_mac(ctx, hw->mac.addr);
 
+	/* Disable queues */
+	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
+
 	/* Prepare the queues for operation */
 	ixlv_init_queues(vsi);
 
