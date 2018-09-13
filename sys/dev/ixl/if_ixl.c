@@ -811,6 +811,7 @@ ixl_if_init(if_ctx_t ctx)
 	struct ixl_pf *pf = iflib_get_softc(ctx);
 	struct ixl_vsi *vsi = &pf->vsi;
 	struct i40e_hw	*hw = &pf->hw;
+	struct ifnet *ifp = iflib_get_ifp(ctx);
 	device_t 	dev = iflib_get_dev(ctx);
 	u8		tmpaddr[ETHER_ADDR_LEN];
 	int		ret;
