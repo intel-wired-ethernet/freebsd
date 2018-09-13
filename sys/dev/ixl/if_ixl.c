@@ -875,6 +875,9 @@ ixl_if_init(if_ctx_t ctx)
 	/* Re-add configure filters to HW */
 	ixl_reconfigure_filters(vsi);
 
+	/* Configure promiscuous mode */
+	ixl_if_promisc_set(ctx, if_getflags(ifp));
+
 #ifdef IXL_IW
 	if (ixl_enable_iwarp && pf->iw_enabled) {
 		ret = ixl_iw_pf_init(pf);
