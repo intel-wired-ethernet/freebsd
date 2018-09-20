@@ -361,6 +361,7 @@ void	ixl_setup_vlan_filters(struct ixl_vsi *);
 void	ixl_init_filters(struct ixl_vsi *);
 void	ixl_add_hw_filters(struct ixl_vsi *, int, int);
 void	ixl_del_hw_filters(struct ixl_vsi *, int);
+void	ixl_del_default_hw_filters(struct ixl_vsi *);
 struct ixl_mac_filter *
 		ixl_find_filter(struct ixl_vsi *, const u8 *, s16);
 void	ixl_add_mc_filter(struct ixl_vsi *, u8 *);

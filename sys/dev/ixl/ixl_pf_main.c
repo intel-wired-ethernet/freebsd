@@ -46,7 +46,6 @@
 
 static u8	ixl_convert_sysctl_aq_link_speed(u8, bool);
 static void	ixl_sbuf_print_bytes(struct sbuf *, u8 *, int, int, bool);
-static void	ixl_del_default_hw_filters(struct ixl_vsi *);
 
 /* Sysctls */
 static int	ixl_sysctl_set_flowcntl(SYSCTL_HANDLER_ARGS);
@@ -1867,7 +1866,7 @@ ixl_setup_vlan_filters(struct ixl_vsi *vsi)
  * configured which interferes with filters managed by driver.
  * Make sure it's removed.
  */
-static void
+void
 ixl_del_default_hw_filters(struct ixl_vsi *vsi)
 {
 	struct i40e_aqc_remove_macvlan_element_data e;
