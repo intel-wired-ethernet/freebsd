@@ -419,6 +419,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 
 	/* got VF config message back from PF, now we can parse it */
 	for (int i = 0; i < sc->vf_res->num_vsis; i++) {
+		/* XXX: We only use the first VSI we find */
 		if (sc->vf_res->vsi_res[i].vsi_type == I40E_VSI_SRIOV)
 			sc->vsi_res = &sc->vf_res->vsi_res[i];
 	}
@@ -446,9 +447,8 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	ixlv_init_filters(sc);
 
 	/* Fill out more iflib parameters */
-	// TODO: This needs to be set to configured "num-queues" value
-	// from iovctl.conf
-	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max = 4;
+	scctx->isc_ntxqsets_max = scctx->isc_nrxqsets_max =
+	    sc->vsi_res->num_queue_pairs;
 	if (vsi->enable_head_writeback) {
 		scctx->isc_txqsizes[0] = roundup2(scctx->isc_ntxd[0]
 		    * sizeof(struct i40e_tx_desc) + sizeof(u32), DBA_ALIGN);
