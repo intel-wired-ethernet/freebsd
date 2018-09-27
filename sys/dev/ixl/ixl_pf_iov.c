@@ -163,7 +163,7 @@ ixl_vf_alloc_vsi(struct ixl_pf *pf, struct ixl_vf *vf)
 	    htole16(I40E_AQ_VSI_PROP_QUEUE_MAP_VALID);
 	vsi_ctx.info.mapping_flags = htole16(I40E_AQ_VSI_QUE_MAP_NONCONTIG);
 
-	/* ERJ: Only scattered allocation is supported for VFs right now */
+	/* XXX: Only scattered allocation is supported for VFs right now */
 	for (i = 0; i < vf->qtag.num_active; i++)
 		vsi_ctx.info.queue_mapping[i] = vf->qtag.qidx[i];
 	for (; i < nitems(vsi_ctx.info.queue_mapping); i++)

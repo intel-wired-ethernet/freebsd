@@ -42,7 +42,6 @@
 #define IXLV_MAX_FILTERS	128
 #define IXLV_MAX_QUEUES		16
 #define IXLV_AQ_TIMEOUT		(1 * hz)
-#define IXLV_CALLOUT_TIMO	(hz / 50)	/* 20 msec */
 
 #define IXLV_FLAG_AQ_ENABLE_QUEUES            (u32)(1 << 0)
 #define IXLV_FLAG_AQ_DISABLE_QUEUES           (u32)(1 << 1)
@@ -58,7 +57,7 @@
 #define IXLV_FLAG_AQ_CONFIG_RSS_KEY           (u32)(1 << 11)
 #define IXLV_FLAG_AQ_SET_RSS_HENA             (u32)(1 << 12)
 #define IXLV_FLAG_AQ_GET_RSS_HENA_CAPS        (u32)(1 << 13)
-#define IXLV_FLAG_AQ_CONFIG_RSS_LUT          (u32)(1 << 14)
+#define IXLV_FLAG_AQ_CONFIG_RSS_LUT           (u32)(1 << 14)
 
 /* printf %b flag args */
 #define IXLV_FLAGS \

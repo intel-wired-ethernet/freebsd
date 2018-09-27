@@ -414,7 +414,7 @@ ixlv_if_attach_pre(if_ctx_t ctx)
 	    sc->vf_res->max_vectors,
 	    sc->vf_res->rss_key_size,
 	    sc->vf_res->rss_lut_size);
-	ixlv_dbg_info(sc, "Received offload flags: 0x%b\n",
+	ixlv_dbg_info(sc, "Capabilities=%b\n",
 	    sc->vf_res->vf_cap_flags, IXLV_PRINTF_VF_OFFLOAD_FLAGS);
 
 	/* got VF config message back from PF, now we can parse it */
@@ -559,25 +559,18 @@ ixlv_if_detach(if_ctx_t ctx)
 static int
 ixlv_if_shutdown(if_ctx_t ctx)
 {
-	int error = 0;
-
-	return (error);
+	return (0);
 }
 
-/* TODO: What is a VF supposed to do in suspend/resume? */
 static int
 ixlv_if_suspend(if_ctx_t ctx)
 {
-	int error = 0;
-
-	return (error);
+	return (0);
 }
 
 static int
 ixlv_if_resume(if_ctx_t ctx)
 {
-	/* Read & clear wake-up registers */
-
 	return (0);
 }
 
@@ -664,15 +657,6 @@ ixlv_if_init(if_ctx_t ctx)
 		i40e_init_adminq(hw);
 	}
 
-#if 0
-	if ((sc->init_state == IXLV_RUNNING) ||
-	    (sc->init_state == IXLV_RESET_REQUIRED) ||
-	    (sc->init_state == IXLV_RESET_PENDING))
-		error = ixlv_reinit_locked(sc);
-	/* Don't bother with init if we failed reinit */
-	if (error)
-		return;
-#endif
 
 	bcopy(IF_LLADDR(ifp), tmpaddr, ETHER_ADDR_LEN);
 	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&

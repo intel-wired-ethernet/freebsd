@@ -1941,8 +1941,10 @@ ixl_reconfigure_filters(struct ixl_vsi *vsi)
 }
 
 /*
-** This routine adds macvlan filters
-*/
+ * This routine adds a MAC/VLAN filter to the software filter
+ * list, then adds that new filter to the HW if it doesn't already
+ * exist in the SW filter list.
+ */
 void
 ixl_add_filter(struct ixl_vsi *vsi, const u8 *macaddr, s16 vlan)
 {
