@@ -427,6 +427,7 @@ ixl_reinit_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	if (vf->vsi.seid != 0)
 		ixl_disable_rings(pf, &vf->vsi, &vf->qtag);
+	ixl_pf_qmgr_clear_queue_flags(&vf->qtag);
 
 	ixl_vf_release_resources(pf, vf);
 	ixl_vf_setup_vsi(pf, vf);

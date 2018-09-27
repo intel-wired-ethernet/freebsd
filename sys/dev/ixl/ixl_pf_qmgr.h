@@ -104,6 +104,7 @@ void	ixl_pf_qmgr_mark_queue_disabled(struct ixl_pf_qtag *qtag, u16 vsi_qidx, boo
 void	ixl_pf_qmgr_mark_queue_configured(struct ixl_pf_qtag *qtag, u16 vsi_qidx, bool tx);
 bool	ixl_pf_qmgr_is_queue_enabled(struct ixl_pf_qtag *qtag, u16 vsi_qidx, bool tx);
 bool	ixl_pf_qmgr_is_queue_configured(struct ixl_pf_qtag *qtag, u16 vsi_qidx, bool tx);
+void	ixl_pf_qmgr_clear_queue_flags(struct ixl_pf_qtag *qtag);
 
 /* Public tag functions */
 u16	ixl_pf_qidx_from_vsi_qidx(struct ixl_pf_qtag *qtag, u16 index);
