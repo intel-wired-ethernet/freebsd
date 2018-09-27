@@ -381,7 +381,7 @@ ixl_reset_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	hw = &pf->hw;
 
-	ixl_dbg(pf, IXL_DBG_IOV, "Resetting VF-%d\n", vf->vf_num);
+	ixl_dbg_iov(pf, "Resetting VF-%d\n", vf->vf_num);
 
 	vfrtrig = rd32(hw, I40E_VPGEN_VFRTRIG(vf->vf_num));
 	vfrtrig |= I40E_VPGEN_VFRTRIG_VFSWR_MASK;
@@ -390,7 +390,7 @@ ixl_reset_vf(struct ixl_pf *pf, struct ixl_vf *vf)
 
 	ixl_reinit_vf(pf, vf);
 
-	ixl_dbg(pf, IXL_DBG_IOV, "Resetting VF-%d done.\n", vf->vf_num);
+	ixl_dbg_iov(pf, "Resetting VF-%d done.\n", vf->vf_num);
 }
 
 static void
@@ -938,7 +938,7 @@ ixl_vf_enable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 				continue;
 			/* Warn if this queue is already marked as enabled */
 			if (ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, true))
-				device_printf(pf->dev, "VF %d: TX ring %d is already enabled!\n",
+				ixl_dbg_iov(pf, "VF %d: TX ring %d is already enabled!\n",
 				    vf->vf_num, i);
 
 			error = ixl_enable_tx_ring(pf, &vf->qtag, i);
@@ -963,7 +963,7 @@ ixl_vf_enable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf, void *msg,
 				continue;
 			/* Warn if this queue is already marked as enabled */
 			if (ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, false))
-				device_printf(pf->dev, "VF %d: RX ring %d is already enabled!\n",
+				ixl_dbg_iov(pf, "VF %d: RX ring %d is already enabled!\n",
 				    vf->vf_num, i);
 			error = ixl_enable_rx_ring(pf, &vf->qtag, i);
 			if (error)
@@ -1017,7 +1017,7 @@ ixl_vf_disable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 				continue;
 			/* Warn if this queue is already marked as disabled */
 			if (!ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, true)) {
-				ixl_dbg(pf, IXL_DBG_IOV, "VF %d: TX ring %d is already disabled!\n",
+				ixl_dbg_iov(pf, "VF %d: TX ring %d is already disabled!\n",
 				    vf->vf_num, i);
 				continue;
 			}
@@ -1043,7 +1043,7 @@ ixl_vf_disable_queues_msg(struct ixl_pf *pf, struct ixl_vf *vf,
 				continue;
 			/* Warn if this queue is already marked as disabled */
 			if (!ixl_pf_qmgr_is_queue_enabled(&vf->qtag, i, false)) {
-				ixl_dbg(pf, IXL_DBG_IOV, "VF %d: RX ring %d is already disabled!\n",
+				ixl_dbg_iov(pf, "VF %d: RX ring %d is already disabled!\n",
 				    vf->vf_num, i);
 				continue;
 			}
@@ -1661,7 +1661,7 @@ ixl_handle_vflr(struct ixl_pf *pf)
 
 	hw = &pf->hw;
 
-	ixl_dbg(pf, IXL_DBG_IOV, "%s: begin\n", __func__);
+	ixl_dbg_iov(pf, "%s: begin\n", __func__);
 
 	/* Re-enable VFLR interrupt cause so driver doesn't miss a
 	 * reset interrupt for another VF */
@@ -1684,9 +1684,9 @@ ixl_handle_vflr(struct ixl_pf *pf)
 			wr32(hw, I40E_GLGEN_VFLRSTAT(vflrstat_index),
 			    vflrstat_mask);
 
-			ixl_dbg(pf, IXL_DBG_IOV, "Reinitializing VF-%d\n", i);
+			ixl_dbg_iov(pf, "Reinitializing VF-%d\n", i);
 			ixl_reinit_vf(pf, vf);
-			ixl_dbg(pf, IXL_DBG_IOV, "Reinitializing VF-%d done\n", i);
+			ixl_dbg_iov(pf, "Reinitializing VF-%d done\n", i);
 		}
 	}
 
@@ -1848,9 +1848,9 @@ ixl_if_iov_uninit(if_ctx_t ctx)
 			i40e_aq_delete_element(hw, pf->vfs[i].vsi.seid, NULL);
 		ixl_pf_qmgr_release(&pf->qmgr, &pf->vfs[i].qtag);
 		ixl_free_mac_filters(&pf->vfs[i].vsi);
-		ixl_dbg(pf, IXL_DBG_IOV, "VF %d: %d released\n",
+		ixl_dbg_iov(pf, "VF %d: %d released\n",
 		    i, pf->vfs[i].qtag.num_allocated);
-		ixl_dbg(pf, IXL_DBG_IOV, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));
+		ixl_dbg_iov(pf, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));
 	}
 
 	if (pf->veb_seid != 0) {
@@ -1897,9 +1897,9 @@ ixl_vf_reserve_queues(struct ixl_pf *pf, struct ixl_vf *vf, int num_queues)
 		return (ENOSPC);
 	}
 
-	ixl_dbg(pf, IXL_DBG_IOV, "VF %d: %d allocated, %d active\n",
+	ixl_dbg_iov(pf, "VF %d: %d allocated, %d active\n",
 	    vf->vf_num, vf->qtag.num_allocated, vf->qtag.num_active);
-	ixl_dbg(pf, IXL_DBG_IOV, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));
+	ixl_dbg_iov(pf, "Unallocated total: %d\n", ixl_pf_qmgr_get_num_free(&pf->qmgr));
 
 	return (0);
 }
