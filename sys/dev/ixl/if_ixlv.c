@@ -586,11 +586,15 @@ ixlv_send_vc_msg_sleep(struct ixlv_sc *sc, u32 op)
 		return (error);
 	}
 
-	ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
-	error = sx_sleep(ixl_vc_get_op_chan(sc, op), iflib_ctx_lock_get(ctx), PRI_MAX, "ixlvc", IXLV_AQ_TIMEOUT);
+	/* Don't wait for a response if the device is being detached. */
+	if (!iflib_in_detach(ctx)) {
+		ixlv_dbg_vc(sc, "Sleeping for op %b\n", op, IXLV_FLAGS);
+		error = sx_sleep(ixl_vc_get_op_chan(sc, op),
+		    iflib_ctx_lock_get(ctx), PRI_MAX, "ixlvc", IXLV_AQ_TIMEOUT);
 
-	if (error == EWOULDBLOCK)
-		device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
+		if (error == EWOULDBLOCK)
+			device_printf(sc->dev, "%b timed out\n", op, IXLV_FLAGS);
+	}
 
 	return (error);
 }
