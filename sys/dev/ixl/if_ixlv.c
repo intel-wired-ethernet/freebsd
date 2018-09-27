@@ -37,14 +37,14 @@
 /*********************************************************************
  *  Driver version
  *********************************************************************/
-#define IXLV_DRIVER_VERSION_MAJOR	1
-#define IXLV_DRIVER_VERSION_MINOR	5
-#define IXLV_DRIVER_VERSION_BUILD	4
+#define IXLV_DRIVER_VERSION_MAJOR	2
+#define IXLV_DRIVER_VERSION_MINOR	0
+#define IXLV_DRIVER_VERSION_BUILD	0
 
 #define IXLV_DRIVER_VERSION_STRING			\
     __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."		\
     __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."		\
-    __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-iflib-k"
+    __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-k"
 
 /*********************************************************************
  *  PCI Device ID Table
