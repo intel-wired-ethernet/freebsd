@@ -661,6 +661,8 @@ ixlv_if_init(if_ctx_t ctx)
 		i40e_init_adminq(hw);
 	}
 
+	/* Make sure queues are disabled */
+	ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
 	bcopy(IF_LLADDR(ifp), tmpaddr, ETHER_ADDR_LEN);
 	if (!cmp_etheraddr(hw->mac.addr, tmpaddr) &&
@@ -676,9 +678,6 @@ ixlv_if_init(if_ctx_t ctx)
 	if (!error || error == EEXIST)
 		ixlv_send_vc_msg(sc, IXLV_FLAG_AQ_ADD_MAC_FILTER);
 	iflib_set_mac(ctx, hw->mac.addr);
-
-	/* Disable queues */
-	ixlv_send_vc_msg_sleep(sc, IXLV_FLAG_AQ_DISABLE_QUEUES);
 
 	/* Prepare the queues for operation */
 	ixlv_init_queues(vsi);
