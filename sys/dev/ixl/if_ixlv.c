@@ -230,23 +230,6 @@ SYSCTL_INT(_hw_ixlv, OID_AUTO, shared_debug_mask, CTLFLAG_RDTUN,
     &ixlv_shared_debug_mask, 0,
     "Display debug statements that are printed in shared code");
 
-#if 0
-/*
-** Controls for Interrupt Throttling
-**      - true/false for dynamic adjustment
-**      - default values for static ITR
-*/
-int ixlv_dynamic_rx_itr = 0;
-TUNABLE_INT("hw.ixlv.dynamic_rx_itr", &ixlv_dynamic_rx_itr);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, dynamic_rx_itr, CTLFLAG_RDTUN,
-    &ixlv_dynamic_rx_itr, 0, "Dynamic RX Interrupt Rate");
-
-int ixlv_dynamic_tx_itr = 0;
-TUNABLE_INT("hw.ixlv.dynamic_tx_itr", &ixlv_dynamic_tx_itr);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, dynamic_tx_itr, CTLFLAG_RDTUN,
-    &ixlv_dynamic_tx_itr, 0, "Dynamic TX Interrupt Rate");
-#endif
-
 int ixlv_rx_itr = IXL_ITR_8K;
 TUNABLE_INT("hw.ixlv.rx_itr", &ixlv_rx_itr);
 SYSCTL_INT(_hw_ixlv, OID_AUTO, rx_itr, CTLFLAG_RDTUN,
@@ -1807,150 +1790,18 @@ ixlv_set_queue_rx_itr(struct ixl_rx_queue *que)
 	struct ixl_vsi	*vsi = que->vsi;
 	struct i40e_hw	*hw = vsi->hw;
 	struct rx_ring	*rxr = &que->rxr;
-	//u16		rx_itr;
-	//u16		rx_latency = 0;
-	//int		rx_bytes;
 
 	/* Idle, do nothing */
 	if (rxr->bytes == 0)
 		return;
 
-#if 0
-	if (sc->ixlv_dynamic_rx_itr) {
-		rx_bytes = rxr->bytes/rxr->itr;
-		rx_itr = rxr->itr;
-
-		/* Adjust latency range */
-		switch (rxr->latency) {
-		case IXL_LOW_LATENCY:
-			if (rx_bytes > 10) {
-				rx_latency = IXL_AVE_LATENCY;
-				rx_itr = IXL_ITR_20K;
-			}
-			break;
-		case IXL_AVE_LATENCY:
-			if (rx_bytes > 20) {
-				rx_latency = IXL_BULK_LATENCY;
-				rx_itr = IXL_ITR_8K;
-			} else if (rx_bytes <= 10) {
-				rx_latency = IXL_LOW_LATENCY;
-				rx_itr = IXL_ITR_100K;
-			}
-			break;
-		case IXL_BULK_LATENCY:
-			if (rx_bytes <= 20) {
-				rx_latency = IXL_AVE_LATENCY;
-				rx_itr = IXL_ITR_20K;
-			}
-			break;
-       		 }
-
-		rxr->latency = rx_latency;
-
-		if (rx_itr != rxr->itr) {
-			/* do an exponential smoothing */
-			rx_itr = (10 * rx_itr * rxr->itr) /
-			    ((9 * rx_itr) + rxr->itr);
-			rxr->itr = min(rx_itr, IXL_MAX_ITR);
-			wr32(hw, I40E_VFINT_ITRN1(IXL_RX_ITR,
-			    que->rxr.me), rxr->itr);
-		}
-	} else { /* We may have have toggled to non-dynamic */
-#endif
-		if (vsi->rx_itr_setting & IXL_ITR_DYNAMIC)
-			vsi->rx_itr_setting = ixlv_rx_itr;
-		/* Update the hardware if needed */
-		if (rxr->itr != vsi->rx_itr_setting) {
-			rxr->itr = vsi->rx_itr_setting;
-			wr32(hw, I40E_VFINT_ITRN1(IXL_RX_ITR,
-			    que->rxr.me), rxr->itr);
-		}
-#if 0
+	/* Update the hardware if needed */
+	if (rxr->itr != vsi->rx_itr_setting) {
+		rxr->itr = vsi->rx_itr_setting;
+		wr32(hw, I40E_VFINT_ITRN1(IXL_RX_ITR,
+		    que->rxr.me), rxr->itr);
 	}
-	rxr->bytes = 0;
-	rxr->packets = 0;
-#endif
 }
-
-
-#if 0
-/*
-** Provide a update to the queue TX
-** interrupt moderation value.
-*/
-static void
-ixlv_set_queue_tx_itr(struct ixl_tx_queue *que)
-{
-	struct ixl_vsi	*vsi = que->vsi;
-	struct i40e_hw	*hw = vsi->hw;
-	struct tx_ring	*txr = &que->txr;
-#if 0
-	u16		tx_itr;
-	u16		tx_latency = 0;
-	int		tx_bytes;
-#endif
-
-	/* Idle, do nothing */
-	if (txr->bytes == 0)
-		return;
-
-#if 0
-	if (ixlv_dynamic_tx_itr) {
-		tx_bytes = txr->bytes/txr->itr;
-		tx_itr = txr->itr;
-
-		switch (txr->latency) {
-		case IXL_LOW_LATENCY:
-			if (tx_bytes > 10) {
-				tx_latency = IXL_AVE_LATENCY;
-				tx_itr = IXL_ITR_20K;
-			}
-			break;
-		case IXL_AVE_LATENCY:
-			if (tx_bytes > 20) {
-				tx_latency = IXL_BULK_LATENCY;
-				tx_itr = IXL_ITR_8K;
-			} else if (tx_bytes <= 10) {
-				tx_latency = IXL_LOW_LATENCY;
-				tx_itr = IXL_ITR_100K;
-			}
-			break;
-		case IXL_BULK_LATENCY:
-			if (tx_bytes <= 20) {
-				tx_latency = IXL_AVE_LATENCY;
-				tx_itr = IXL_ITR_20K;
-			}
-			break;
-		}
-
-		txr->latency = tx_latency;
-
-		if (tx_itr != txr->itr) {
-       	         /* do an exponential smoothing */
-			tx_itr = (10 * tx_itr * txr->itr) /
-			    ((9 * tx_itr) + txr->itr);
-			txr->itr = min(tx_itr, IXL_MAX_ITR);
-			wr32(hw, I40E_VFINT_ITRN1(IXL_TX_ITR,
-			    que->txr.me), txr->itr);
-		}
-
-	} else { /* We may have have toggled to non-dynamic */
-#endif
-		if (vsi->tx_itr_setting & IXL_ITR_DYNAMIC)
-			vsi->tx_itr_setting = ixlv_tx_itr;
-		/* Update the hardware if needed */
-		if (txr->itr != vsi->tx_itr_setting) {
-			txr->itr = vsi->tx_itr_setting;
-			wr32(hw, I40E_VFINT_ITRN1(IXL_TX_ITR,
-			    que->txr.me), txr->itr);
-		}
-#if 0
-	}
-	txr->bytes = 0;
-	txr->packets = 0;
-#endif
-}
-#endif
 
 static int
 ixlv_msix_que(void *arg)
@@ -2235,16 +2086,6 @@ ixlv_add_device_sysctls(struct ixlv_sc *sc)
 	    sc, 0, ixlv_sysctl_rx_itr, "I",
 	    "Immediately set RX ITR value for all queues");
 
-#if 0
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "dynamic_rx_itr", CTLFLAG_RW,
-	    &sc->dynamic_rx_itr, 0, "Enable dynamic RX ITR");
-
-	SYSCTL_ADD_INT(ctx, ctx_list,
-	    OID_AUTO, "dynamic_tx_itr", CTLFLAG_RW,
-	    &sc->dynamic_tx_itr, 0, "Enable dynamic TX ITR");
-#endif
-
 	/* Add sysctls meant to print debug information, but don't list them
 	 * in "sysctl -a" output. */
 	debug_node = SYSCTL_ADD_NODE(ctx, ctx_list,
@@ -2421,11 +2262,6 @@ ixlv_sysctl_tx_itr(SYSCTL_HANDLER_ARGS)
 	error = sysctl_handle_int(oidp, &requested_tx_itr, 0, req);
 	if ((error) || (req->newptr == NULL))
 		return (error);
-	if (sc->dynamic_tx_itr) {
-		device_printf(dev,
-		    "Cannot set TX itr value while dynamic TX itr is enabled\n");
-		    return (EINVAL);
-	}
 	if (requested_tx_itr < 0 || requested_tx_itr > IXL_MAX_ITR) {
 		device_printf(dev,
 		    "Invalid TX itr value; value must be between 0 and %d\n",
@@ -2455,11 +2291,6 @@ ixlv_sysctl_rx_itr(SYSCTL_HANDLER_ARGS)
 	error = sysctl_handle_int(oidp, &requested_rx_itr, 0, req);
 	if ((error) || (req->newptr == NULL))
 		return (error);
-	if (sc->dynamic_rx_itr) {
-		device_printf(dev,
-		    "Cannot set RX itr value while dynamic RX itr is enabled\n");
-		    return (EINVAL);
-	}
 	if (requested_rx_itr < 0 || requested_rx_itr > IXL_MAX_ITR) {
 		device_printf(dev,
 		    "Invalid RX itr value; value must be between 0 and %d\n",
