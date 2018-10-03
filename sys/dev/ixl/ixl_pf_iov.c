@@ -1816,9 +1816,12 @@ ixl_if_iov_init(if_ctx_t ctx, uint16_t num_vfs, const nvlist_t *params)
 	if (pf->enable_vf_loopback)
 		ixl_config_pf_vsi_loopback(pf, true);
 
-	/* Adding VEB brings back default MAC filter. Remove them
-	 * to let driver add proper one */
+	/*
+	 * Adding a VEB brings back the default MAC filter(s). Remove them,
+	 * and let the driver add the proper filters back.
+	 */
 	ixl_del_default_hw_filters(pf_vsi);
+	ixl_reconfigure_filters(pf_vsi);
 
 	pf->num_vfs = num_vfs;
 	return (0);
