@@ -84,6 +84,7 @@ __FBSDID("$FreeBSD$");
 #include <vm/vm_pageout.h>
 #include <vm/vm_param.h>
 #include <vm/vm_phys.h>
+#include <vm/vm_pagequeue.h>
 #include <vm/vm_map.h>
 #include <vm/vm_kern.h>
 #include <vm/vm_extern.h>
@@ -229,8 +230,10 @@ void	uma_startup2(void);
 
 static void *noobj_alloc(uma_zone_t, vm_size_t, int, uint8_t *, int);
 static void *page_alloc(uma_zone_t, vm_size_t, int, uint8_t *, int);
+static void *pcpu_page_alloc(uma_zone_t, vm_size_t, int, uint8_t *, int);
 static void *startup_alloc(uma_zone_t, vm_size_t, int, uint8_t *, int);
 static void page_free(void *, vm_size_t, uint8_t);
+static void pcpu_page_free(void *, vm_size_t, uint8_t);
 static uma_slab_t keg_alloc_slab(uma_keg_t, uma_zone_t, int, int);
 static void cache_drain(uma_zone_t);
 static void bucket_drain(uma_zone_t, uma_bucket_t);
@@ -273,8 +276,25 @@ static int sysctl_vm_zone_count(SYSCTL_HANDLER_ARGS);
 static int sysctl_vm_zone_stats(SYSCTL_HANDLER_ARGS);
 
 #ifdef INVARIANTS
+static bool uma_dbg_kskip(uma_keg_t keg, void *mem);
+static bool uma_dbg_zskip(uma_zone_t zone, void *mem);
 static void uma_dbg_free(uma_zone_t zone, uma_slab_t slab, void *item);
 static void uma_dbg_alloc(uma_zone_t zone, uma_slab_t slab, void *item);
+
+static SYSCTL_NODE(_vm, OID_AUTO, debug, CTLFLAG_RD, 0,
+    "Memory allocation debugging");
+
+static u_int dbg_divisor = 1;
+SYSCTL_UINT(_vm_debug, OID_AUTO, divisor,
+    CTLFLAG_RDTUN | CTLFLAG_NOFETCH, &dbg_divisor, 0,
+    "Debug & thrash every this item in memory allocator");
+
+static counter_u64_t uma_dbg_cnt = EARLY_COUNTER;
+static counter_u64_t uma_skip_cnt = EARLY_COUNTER;
+SYSCTL_COUNTER_U64(_vm_debug, OID_AUTO, trashed, CTLFLAG_RD,
+    &uma_dbg_cnt, "memory items debugged");
+SYSCTL_COUNTER_U64(_vm_debug, OID_AUTO, skipped, CTLFLAG_RD,
+    &uma_skip_cnt, "memory items skipped, not debugged");
 #endif
 
 SYSINIT(uma_startup3, SI_SUB_VM_CONF, SI_ORDER_SECOND, uma_startup3, NULL);
@@ -854,6 +874,18 @@ keg_free_slab(uma_keg_t keg, uma_slab_t slab, int start)
 	i = start;
 	if (keg->uk_fini != NULL) {
 		for (i--; i > -1; i--)
+#ifdef INVARIANTS
+		/*
+		 * trash_fini implies that dtor was trash_dtor. trash_fini
+		 * would check that memory hasn't been modified since free,
+		 * which executed trash_dtor.
+		 * That's why we need to run uma_dbg_kskip() check here,
+		 * albeit we don't make skip check for other init/fini
+		 * invocations.
+		 */
+		if (!uma_dbg_kskip(keg, slab->us_data + (keg->uk_rsize * i)) ||
+		    keg->uk_fini != trash_fini)
+#endif
 			keg->uk_fini(slab->us_data + (keg->uk_rsize * i),
 			    keg->uk_size);
 	}
@@ -1143,6 +1175,57 @@ page_alloc(uma_zone_t zone, vm_size_t bytes, int domain, uint8_t *pflag,
 	return (p);
 }
 
+static void *
+pcpu_page_alloc(uma_zone_t zone, vm_size_t bytes, int domain, uint8_t *pflag,
+    int wait)
+{
+	struct pglist alloctail;
+	vm_offset_t addr, zkva;
+	int cpu, flags;
+	vm_page_t p, p_next;
+#ifdef NUMA
+	struct pcpu *pc;
+#endif
+
+	MPASS(bytes == (mp_maxid + 1) * PAGE_SIZE);
+
+	TAILQ_INIT(&alloctail);
+	flags = VM_ALLOC_SYSTEM | VM_ALLOC_WIRED | VM_ALLOC_NOOBJ |
+	    malloc2vm_flags(wait);
+	*pflag = UMA_SLAB_KERNEL;
+	for (cpu = 0; cpu <= mp_maxid; cpu++) {
+		if (CPU_ABSENT(cpu)) {
+			p = vm_page_alloc(NULL, 0, flags);
+		} else {
+#ifndef NUMA
+			p = vm_page_alloc(NULL, 0, flags);
+#else
+			pc = pcpu_find(cpu);
+			p = vm_page_alloc_domain(NULL, 0, pc->pc_domain, flags);
+			if (__predict_false(p == NULL))
+				p = vm_page_alloc(NULL, 0, flags);
+#endif
+		}
+		if (__predict_false(p == NULL))
+			goto fail;
+		TAILQ_INSERT_TAIL(&alloctail, p, listq);
+	}
+	if ((addr = kva_alloc(bytes)) == 0)
+		goto fail;
+	zkva = addr;
+	TAILQ_FOREACH(p, &alloctail, listq) {
+		pmap_qenter(zkva, &p, 1);
+		zkva += PAGE_SIZE;
+	}
+	return ((void*)addr);
+ fail:
+	TAILQ_FOREACH_SAFE(p, &alloctail, listq, p_next) {
+		vm_page_unwire(p, PQ_NONE);
+		vm_page_free(p);
+	}
+	return (NULL);
+}
+
 /*
  * Allocates a number of pages from within an object
  *
@@ -1218,15 +1301,43 @@ noobj_alloc(uma_zone_t zone, vm_size_t bytes, int domain, uint8_t *flags,
 static void
 page_free(void *mem, vm_size_t size, uint8_t flags)
 {
-	struct vmem *vmem;
 
-	if (flags & UMA_SLAB_KERNEL)
-		vmem = kernel_arena;
-	else
+	if ((flags & UMA_SLAB_KERNEL) == 0)
 		panic("UMA: page_free used with invalid flags %x", flags);
 
-	kmem_free(vmem, (vm_offset_t)mem, size);
+	kmem_free((vm_offset_t)mem, size);
 }
+
+/*
+ * Frees pcpu zone allocations
+ *
+ * Arguments:
+ *	mem   A pointer to the memory to be freed
+ *	size  The size of the memory being freed
+ *	flags The original p->us_flags field
+ *
+ * Returns:
+ *	Nothing
+ */
+static void
+pcpu_page_free(void *mem, vm_size_t size, uint8_t flags)
+{
+	vm_offset_t sva, curva;
+	vm_paddr_t paddr;
+	vm_page_t m;
+
+	MPASS(size == (mp_maxid+1)*PAGE_SIZE);
+	sva = (vm_offset_t)mem;
+	for (curva = sva; curva < sva + size; curva += PAGE_SIZE) {
+		paddr = pmap_kextract(curva);
+		m = PHYS_TO_VM_PAGE(paddr);
+		vm_page_unwire(m, PQ_NONE);
+		vm_page_free(m);
+	}
+	pmap_qremove(sva, size >> PAGE_SHIFT);
+	kva_free(sva, size);
+}
+
 
 /*
  * Zero fill initializer
@@ -1261,9 +1372,8 @@ keg_small_init(uma_keg_t keg)
 	if (keg->uk_flags & UMA_ZONE_PCPU) {
 		u_int ncpus = (mp_maxid + 1) ? (mp_maxid + 1) : MAXCPU;
 
-		slabsize = sizeof(struct pcpu);
-		keg->uk_ppera = howmany(ncpus * sizeof(struct pcpu),
-		    PAGE_SIZE);
+		slabsize = UMA_PCPU_ALLOC_SIZE;
+		keg->uk_ppera = ncpus;
 	} else {
 		slabsize = UMA_SLAB_SIZE;
 		keg->uk_ppera = 1;
@@ -1282,7 +1392,7 @@ keg_small_init(uma_keg_t keg)
 	keg->uk_rsize = rsize;
 
 	KASSERT((keg->uk_flags & UMA_ZONE_PCPU) == 0 ||
-	    keg->uk_rsize < sizeof(struct pcpu),
+	    keg->uk_rsize < UMA_PCPU_ALLOC_SIZE,
 	    ("%s: size %u too large", __func__, keg->uk_rsize));
 
 	if (keg->uk_flags & UMA_ZONE_OFFPAGE)
@@ -1500,6 +1610,8 @@ keg_ctor(void *mem, int size, void *udata, int flags)
 	else if (keg->uk_ppera == 1)
 		keg->uk_allocf = uma_small_alloc;
 #endif
+	else if (keg->uk_flags & UMA_ZONE_PCPU)
+		keg->uk_allocf = pcpu_page_alloc;
 	else
 		keg->uk_allocf = page_alloc;
 #ifdef UMA_MD_SMALL_ALLOC
@@ -1507,6 +1619,9 @@ keg_ctor(void *mem, int size, void *udata, int flags)
 		keg->uk_freef = uma_small_free;
 	else
 #endif
+	if (keg->uk_flags & UMA_ZONE_PCPU)
+		keg->uk_freef = pcpu_page_free;
+	else
 		keg->uk_freef = page_free;
 
 	/*
@@ -1958,9 +2073,14 @@ static void
 uma_startup3(void)
 {
 
-	booted = BOOT_RUNNING;
+#ifdef INVARIANTS
+	TUNABLE_INT_FETCH("vm.debug.divisor", &dbg_divisor);
+	uma_dbg_cnt = counter_u64_alloc(M_WAITOK);
+	uma_skip_cnt = counter_u64_alloc(M_WAITOK);
+#endif
 	callout_init(&uma_callout, 1);
 	callout_reset(&uma_callout, UMA_TIMEOUT * hz, uma_timeout, NULL);
+	booted = BOOT_RUNNING;
 }
 
 static uma_keg_t
@@ -2196,6 +2316,40 @@ uma_zwait(uma_zone_t zone)
 	uma_zfree(zone, item);
 }
 
+void *
+uma_zalloc_pcpu_arg(uma_zone_t zone, void *udata, int flags)
+{
+	void *item;
+#ifdef SMP
+	int i;
+
+	MPASS(zone->uz_flags & UMA_ZONE_PCPU);
+#endif
+	item = uma_zalloc_arg(zone, udata, flags & ~M_ZERO);
+	if (item != NULL && (flags & M_ZERO)) {
+#ifdef SMP
+		for (i = 0; i <= mp_maxid; i++)
+			bzero(zpcpu_get_cpu(item, i), zone->uz_size);
+#else
+		bzero(item, zone->uz_size);
+#endif
+	}
+	return (item);
+}
+
+/*
+ * A stub while both regular and pcpu cases are identical.
+ */
+void
+uma_zfree_pcpu_arg(uma_zone_t zone, void *item, void *udata)
+{
+
+#ifdef SMP
+	MPASS(zone->uz_flags & UMA_ZONE_PCPU);
+#endif
+	uma_zfree_arg(zone, item, udata);
+}
+
 /* See uma.h */
 void *
 uma_zalloc_arg(uma_zone_t zone, void *udata, int flags)
@@ -2205,9 +2359,12 @@ uma_zalloc_arg(uma_zone_t zone, void *udata, int flags)
 	uma_cache_t cache;
 	void *item;
 	int cpu, domain, lockfail;
+#ifdef INVARIANTS
+	bool skipdbg;
+#endif
 
 	/* Enable entropy collection for RANDOM_ENABLE_UMA kernel option */
-	random_harvest_fast_uma(&zone, sizeof(zone), 1, RANDOM_UMA);
+	random_harvest_fast_uma(&zone, sizeof(zone), RANDOM_UMA);
 
 	/* This is the fast path allocation */
 	CTR4(KTR_UMA, "uma_zalloc_arg thread %x zone %s(%p) flags %d",
@@ -2217,8 +2374,12 @@ uma_zalloc_arg(uma_zone_t zone, void *udata, int flags)
 		WITNESS_WARN(WARN_GIANTOK | WARN_SLEEPOK, NULL,
 		    "uma_zalloc_arg: zone \"%s\"", zone->uz_name);
 	}
+	KASSERT((flags & M_EXEC) == 0, ("uma_zalloc_arg: called with M_EXEC"));
 	KASSERT(curthread->td_critnest == 0 || SCHEDULER_STOPPED(),
 	    ("uma_zalloc_arg: called with spinlock or critical section held"));
+	if (zone->uz_flags & UMA_ZONE_PCPU)
+		KASSERT((flags & M_ZERO) == 0, ("allocating from a pcpu zone "
+		    "with M_ZERO passed"));
 
 #ifdef DEBUG_MEMGUARD
 	if (memguard_cmp_zone(zone)) {
@@ -2264,14 +2425,22 @@ zalloc_start:
 		KASSERT(item != NULL, ("uma_zalloc: Bucket pointer mangled."));
 		cache->uc_allocs++;
 		critical_exit();
+#ifdef INVARIANTS
+		skipdbg = uma_dbg_zskip(zone, item);
+#endif
 		if (zone->uz_ctor != NULL &&
+#ifdef INVARIANTS
+		    (!skipdbg || zone->uz_ctor != trash_ctor ||
+		    zone->uz_dtor != trash_dtor) &&
+#endif
 		    zone->uz_ctor(item, zone->uz_size, udata, flags) != 0) {
 			atomic_add_long(&zone->uz_fails, 1);
 			zone_free_item(zone, item, udata, SKIP_DTOR);
 			return (NULL);
 		}
 #ifdef INVARIANTS
-		uma_dbg_alloc(zone, NULL, item);
+		if (!skipdbg)
+			uma_dbg_alloc(zone, NULL, item);
 #endif
 		if (flags & M_ZERO)
 			uma_zero_item(item, zone);
@@ -2301,9 +2470,11 @@ zalloc_start:
 	if (bucket != NULL)
 		bucket_free(zone, bucket, udata);
 
-	if (zone->uz_flags & UMA_ZONE_NUMA)
+	if (zone->uz_flags & UMA_ZONE_NUMA) {
 		domain = PCPU_GET(domain);
-	else
+		if (VM_DOMAIN_EMPTY(domain))
+			domain = UMA_ANYDOMAIN;
+	} else
 		domain = UMA_ANYDOMAIN;
 
 	/* Short-circuit for zones without buckets and low memory. */
@@ -2404,7 +2575,7 @@ uma_zalloc_domain(uma_zone_t zone, void *udata, int domain, int flags)
 {
 
 	/* Enable entropy collection for RANDOM_ENABLE_UMA kernel option */
-	random_harvest_fast_uma(&zone, sizeof(zone), 1, RANDOM_UMA);
+	random_harvest_fast_uma(&zone, sizeof(zone), RANDOM_UMA);
 
 	/* This is the fast path allocation */
 	CTR5(KTR_UMA,
@@ -2479,7 +2650,11 @@ keg_fetch_slab(uma_keg_t keg, uma_zone_t zone, int rdomain, int flags)
 		rdomain = 0;
 	rr = rdomain == UMA_ANYDOMAIN;
 	if (rr) {
-		keg->uk_cursor = (keg->uk_cursor + 1) % vm_ndomains;
+		start = keg->uk_cursor;
+		do {
+			keg->uk_cursor = (keg->uk_cursor + 1) % vm_ndomains;
+			domain = keg->uk_cursor;
+		} while (VM_DOMAIN_EMPTY(domain) && domain != start);
 		domain = start = keg->uk_cursor;
 		/* Only block on the second pass. */
 		if ((flags & (M_WAITOK | M_NOVM)) == M_WAITOK)
@@ -2531,8 +2706,9 @@ again:
 			return (slab);
 		}
 		if (rr) {
-			keg->uk_cursor = (keg->uk_cursor + 1) % vm_ndomains;
-			domain = keg->uk_cursor;
+			do {
+				domain = (domain + 1) % vm_ndomains;
+			} while (VM_DOMAIN_EMPTY(domain) && domain != start);
 		}
 	} while (domain != start);
 
@@ -2688,7 +2864,9 @@ zone_import(uma_zone_t zone, void **bucket, int max, int domain, int flags)
 {
 	uma_slab_t slab;
 	uma_keg_t keg;
+#ifdef NUMA
 	int stripe;
+#endif
 	int i;
 
 	slab = NULL;
@@ -2698,7 +2876,9 @@ zone_import(uma_zone_t zone, void **bucket, int max, int domain, int flags)
 		if ((slab = zone->uz_slab(zone, keg, domain, flags)) == NULL)
 			break;
 		keg = slab->us_keg;
+#ifdef NUMA
 		stripe = howmany(max, vm_ndomains);
+#endif
 		while (slab->us_freecount && i < max) { 
 			bucket[i++] = slab_alloc_item(keg, slab);
 			if (keg->uk_free <= keg->uk_reserve)
@@ -2732,6 +2912,8 @@ zone_alloc_bucket(uma_zone_t zone, void *udata, int domain, int flags)
 {
 	uma_bucket_t bucket;
 	int max;
+
+	CTR1(KTR_UMA, "zone_alloc:_bucket domain %d)", domain);
 
 	/* Don't wait for buckets, preserve caller's NOVM setting. */
 	bucket = bucket_alloc(zone, udata, M_NOWAIT | (flags & M_NOVM));
@@ -2794,13 +2976,24 @@ static void *
 zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 {
 	void *item;
+#ifdef INVARIANTS
+	bool skipdbg;
+#endif
 
 	item = NULL;
 
+	if (domain != UMA_ANYDOMAIN) {
+		/* avoid allocs targeting empty domains */
+		if (VM_DOMAIN_EMPTY(domain))
+			domain = UMA_ANYDOMAIN;
+	}
 	if (zone->uz_import(zone->uz_arg, &item, 1, domain, flags) != 1)
 		goto fail;
 	atomic_add_long(&zone->uz_allocs, 1);
 
+#ifdef INVARIANTS
+	skipdbg = uma_dbg_zskip(zone, item);
+#endif
 	/*
 	 * We have to call both the zone's init (not the keg's init)
 	 * and the zone's ctor.  This is because the item is going from
@@ -2813,14 +3006,18 @@ zone_alloc_item(uma_zone_t zone, void *udata, int domain, int flags)
 			goto fail;
 		}
 	}
-	if (zone->uz_ctor != NULL) {
-		if (zone->uz_ctor(item, zone->uz_size, udata, flags) != 0) {
-			zone_free_item(zone, item, udata, SKIP_DTOR);
-			goto fail;
-		}
+	if (zone->uz_ctor != NULL &&
+#ifdef INVARIANTS
+	    (!skipdbg || zone->uz_ctor != trash_ctor ||
+	    zone->uz_dtor != trash_dtor) &&
+#endif
+	    zone->uz_ctor(item, zone->uz_size, udata, flags) != 0) {
+		zone_free_item(zone, item, udata, SKIP_DTOR);
+		goto fail;
 	}
 #ifdef INVARIANTS
-	uma_dbg_alloc(zone, NULL, item);
+	if (!skipdbg)
+		uma_dbg_alloc(zone, NULL, item);
 #endif
 	if (flags & M_ZERO)
 		uma_zero_item(item, zone);
@@ -2845,9 +3042,12 @@ uma_zfree_arg(uma_zone_t zone, void *item, void *udata)
 	uma_bucket_t bucket;
 	uma_zone_domain_t zdom;
 	int cpu, domain, lockfail;
+#ifdef INVARIANTS
+	bool skipdbg;
+#endif
 
 	/* Enable entropy collection for RANDOM_ENABLE_UMA kernel option */
-	random_harvest_fast_uma(&zone, sizeof(zone), 1, RANDOM_UMA);
+	random_harvest_fast_uma(&zone, sizeof(zone), RANDOM_UMA);
 
 	CTR2(KTR_UMA, "uma_zfree_arg thread %x zone %s", curthread,
 	    zone->uz_name);
@@ -2869,12 +3069,18 @@ uma_zfree_arg(uma_zone_t zone, void *item, void *udata)
 	}
 #endif
 #ifdef INVARIANTS
-	if (zone->uz_flags & UMA_ZONE_MALLOC)
-		uma_dbg_free(zone, udata, item);
-	else
-		uma_dbg_free(zone, NULL, item);
-#endif
+	skipdbg = uma_dbg_zskip(zone, item);
+	if (skipdbg == false) {
+		if (zone->uz_flags & UMA_ZONE_MALLOC)
+			uma_dbg_free(zone, udata, item);
+		else
+			uma_dbg_free(zone, NULL, item);
+	}
+	if (zone->uz_dtor != NULL && (!skipdbg ||
+	    zone->uz_dtor != trash_dtor || zone->uz_ctor != trash_ctor))
+#else
 	if (zone->uz_dtor != NULL)
+#endif
 		zone->uz_dtor(item, zone->uz_size, udata);
 
 	/*
@@ -2941,14 +3147,6 @@ zfree_start:
 	cpu = curcpu;
 	cache = &zone->uz_cpu[cpu];
 
-	/*
-	 * Since we have locked the zone we may as well send back our stats.
-	 */
-	atomic_add_long(&zone->uz_allocs, cache->uc_allocs);
-	atomic_add_long(&zone->uz_frees, cache->uc_frees);
-	cache->uc_allocs = 0;
-	cache->uc_frees = 0;
-
 	bucket = cache->uc_freebucket;
 	if (bucket != NULL && bucket->ub_cnt < bucket->ub_entries) {
 		ZONE_UNLOCK(zone);
@@ -2958,9 +3156,11 @@ zfree_start:
 	/* We are no longer associated with this CPU. */
 	critical_exit();
 
-	if ((zone->uz_flags & UMA_ZONE_NUMA) != 0)
+	if ((zone->uz_flags & UMA_ZONE_NUMA) != 0) {
 		domain = PCPU_GET(domain);
-	else 
+		if (VM_DOMAIN_EMPTY(domain))
+			domain = UMA_ANYDOMAIN;
+	} else
 		domain = 0;
 	zdom = &zone->uz_domain[0];
 
@@ -3025,7 +3225,7 @@ uma_zfree_domain(uma_zone_t zone, void *item, void *udata)
 {
 
 	/* Enable entropy collection for RANDOM_ENABLE_UMA kernel option */
-	random_harvest_fast_uma(&zone, sizeof(zone), 1, RANDOM_UMA);
+	random_harvest_fast_uma(&zone, sizeof(zone), RANDOM_UMA);
 
 	CTR2(KTR_UMA, "uma_zfree_domain thread %x zone %s", curthread,
 	    zone->uz_name);
@@ -3138,16 +3338,23 @@ zone_release(uma_zone_t zone, void **bucket, int cnt)
 static void
 zone_free_item(uma_zone_t zone, void *item, void *udata, enum zfreeskip skip)
 {
-
 #ifdef INVARIANTS
-	if (skip == SKIP_NONE) {
+	bool skipdbg;
+
+	skipdbg = uma_dbg_zskip(zone, item);
+	if (skip == SKIP_NONE && !skipdbg) {
 		if (zone->uz_flags & UMA_ZONE_MALLOC)
 			uma_dbg_free(zone, udata, item);
 		else
 			uma_dbg_free(zone, NULL, item);
 	}
+
+	if (skip < SKIP_DTOR && zone->uz_dtor != NULL &&
+	    (!skipdbg || zone->uz_dtor != trash_dtor ||
+	    zone->uz_ctor != trash_ctor))
+#else
+	if (skip < SKIP_DTOR && zone->uz_dtor != NULL)
 #endif
-	if (skip < SKIP_DTOR && zone->uz_dtor)
 		zone->uz_dtor(item, zone->uz_size, udata);
 
 	if (skip < SKIP_FINI && zone->uz_fini)
@@ -3400,7 +3607,9 @@ uma_prealloc(uma_zone_t zone, int items)
 		dom = &keg->uk_domain[slab->us_domain];
 		LIST_INSERT_HEAD(&dom->ud_free_slab, slab, us_link);
 		slabs--;
-		domain = (domain + 1) % vm_ndomains;
+		do {
+			domain = (domain + 1) % vm_ndomains;
+		} while (VM_DOMAIN_EMPTY(domain));
 	}
 	KEG_UNLOCK(keg);
 }
@@ -3490,11 +3699,16 @@ uma_large_malloc_domain(vm_size_t size, int domain, int wait)
 	vm_offset_t addr;
 	uma_slab_t slab;
 
+	if (domain != UMA_ANYDOMAIN) {
+		/* avoid allocs targeting empty domains */
+		if (VM_DOMAIN_EMPTY(domain))
+			domain = UMA_ANYDOMAIN;
+	}
 	slab = zone_alloc_item(slabzone, NULL, domain, wait);
 	if (slab == NULL)
 		return (NULL);
 	if (domain == UMA_ANYDOMAIN)
-		addr = kmem_malloc(kernel_arena, size, wait);
+		addr = kmem_malloc(size, wait);
 	else
 		addr = kmem_malloc_domain(domain, size, wait);
 	if (addr != 0) {
@@ -3525,7 +3739,7 @@ uma_large_free(uma_slab_t slab)
 
 	KASSERT((slab->us_flags & UMA_SLAB_KERNEL) != 0,
 	    ("uma_large_free:  Memory not allocated with uma_large_malloc."));
-	kmem_free(kernel_arena, (vm_offset_t)slab->us_data, slab->us_size);
+	kmem_free((vm_offset_t)slab->us_data, slab->us_size);
 	uma_total_dec(slab->us_size);
 	zone_free_item(slabzone, slab, NULL, SKIP_NONE);
 }
@@ -3533,13 +3747,8 @@ uma_large_free(uma_slab_t slab)
 static void
 uma_zero_item(void *item, uma_zone_t zone)
 {
-	int i;
 
-	if (zone->uz_flags & UMA_ZONE_PCPU) {
-		CPU_FOREACH(i)
-			bzero(zpcpu_get_cpu(item, i), zone->uz_size);
-	} else
-		bzero(item, zone->uz_size);
+	bzero(item, zone->uz_size);
 }
 
 unsigned long
@@ -3865,6 +4074,43 @@ uma_dbg_getslab(uma_zone_t zone, void *item)
 	return (slab);
 }
 
+static bool
+uma_dbg_zskip(uma_zone_t zone, void *mem)
+{
+	uma_keg_t keg;
+
+	if ((keg = zone_first_keg(zone)) == NULL)
+		return (true);
+
+	return (uma_dbg_kskip(keg, mem));
+}
+
+static bool
+uma_dbg_kskip(uma_keg_t keg, void *mem)
+{
+	uintptr_t idx;
+
+	if (dbg_divisor == 0)
+		return (true);
+
+	if (dbg_divisor == 1)
+		return (false);
+
+	idx = (uintptr_t)mem >> PAGE_SHIFT;
+	if (keg->uk_ipers > 1) {
+		idx *= keg->uk_ipers;
+		idx += ((uintptr_t)mem & PAGE_MASK) / keg->uk_rsize;
+	}
+
+	if ((idx / dbg_divisor) * dbg_divisor != idx) {
+		counter_u64_add(uma_skip_cnt, 1);
+		return (true);
+	}
+	counter_u64_add(uma_dbg_cnt, 1);
+
+	return (false);
+}
+
 /*
  * Set up the slab's freei data such that uma_dbg_free can function.
  *
@@ -3875,8 +4121,6 @@ uma_dbg_alloc(uma_zone_t zone, uma_slab_t slab, void *item)
 	uma_keg_t keg;
 	int freei;
 
-	if (zone_first_keg(zone) == NULL)
-		return;
 	if (slab == NULL) {
 		slab = uma_dbg_getslab(zone, item);
 		if (slab == NULL) 
@@ -3905,8 +4149,6 @@ uma_dbg_free(uma_zone_t zone, uma_slab_t slab, void *item)
 	uma_keg_t keg;
 	int freei;
 
-	if (zone_first_keg(zone) == NULL)
-		return;
 	if (slab == NULL) {
 		slab = uma_dbg_getslab(zone, item);
 		if (slab == NULL) 

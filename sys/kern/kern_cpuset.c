@@ -65,7 +65,12 @@ __FBSDID("$FreeBSD$");
 #include <vm/uma.h>
 #include <vm/vm.h>
 #include <vm/vm_object.h>
+#include <vm/vm_page.h>
+#include <vm/vm_pageout.h>
 #include <vm/vm_extern.h>
+#include <vm/vm_param.h>
+#include <vm/vm_phys.h>
+#include <vm/vm_pagequeue.h>
 
 #ifdef DDB
 #include <ddb/ddb.h>
@@ -476,6 +481,26 @@ _domainset_create(struct domainset *domain, struct domainlist *freelist)
 		uma_zfree(domainset_zone, domain);
 	return (ndomain);
 	
+}
+
+/*
+ * Are any of the domains in the mask empty? If so, silently
+ * remove them.  If only empty domains are present, we must
+ * return failure.
+ */
+static bool
+domainset_empty_vm(struct domainset *domain)
+{
+	int i, max;
+
+	max = DOMAINSET_FLS(&domain->ds_mask) + 1;
+	for (i = 0; i < max; i++) {
+		if (DOMAINSET_ISSET(i, &domain->ds_mask) &&
+		    VM_DOMAIN_EMPTY(i))
+			DOMAINSET_CLR(i, &domain->ds_mask);
+	}
+
+	return (DOMAINSET_EMPTY(&domain->ds_mask));
 }
 
 /*
@@ -1360,6 +1385,7 @@ domainset_zero(void)
 		DOMAINSET_SET(i, &dset->ds_mask);
 	dset->ds_policy = DOMAINSET_POLICY_FIRSTTOUCH;
 	dset->ds_prefer = -1;
+	(void)domainset_empty_vm(dset);
 	curthread->td_domain.dr_policy = _domainset_create(dset, NULL);
 
 	domainset_copy(dset, &domainset2);
@@ -2038,6 +2064,9 @@ kern_cpuset_setdomain(struct thread *td, cpulevel_t level, cpuwhich_t which,
 	if (domainsetsize < sizeof(domainset_t) ||
 	    domainsetsize > DOMAINSET_MAXSIZE / NBBY)
 		return (ERANGE);
+	if (policy <= DOMAINSET_POLICY_INVALID ||
+	    policy > DOMAINSET_POLICY_MAX)
+		return (EINVAL);
 	/* In Capability mode, you can only set your own CPU set. */
 	if (IN_CAPABILITY_MODE(td)) {
 		if (level != CPU_LEVEL_WHICH)
@@ -2071,19 +2100,25 @@ kern_cpuset_setdomain(struct thread *td, cpulevel_t level, cpuwhich_t which,
 	}
 	DOMAINSET_COPY(mask, &domain.ds_mask);
 	domain.ds_policy = policy;
-	if (policy <= DOMAINSET_POLICY_INVALID ||
-	    policy > DOMAINSET_POLICY_MAX)
-		return (EINVAL);
 
 	/* Translate preferred policy into a mask and fallback. */
 	if (policy == DOMAINSET_POLICY_PREFER) {
 		/* Only support a single preferred domain. */
-		if (DOMAINSET_COUNT(&domain.ds_mask) != 1)
-			return (EINVAL);
+		if (DOMAINSET_COUNT(&domain.ds_mask) != 1) {
+			error = EINVAL;
+			goto out;
+		}
 		domain.ds_prefer = DOMAINSET_FFS(&domain.ds_mask) - 1;
 		/* This will be constrained by domainset_shadow(). */
 		DOMAINSET_FILL(&domain.ds_mask);
 	}
+
+	/*
+	 *  When given an impossible policy, fall back to interleaving
+	 *  across all domains
+	 */
+	if (domainset_empty_vm(&domain))
+		domainset_copy(&domainset2, &domain);
 
 	switch (level) {
 	case CPU_LEVEL_ROOT:

@@ -311,8 +311,20 @@ check_domains(void)
 	}
 	for (i = 0; i <= max_apic_id; i++)
 		if (cpus[i].enabled && !cpus[i].has_memory) {
-			printf("SRAT: No memory found for CPU %d\n", i);
-			return (ENXIO);
+			found = 0;
+			for (j = 0; j < num_mem && !found; j++) {
+				if (mem_info[j].domain == cpus[i].domain)
+					found = 1;
+			}
+			if (!found) {
+				if (bootverbose)
+					printf("SRAT: mem dom %d is empty\n",
+					    cpus[i].domain);
+				mem_info[num_mem].start = 0;
+				mem_info[num_mem].end = 0;
+				mem_info[num_mem].domain = cpus[i].domain;
+				num_mem++;
+			}
 		}
 	return (0);
 }
@@ -470,8 +482,9 @@ parse_srat(void)
 	}
 
 #ifdef NUMA
-	/* Point vm_phys at our memory affinity table. */
 	vm_ndomains = ndomain;
+	for (int i = 0; i < vm_ndomains; i++)
+		DOMAINSET_SET(i, &all_domains);
 	mem_affinity = mem_info;
 #endif
 
@@ -532,11 +545,15 @@ srat_set_cpus(void *dummy)
 		if (!cpu->enabled)
 			panic("SRAT: CPU with APIC ID %u is not known",
 			    pc->pc_apic_id);
+#ifdef NUMA
 		pc->pc_domain = cpu->domain;
-		CPU_SET(i, &cpuset_domain[cpu->domain]);
+#else
+		pc->pc_domain = 0;
+#endif
+		CPU_SET(i, &cpuset_domain[pc->pc_domain]);
 		if (bootverbose)
 			printf("SRAT: CPU %u has memory domain %d\n", i,
-			    cpu->domain);
+			    pc->pc_domain);
 	}
 
 	/* Last usage of the cpus array, unmap it. */

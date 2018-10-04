@@ -561,7 +561,7 @@ struct taskqgroup_cpu {
 struct taskqgroup {
 	struct taskqgroup_cpu tqg_queue[MAXCPU];
 	struct mtx	tqg_lock;
-	char *		tqg_name;
+	const char *	tqg_name;
 	int		tqg_adjusting;
 	int		tqg_stride;
 	int		tqg_cnt;
@@ -720,7 +720,7 @@ taskqgroup_attach_deferred(struct taskqgroup *qgroup, struct grouptask *gtask)
 
 int
 taskqgroup_attach_cpu(struct taskqgroup *qgroup, struct grouptask *gtask,
-	void *uniq, int cpu, int irq, char *name)
+	void *uniq, int cpu, int irq, const char *name)
 {
 	cpuset_t mask;
 	int i, qid, error;
@@ -857,6 +857,24 @@ taskqgroup_bind(struct taskqgroup *qgroup)
 	}
 }
 
+static void
+taskqgroup_config_init(void *arg)
+{
+	struct taskqgroup *qgroup = qgroup_config;
+	LIST_HEAD(, grouptask) gtask_head = LIST_HEAD_INITIALIZER(NULL);
+
+	LIST_SWAP(&gtask_head, &qgroup->tqg_queue[0].tgc_tasks,
+	    grouptask, gt_list);
+	qgroup->tqg_queue[0].tgc_cnt = 0;
+	taskqgroup_cpu_create(qgroup, 0, 0);
+
+	qgroup->tqg_cnt = 1;
+	qgroup->tqg_stride = 1;
+}
+
+SYSINIT(taskqgroup_config_init, SI_SUB_TASKQ, SI_ORDER_SECOND,
+	taskqgroup_config_init, NULL);
+
 static int
 _taskqgroup_adjust(struct taskqgroup *qgroup, int cnt, int stride)
 {
@@ -961,7 +979,7 @@ taskqgroup_adjust(struct taskqgroup *qgroup, int cnt, int stride)
 }
 
 struct taskqgroup *
-taskqgroup_create(char *name)
+taskqgroup_create(const char *name)
 {
 	struct taskqgroup *qgroup;
 

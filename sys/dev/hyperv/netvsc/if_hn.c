@@ -1161,6 +1161,13 @@ hn_ismyvf(const struct hn_softc *sc, const struct ifnet *ifp)
 	    strcmp(ifp->if_dname, "vlan") == 0)
 		return (false);
 
+	/*
+	 * During detach events ifp->if_addr might be NULL.
+	 * Make sure the bcmp() below doesn't panic on that:
+	 */
+	if (ifp->if_addr == NULL || hn_ifp->if_addr == NULL)
+		return (false);
+
 	if (bcmp(IF_LLADDR(ifp), IF_LLADDR(hn_ifp), ETHER_ADDR_LEN) != 0)
 		return (false);
 
@@ -5939,8 +5946,7 @@ hn_transmit(struct ifnet *ifp, struct mbuf *m)
 			int obytes, omcast;
 
 			obytes = m->m_pkthdr.len;
-			if (m->m_flags & M_MCAST)
-				omcast = 1;
+			omcast = (m->m_flags & M_MCAST) != 0;
 
 			if (sc->hn_xvf_flags & HN_XVFFLAG_ACCBPF) {
 				if (bpf_peers_present(ifp->if_bpf)) {
