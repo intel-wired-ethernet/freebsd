@@ -205,7 +205,7 @@ SUBDIR=	\
 	${_ix} \
 	${_ixv} \
 	${_ixl} \
-	${_ixlv} \
+	${_iavf} \
 	jme \
 	joy \
 	kbdmux \
@@ -720,7 +720,7 @@ _ccp=		ccp
 _efirt=		efirt
 _ioat=		ioat
 _ixl=		ixl
-_ixlv=		ixlv
+_iavf=		iavf
 _linux64=	linux64
 _linux_common=	linux_common
 _ntb=		ntb

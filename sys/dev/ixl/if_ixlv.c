@@ -148,7 +148,7 @@ static device_method_t ixlv_methods[] = {
 };
 
 static driver_t ixlv_driver = {
-	"ixlv", ixlv_methods, sizeof(struct ixlv_sc),
+	"iavf", ixlv_methods, sizeof(struct ixlv_sc),
 };
 
 devclass_t ixlv_devclass;
@@ -162,7 +162,7 @@ MODULE_DEPEND(ixlv, pci, 1, 1, 1);
 MODULE_DEPEND(ixlv, ether, 1, 1, 1);
 MODULE_DEPEND(ixlv, iflib, 1, 1, 1);
 
-MALLOC_DEFINE(M_IXLV, "ixlv", "ixlv driver allocations");
+MALLOC_DEFINE(M_IXLV, "iavf", "iavf driver allocations");
 
 static device_method_t ixlv_if_methods[] = {
 	DEVMETHOD(ifdi_attach_pre, ixlv_if_attach_pre),
@@ -195,49 +195,49 @@ static device_method_t ixlv_if_methods[] = {
 };
 
 static driver_t ixlv_if_driver = {
-	"ixlv_if", ixlv_if_methods, sizeof(struct ixlv_sc)
+	"iavf_if", ixlv_if_methods, sizeof(struct ixlv_sc)
 };
 
 /*
 ** TUNEABLE PARAMETERS:
 */
 
-static SYSCTL_NODE(_hw, OID_AUTO, ixlv, CTLFLAG_RD, 0,
-    "ixlv driver parameters");
+static SYSCTL_NODE(_hw, OID_AUTO, iavf, CTLFLAG_RD, 0,
+    "iavf driver parameters");
 
 /*
  * Different method for processing TX descriptor
  * completion.
  */
 static int ixlv_enable_head_writeback = 0;
-TUNABLE_INT("hw.ixlv.enable_head_writeback",
+TUNABLE_INT("hw.iavf.enable_head_writeback",
     &ixlv_enable_head_writeback);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
+SYSCTL_INT(_hw_iavf, OID_AUTO, enable_head_writeback, CTLFLAG_RDTUN,
     &ixlv_enable_head_writeback, 0,
     "For detecting last completed TX descriptor by hardware, use value written by HW instead of checking descriptors");
 
 static int ixlv_core_debug_mask = 0;
-TUNABLE_INT("hw.ixlv.core_debug_mask",
+TUNABLE_INT("hw.iavf.core_debug_mask",
     &ixlv_core_debug_mask);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, core_debug_mask, CTLFLAG_RDTUN,
+SYSCTL_INT(_hw_iavf, OID_AUTO, core_debug_mask, CTLFLAG_RDTUN,
     &ixlv_core_debug_mask, 0,
     "Display debug statements that are printed in non-shared code");
 
 static int ixlv_shared_debug_mask = 0;
-TUNABLE_INT("hw.ixlv.shared_debug_mask",
+TUNABLE_INT("hw.iavf.shared_debug_mask",
     &ixlv_shared_debug_mask);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, shared_debug_mask, CTLFLAG_RDTUN,
+SYSCTL_INT(_hw_iavf, OID_AUTO, shared_debug_mask, CTLFLAG_RDTUN,
     &ixlv_shared_debug_mask, 0,
     "Display debug statements that are printed in shared code");
 
 int ixlv_rx_itr = IXL_ITR_8K;
-TUNABLE_INT("hw.ixlv.rx_itr", &ixlv_rx_itr);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, rx_itr, CTLFLAG_RDTUN,
+TUNABLE_INT("hw.iavf.rx_itr", &ixlv_rx_itr);
+SYSCTL_INT(_hw_iavf, OID_AUTO, rx_itr, CTLFLAG_RDTUN,
     &ixlv_rx_itr, 0, "RX Interrupt Rate");
 
 int ixlv_tx_itr = IXL_ITR_4K;
-TUNABLE_INT("hw.ixlv.tx_itr", &ixlv_tx_itr);
-SYSCTL_INT(_hw_ixlv, OID_AUTO, tx_itr, CTLFLAG_RDTUN,
+TUNABLE_INT("hw.iavf.tx_itr", &ixlv_tx_itr);
+SYSCTL_INT(_hw_iavf, OID_AUTO, tx_itr, CTLFLAG_RDTUN,
     &ixlv_tx_itr, 0, "TX Interrupt Rate");
 
 extern struct if_txrx ixl_txrx_hwb;
