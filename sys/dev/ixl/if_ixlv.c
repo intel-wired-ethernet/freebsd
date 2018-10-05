@@ -37,14 +37,14 @@
 /*********************************************************************
  *  Driver version
  *********************************************************************/
-#define IXLV_DRIVER_VERSION_MAJOR	2
-#define IXLV_DRIVER_VERSION_MINOR	0
-#define IXLV_DRIVER_VERSION_BUILD	0
+#define IAVF_DRIVER_VERSION_MAJOR	2
+#define IAVF_DRIVER_VERSION_MINOR	0
+#define IAVF_DRIVER_VERSION_BUILD	0
 
-#define IXLV_DRIVER_VERSION_STRING			\
-    __XSTRING(IXLV_DRIVER_VERSION_MAJOR) "."		\
-    __XSTRING(IXLV_DRIVER_VERSION_MINOR) "."		\
-    __XSTRING(IXLV_DRIVER_VERSION_BUILD) "-k"
+#define IAVF_DRIVER_VERSION_STRING			\
+    __XSTRING(IAVF_DRIVER_VERSION_MAJOR) "."		\
+    __XSTRING(IAVF_DRIVER_VERSION_MINOR) "."		\
+    __XSTRING(IAVF_DRIVER_VERSION_BUILD) "-k"
 
 /*********************************************************************
  *  PCI Device ID Table
@@ -152,15 +152,15 @@ static driver_t ixlv_driver = {
 };
 
 devclass_t ixlv_devclass;
-DRIVER_MODULE(ixlv, pci, ixlv_driver, ixlv_devclass, 0, 0);
+DRIVER_MODULE(iavf, pci, ixlv_driver, ixlv_devclass, 0, 0);
 MODULE_PNP_INFO("U32:vendor;U32:device;U32:subvendor;U32:subdevice;U32:revision",
-    pci, ixlv, ixlv_vendor_info_array,
+    pci, iavf, ixlv_vendor_info_array,
         nitems(ixlv_vendor_info_array) - 1);
-MODULE_VERSION(ixlv, 3);
+MODULE_VERSION(iavf, 1);
 
-MODULE_DEPEND(ixlv, pci, 1, 1, 1);
-MODULE_DEPEND(ixlv, ether, 1, 1, 1);
-MODULE_DEPEND(ixlv, iflib, 1, 1, 1);
+MODULE_DEPEND(iavf, pci, 1, 1, 1);
+MODULE_DEPEND(iavf, ether, 1, 1, 1);
+MODULE_DEPEND(iavf, iflib, 1, 1, 1);
 
 MALLOC_DEFINE(M_IXLV, "iavf", "iavf driver allocations");
 
@@ -259,7 +259,7 @@ static struct if_shared_ctx ixlv_sctx_init = {
 
 	.isc_admin_intrcnt = 1,
 	.isc_vendor_info = ixlv_vendor_info_array,
-	.isc_driver_version = IXLV_DRIVER_VERSION_STRING,
+	.isc_driver_version = IAVF_DRIVER_VERSION_STRING,
 	.isc_driver = &ixlv_if_driver,
 	.isc_flags = IFLIB_NEED_SCRATCH | IFLIB_NEED_ZERO_CSUM | IFLIB_IS_VF,
 
