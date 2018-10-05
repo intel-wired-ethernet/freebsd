@@ -153,6 +153,7 @@ SUBDIR=	\
 	${_hwpmc_mips74k} \
 	${_hyperv} \
 	i2c \
+	${_iavf} \
         ${_ibcore} \
 	${_ibcs2} \
 	${_ichwd} \
@@ -205,7 +206,6 @@ SUBDIR=	\
 	${_ix} \
 	${_ixv} \
 	${_ixl} \
-	${_iavf} \
 	jme \
 	joy \
 	kbdmux \
@@ -718,9 +718,9 @@ _x86bios=	x86bios
 .if ${MACHINE_CPUARCH} == "amd64"
 _ccp=		ccp
 _efirt=		efirt
+_iavf=		iavf
 _ioat=		ioat
 _ixl=		ixl
-_iavf=		iavf
 _linux64=	linux64
 _linux_common=	linux_common
 _ntb=		ntb
