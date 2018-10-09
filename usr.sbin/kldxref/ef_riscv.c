@@ -1,8 +1,12 @@
 /*-
- * SPDX-License-Identifier: BSD-3-Clause
+ * SPDX-License-Identifier: BSD-2-Clause
  *
- * Copyright (c) 2008 David E. O'Brien
- * All rights reserved.
+ * Copyright (c) 2018 John Baldwin <jhb@FreeBSD.org>
+ *
+ * This software was developed by SRI International and the University of
+ * Cambridge Computer Laboratory (Department of Computer Science and
+ * Technology) under DARPA contract HR0011-18-C-0016 ("ECATS"), as part of the
+ * DARPA SSITH research programme.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -12,9 +16,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the author nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -27,43 +28,51 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
 
-#ifndef _COMPAT_FREEBSD32_IOCTL_H_
-#define	_COMPAT_FREEBSD32_IOCTL_H_
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 
-#include <cam/scsi/scsi_sg.h>
+#include <sys/types.h>
+#include <machine/elf.h>
 
-typedef __uint32_t caddr_t32;
+#include <err.h>
+#include <errno.h>
 
-struct fiodgname_arg32 {
-	int		len;
-	caddr_t32	buf;
-};
+#include "ef.h"
 
-struct mem_range_op32
+int
+ef_reloc(struct elf_file *ef, const void *reldata, int reltype, Elf_Off relbase,
+    Elf_Off dataoff, size_t len, void *dest)
 {
-	caddr_t32	mo_desc;
-	int		mo_arg[2];
-};
+	Elf_Addr *where, val;
+	const Elf_Rela *rela;
+	Elf_Addr addend, addr;
+	Elf_Size rtype;
 
-struct pci_bar_mmap32 {
-	uint32_t	pbm_map_base;
-	uint32_t	pbm_map_length;
-	uint32_t	pbm_bar_length1, pbm_bar_length2;
-	int		pbm_bar_off;
-	struct pcisel	pbm_sel;
-	int		pbm_reg;
-	int		pbm_flags;
-	int		pbm_memattr;
-};
+	switch (reltype) {
+	case EF_RELOC_RELA:
+		rela = (const Elf_Rela *)reldata;
+		where = (Elf_Addr *)((char *)dest + relbase + rela->r_offset -
+		    dataoff);
+		addend = rela->r_addend;
+		rtype = ELF_R_TYPE(rela->r_info);
+		break;
+	default:
+		return (EINVAL);
+	}
 
-#define	FIODGNAME_32	_IOW('f', 120, struct fiodgname_arg32)
-#define	MEMRANGE_GET32	_IOWR('m', 50, struct mem_range_op32)
-#define	MEMRANGE_SET32	_IOW('m', 51, struct mem_range_op32)
-#define	SG_IO_32	_IOWR(SGIOC, 0x85, struct sg_io_hdr32)
-#define	PCIOCBARMMAP_32	_IOWR('p', 8, struct pci_bar_mmap32)
+	if ((char *)where < (char *)dest || (char *)where >= (char *)dest + len)
+		return (0);
 
-#endif	/* _COMPAT_FREEBSD32_IOCTL_H_ */
+	switch (rtype) {
+	case R_RISCV_RELATIVE:	/* B + A */
+		addr = addend + relbase;
+		val = addr;
+		*where = val;
+		break;
+	default:
+		warnx("unhandled relocation type %d", (int)rtype);
+	}
+	return (0);
+}
